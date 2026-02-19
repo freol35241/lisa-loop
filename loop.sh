@@ -46,7 +46,8 @@ log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 
 _filter_agent_stream() {
     # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
-    # and emit human-readable progress lines showing agent tool calls.
+    # and emit human-readable progress lines showing agent tool calls, plus the
+    # final result text (equivalent to what `-p --output-format text` would show).
     # Falls back to raw passthrough if jq is not available.
     if ! command -v jq &>/dev/null; then
         cat
@@ -55,6 +56,7 @@ _filter_agent_stream() {
     jq --unbuffered -r '
       if .type == "assistant" then
         [.message.content[]? | select(.type == "tool_use") |
+          "TOOL: " +
           "\(.name)" +
           (if .name == "Read" then " \(.input.file_path // "")"
            elif .name == "Edit" then " \(.input.file_path // "")"
@@ -67,10 +69,21 @@ _filter_agent_stream() {
            else "" end)
         ] | .[] | select(length > 0)
       elif .type == "result" then
-        "Done"
+        "RESULT: " + (.result // "")
       else empty end
     ' 2>/dev/null | while IFS= read -r line; do
-        echo -e "${MAGENTA}  [agent $(_ts)]${NC} $line"
+        if [[ "$line" == TOOL:\ * ]]; then
+            echo -e "${MAGENTA}  [agent $(_ts)]${NC} ${line#TOOL: }"
+        elif [[ "$line" == RESULT:\ * ]]; then
+            local result_text="${line#RESULT: }"
+            if [[ -n "$result_text" ]]; then
+                echo ""
+                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── Agent response ──"
+                echo "$result_text"
+                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── End agent response ──"
+                echo ""
+            fi
+        fi
     done
     return 0
 }
