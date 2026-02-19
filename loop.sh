@@ -8,6 +8,7 @@ set -euo pipefail
 #   ./loop.sh plan [max_iterations]           # Phase 2: Plan implementation
 #   ./loop.sh build [max_iterations]          # Phase 3: Build with methodology adherence
 #   ./loop.sh review                          # One-shot methodology compliance audit
+#   ./loop.sh triage                         # Route review findings to methodology/implementation
 #
 # Environment variables:
 #   AGENT_CMD   — Agent CLI command (default: claude)
@@ -376,6 +377,40 @@ run_review() {
     log_success "Review complete. Check REVIEW_REPORT.md for results."
 }
 
+# --- Phase: Triage ------------------------------------------------------------
+
+run_triage() {
+    log_phase "TRIAGE — Route review findings to methodology and implementation"
+
+    if [[ ! -f "REVIEW_REPORT.md" ]]; then
+        log_error "No REVIEW_REPORT.md found. Run review phase first."
+        exit 1
+    fi
+
+    log_info "Step 1/2: Running agent to triage review findings..."
+    run_agent PROMPT_triage.md
+
+    log_info "Step 2/2: Committing triage results..."
+    git_commit_all "triage: route review findings to methodology and implementation" || true
+
+    if [[ -f "TRIAGE_SUMMARY.md" ]]; then
+        echo ""
+        log_info "--- TRIAGE_SUMMARY.md ---"
+        cat TRIAGE_SUMMARY.md
+        echo ""
+        log_info "--- end ---"
+    fi
+
+    if check_reconsiderations; then
+        log_warn "Methodology reconsiderations were created."
+        log_warn "Run ./loop.sh methodology to resolve them, then ./loop.sh plan and ./loop.sh build"
+    else
+        log_success "Only implementation findings. Run ./loop.sh plan and ./loop.sh build to proceed."
+    fi
+
+    log_success "Triage complete. Check TRIAGE_SUMMARY.md for results."
+}
+
 # --- Main ---------------------------------------------------------------------
 
 usage() {
@@ -386,6 +421,7 @@ usage() {
     echo "  plan [max]          Phase 2: Plan implementation (default max: 20)"
     echo "  build [max]         Phase 3: Build with verification (default max: 100)"
     echo "  review              One-shot compliance audit"
+    echo "  triage              Route review findings to methodology/implementation"
     echo ""
     echo "Environment variables:"
     echo "  AGENT_CMD   Agent CLI command (default: claude)"
@@ -414,6 +450,9 @@ case "$MODE" in
         ;;
     review)
         run_review
+        ;;
+    triage)
+        run_triage
         ;;
     -h|--help|help)
         usage
