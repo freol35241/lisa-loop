@@ -36,11 +36,12 @@ NC='\033[0m' # No Color
 
 # --- Helpers ------------------------------------------------------------------
 
-log_info()    { echo -e "${BLUE}[lisa]${NC} $*"; }
-log_success() { echo -e "${GREEN}[lisa]${NC} $*"; }
-log_warn()    { echo -e "${YELLOW}[lisa]${NC} $*"; }
-log_error()   { echo -e "${RED}[lisa]${NC} $*"; }
-log_phase()   { echo -e "${CYAN}[lisa]${NC} ━━━ $* ━━━"; }
+_ts()         { date '+%H:%M:%S'; }
+log_info()    { echo -e "${BLUE}[lisa $(_ts)]${NC} $*"; }
+log_success() { echo -e "${GREEN}[lisa $(_ts)]${NC} $*"; }
+log_warn()    { echo -e "${YELLOW}[lisa $(_ts)]${NC} $*"; }
+log_error()   { echo -e "${RED}[lisa $(_ts)]${NC} $*"; }
+log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 
 run_agent() {
     local prompt_file="$1"
@@ -48,19 +49,26 @@ run_agent() {
         log_error "Prompt file not found: $prompt_file"
         exit 1
     fi
-    log_info "Feeding prompt to agent: $prompt_file"
+    log_info "Calling agent with prompt: $prompt_file"
+    log_info "Agent command: $AGENT_CMD $AGENT_ARGS"
+    local start_seconds=$SECONDS
     # shellcheck disable=SC2086
     cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS
+    local elapsed=$(( SECONDS - start_seconds ))
+    log_info "Agent finished (${elapsed}s elapsed)"
 }
 
 git_commit_all() {
     local msg="$1"
+    log_info "Staging all changes..."
     git add -A
     if git diff --cached --quiet; then
         log_info "No changes to commit."
         return 1
     fi
+    log_info "Committing: $msg"
     git commit -m "$msg"
+    log_success "Commit created."
     return 0
 }
 
@@ -122,6 +130,7 @@ run_methodology() {
         log_phase "Methodology — Iteration $i / $max"
 
         # Check if methodology is already marked complete
+        log_info "Checking for METHODOLOGY_COMPLETE.md..."
         if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
             log_success "METHODOLOGY_COMPLETE.md found."
             pause_for_review "Review methodology before proceeding"
@@ -133,12 +142,16 @@ run_methodology() {
             fi
         fi
 
+        # Call agent
+        log_info "Step 1/3: Running agent to identify and address a methodology gap..."
         run_agent PROMPT_methodology.md
 
         # Commit the iteration's work
+        log_info "Step 2/3: Committing iteration work..."
         git_commit_all "methodology: iteration $i" || true
 
         # Check if the agent marked methodology complete
+        log_info "Step 3/3: Checking if agent marked methodology complete..."
         if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
             log_success "Agent marked methodology complete after iteration $i."
             pause_for_review "Review completed methodology"
@@ -148,6 +161,8 @@ run_methodology() {
             else
                 log_info "METHODOLOGY_COMPLETE.md removed — continuing iterations."
             fi
+        else
+            log_info "Methodology not yet complete — continuing to next iteration."
         fi
     done
 
@@ -170,16 +185,23 @@ run_plan() {
         echo ""
         log_phase "Planning — Iteration $i / $max"
 
+        # Call agent
+        log_info "Step 1/3: Running agent to develop implementation plan..."
         run_agent PROMPT_plan.md
 
+        # Commit
+        log_info "Step 2/3: Committing iteration work..."
         git_commit_all "plan: iteration $i" || true
 
         # Check if IMPLEMENTATION_PLAN.md exists and is marked ready
+        log_info "Step 3/3: Checking if plan is marked complete..."
         if [[ -f "IMPLEMENTATION_PLAN.md" ]] && grep -q '^\[PLAN_COMPLETE\]' "IMPLEMENTATION_PLAN.md"; then
             log_success "Implementation plan marked complete after iteration $i."
             pause_for_review "Review implementation plan"
             log_success "Planning complete. Proceed to: ./loop.sh build"
             return 0
+        else
+            log_info "Plan not yet complete — continuing to next iteration."
         fi
     done
 
@@ -203,6 +225,7 @@ run_build() {
         log_phase "Building — Iteration $i / $max"
 
         # Check for unresolved reconsiderations before starting
+        log_info "Step 1/6: Checking for unresolved reconsiderations..."
         if check_reconsiderations; then
             log_warn "Unresolved methodology reconsiderations found."
             echo ""
@@ -210,15 +233,22 @@ run_build() {
             ls -1 methodology/reconsiderations/*.md 2>/dev/null || true
             echo ""
             pause_for_review "Resolve methodology reconsiderations before continuing"
+        else
+            log_info "No unresolved reconsiderations."
         fi
 
+        # Call agent
+        log_info "Step 2/6: Running agent to implement next task..."
         run_agent PROMPT_build.md
 
         # Commit the iteration's work
+        log_info "Step 3/6: Committing iteration work..."
         if git_commit_all "build: iteration $i"; then
+            log_info "Step 4/6: Pushing to remote..."
             git_push
 
             # Check if plots changed — pause for visual review
+            log_info "Step 5/6: Checking if plots were updated..."
             if check_plots_changed; then
                 log_info "Plots updated in this iteration."
                 if [[ -f "plots/REVIEW.md" ]]; then
@@ -229,10 +259,16 @@ run_build() {
                     log_info "--- end ---"
                 fi
                 pause_for_review "Visual review of updated plots"
+            else
+                log_info "No plot changes in this iteration."
             fi
+        else
+            log_info "Step 4/6: Skipping push (no changes committed)."
+            log_info "Step 5/6: Skipping plot check (no changes committed)."
         fi
 
         # Check for new reconsiderations created this iteration
+        log_info "Step 6/6: Checking for new reconsiderations..."
         if check_reconsiderations; then
             log_warn "New methodology reconsideration raised."
             echo ""
@@ -240,13 +276,18 @@ run_build() {
             ls -1 methodology/reconsiderations/*.md 2>/dev/null || true
             echo ""
             pause_for_review "Review methodology reconsideration"
+        else
+            log_info "No new reconsiderations."
         fi
 
         # Check if all tasks are done
+        log_info "Checking if build is complete..."
         if [[ -f "IMPLEMENTATION_PLAN.md" ]] && grep -q '^\[BUILD_COMPLETE\]' "IMPLEMENTATION_PLAN.md"; then
             log_success "All implementation tasks complete after iteration $i."
             log_success "Run ./loop.sh review for a final compliance audit."
             return 0
+        else
+            log_info "Build not yet complete — continuing to next iteration."
         fi
     done
 
@@ -258,8 +299,13 @@ run_build() {
 
 run_review() {
     log_phase "REVIEW — One-shot methodology compliance audit"
+
+    log_info "Step 1/2: Running agent to perform compliance audit..."
     run_agent PROMPT_review.md
+
+    log_info "Step 2/2: Committing audit results..."
     git_commit_all "review: compliance audit" || true
+
     log_success "Review complete. Check REVIEW_REPORT.md for results."
 }
 
