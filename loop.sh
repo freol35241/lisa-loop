@@ -48,6 +48,11 @@ _filter_agent_stream() {
     # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
     # and emit human-readable progress lines showing agent tool calls, plus the
     # final result text (equivalent to what `-p --output-format text` would show).
+    #
+    # NOTE: This filter is specific to Claude Code's stream-json format.
+    # For non-Claude agents the caller should skip this filter entirely
+    # (see _is_claude_agent / run_agent).
+    #
     # Falls back to raw passthrough if jq is not available.
     if ! command -v jq &>/dev/null; then
         cat
@@ -88,6 +93,11 @@ _filter_agent_stream() {
     return 0
 }
 
+_is_claude_agent() {
+    # Return 0 (true) when AGENT_CMD looks like the Claude Code CLI.
+    [[ "$(basename "$AGENT_CMD")" == "claude" ]]
+}
+
 run_agent() {
     local prompt_file="$1"
     if [[ ! -f "$prompt_file" ]]; then
@@ -97,9 +107,18 @@ run_agent() {
     log_info "Calling agent with prompt: $prompt_file"
     log_info "Agent command: $AGENT_CMD $AGENT_ARGS"
     local start_seconds=$SECONDS
-    # shellcheck disable=SC2086
-    cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS --output-format stream-json \
-        | _filter_agent_stream
+    if _is_claude_agent; then
+        # Claude Code supports --output-format stream-json; use it for
+        # structured progress logging via _filter_agent_stream.
+        # shellcheck disable=SC2086
+        cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS --output-format stream-json \
+            | _filter_agent_stream
+    else
+        # Non-Claude agent — pass through raw stdout so the operator still
+        # sees whatever the agent emits.
+        # shellcheck disable=SC2086
+        cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS
+    fi
     local elapsed=$(( SECONDS - start_seconds ))
     log_info "Agent finished (${elapsed}s elapsed)"
 }
