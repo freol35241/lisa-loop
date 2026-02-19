@@ -86,6 +86,25 @@ Each planning iteration should:
 - Ensure every verification case in the methodology has a corresponding task
 - Ensure every subsystem has derivation documentation tasks
 
+## Task Sizing
+
+Each task must be small enough for a **single build loop iteration** to complete. A build iteration is one agent invocation: the agent reads the plan, picks one task, implements it, verifies it, and commits.
+
+**Sizing guidelines:**
+
+- A task should implement **one coherent unit of functionality** — a single function, a single data structure, a single verification level for one subsystem — not an entire subsystem at once.
+- If a task has more than **5 implementation checkboxes**, it is probably too large. Split it into sequential tasks with explicit dependencies.
+- If a task spans **multiple verification levels** (e.g., both Level 0 and Level 1 tests), split it so that each task targets a single level.
+- If a task requires implementing **more than ~300 lines of new code**, break it into smaller pieces with clear interfaces between them.
+
+**Splitting rules:**
+
+- When splitting a task, each resulting task must be independently verifiable — it must have its own tests that pass in isolation.
+- Preserve dependency ordering: if Task A is split into A1 and A2, and Task B depended on A, then B must depend on A2 (the final piece).
+- Prefer splitting along natural boundaries: separate data structures from algorithms, separate I/O from computation, separate setup/infrastructure from model code.
+
+**Why this matters:** The build loop runs one agent session per task. An oversized task risks incomplete implementation, skipped verification, or an agent that runs out of context. Smaller tasks produce clearer commits and more reliable incremental progress.
+
 ## Output
 
 Summarize what you added or changed in this iteration and what remains to be planned.

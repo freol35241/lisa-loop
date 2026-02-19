@@ -17,6 +17,24 @@ Select the first task in `IMPLEMENTATION_PLAN.md` with status `TODO` whose depen
 
 If the next available task is BLOCKED (due to a reconsideration), skip it and find the next unblocked TODO.
 
+## Sub-Item Tracking
+
+Each task in `IMPLEMENTATION_PLAN.md` contains checkbox items (`- [ ]`) under its **Implementation**, **Verification**, **Plots**, and **Derivation** headings. These are your work items within the task.
+
+**As you complete each item, immediately check it off** by changing `- [ ]` to `- [x]` in `IMPLEMENTATION_PLAN.md`. Do this after each item — not in a batch at the end.
+
+Working order within a task:
+1. Work through **Implementation** items first.
+2. Write or update **Derivation** documentation.
+3. Run **Verification** tests and check off each passing test.
+4. Generate **Plots** and check off each completed plot.
+
+If you cannot complete an item:
+1. Do **not** check it off.
+2. Add a note directly below the item: `  **BLOCKED:** [reason]`
+3. If the blockage is due to a methodology problem, follow the Reconsideration Protocol.
+4. If any item remains unchecked and cannot be completed, mark the entire task as `BLOCKED` — not `DONE`.
+
 ## Implementation Rules
 
 ### Methodology Adherence
@@ -114,13 +132,20 @@ If the methodology specification does not work in practice, **do not silently ch
 
 ## Task Completion
 
-When a task is done:
+Before marking a task as `DONE`, verify **all** of the following:
 
-1. All tests pass (run the full test suite, not just new tests).
-2. All affected plots are regenerated and reviewed in `plots/REVIEW.md`.
-3. Derivation documentation is complete.
-4. The code matches the methodology spec.
-5. Mark the task as `DONE` in `IMPLEMENTATION_PLAN.md`.
+1. **Every checkbox is checked.** Review the task in `IMPLEMENTATION_PLAN.md` and confirm that every `- [ ]` under Implementation, Verification, Plots, and Derivation has been changed to `- [x]`. If any item is still `- [ ]`, the task is **not done**.
+2. **All tests pass** — run the full test suite, not just new tests.
+3. **All affected plots** are regenerated and reviewed in `plots/REVIEW.md`.
+4. **Derivation documentation** is complete.
+5. **The code matches the methodology spec.**
+
+Only after confirming all five criteria, mark the task as `DONE` in `IMPLEMENTATION_PLAN.md`.
+
+**If any checkbox item cannot be completed**, do not mark the task as `DONE`. Instead:
+- Mark the task as `BLOCKED`.
+- Add a note under the task explaining which item(s) are blocked and why.
+- If the blockage is a methodology issue, follow the Reconsideration Protocol.
 
 When ALL tasks are `DONE`, add `[BUILD_COMPLETE]` as the first line of `IMPLEMENTATION_PLAN.md`.
 
