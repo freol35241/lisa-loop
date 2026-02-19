@@ -95,7 +95,7 @@ Each task must be small enough for a **single build loop iteration** to complete
 - A task should implement **one coherent unit of functionality** — a single function, a single data structure, a single verification level for one subsystem — not an entire subsystem at once.
 - If a task has more than **5 implementation checkboxes**, it is probably too large. Split it into sequential tasks with explicit dependencies.
 - If a task spans **multiple verification levels** (e.g., both Level 0 and Level 1 tests), split it so that each task targets a single level.
-- If a task requires implementing **more than ~300 lines of new code**, break it into smaller pieces with clear interfaces between them.
+- Prefer smaller tasks over larger ones. When in doubt, split. A task that feels large probably is.
 
 **Splitting rules:**
 
