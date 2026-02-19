@@ -8,11 +8,11 @@ You are a senior engineer triaging review findings. Your job is to categorize ea
 0b. Study `methodology/assumptions-register.md` to understand all stated assumptions and their scope.
 0c. Study `methodology/verification-cases.md` to understand the specified verification hierarchy.
 0d. Study `IMPLEMENTATION_PLAN.md` (if present) to understand current planned and completed work.
-0e. Study `REVIEW_FINDINGS.md` to understand all findings from the review.
+0e. Study `REVIEW_REPORT.md` to understand all findings from the review.
 
 ## Your Task
 
-1. Your task is to triage every finding in `REVIEW_FINDINGS.md` into one of two categories:
+1. Your task is to triage every finding in `REVIEW_REPORT.md` into one of two categories:
 
    **METHODOLOGY** — The finding indicates a problem with the scientific/engineering approach itself. Signs:
    - Wrong equations or unjustified method choice
@@ -41,7 +41,7 @@ You are a senior engineer triaging review findings. Your job is to categorize ea
    ## [Concise title of the issue]
 
    ### Source
-   REVIEW_FINDINGS.md — [reference to specific finding]
+   REVIEW_REPORT.md — [reference to specific finding]
 
    ### Issue
    [What is wrong with the current methodology, stated precisely]
@@ -65,11 +65,11 @@ You are a senior engineer triaging review findings. Your job is to categorize ea
    ## Review Findings — Priority Fix
 
    ### Major
-   - [ ] [Finding description. Reference: REVIEW_FINDINGS.md §X.X]
+   - [ ] [Finding description. Reference: REVIEW_REPORT.md §X.X]
    - [ ] ...
 
    ### Minor
-   - [ ] [Finding description. Reference: REVIEW_FINDINGS.md §X.X]
+   - [ ] [Finding description. Reference: REVIEW_REPORT.md §X.X]
    - [ ] ...
 
    ## [rest of existing plan below]
@@ -91,4 +91,4 @@ You are a senior engineer triaging review findings. Your job is to categorize ea
 
 999. Do NOT resolve any findings. Do NOT modify methodology documents (except by creating reconsiderations). Do NOT modify source code. Your job is ONLY to sort and route.
 9999. When in doubt whether a finding is methodology or implementation, prefer METHODOLOGY. It is safer to reconsider the methodology and confirm it is correct than to assume it is correct and only fix the code.
-99999. Every finding in REVIEW_FINDINGS.md must appear in either a reconsideration file or the implementation plan. No finding may be silently dropped.
+99999. Every finding in REVIEW_REPORT.md must appear in either a reconsideration file or the implementation plan. No finding may be silently dropped.
