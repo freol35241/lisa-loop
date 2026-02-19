@@ -31,6 +31,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
@@ -43,6 +44,37 @@ log_warn()    { echo -e "${YELLOW}[lisa $(_ts)]${NC} $*"; }
 log_error()   { echo -e "${RED}[lisa $(_ts)]${NC} $*"; }
 log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 
+_filter_agent_stream() {
+    # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
+    # and emit human-readable progress lines showing agent tool calls.
+    # Falls back to raw passthrough if jq is not available.
+    if ! command -v jq &>/dev/null; then
+        cat
+        return
+    fi
+    jq --unbuffered -r '
+      if .type == "assistant" then
+        [.message.content[]? | select(.type == "tool_use") |
+          "\(.name)" +
+          (if .name == "Read" then " \(.input.file_path // "")"
+           elif .name == "Edit" then " \(.input.file_path // "")"
+           elif .name == "Write" then " \(.input.file_path // "")"
+           elif .name == "Bash" then " $ \((.input.command // "") | split("\n")[0] | .[0:80])"
+           elif .name == "Glob" then " \(.input.pattern // "")"
+           elif .name == "Grep" then " \(.input.pattern // "")"
+           elif .name == "Task" then " \(.input.description // "")"
+           elif .name == "TodoWrite" then ""
+           else "" end)
+        ] | .[] | select(length > 0)
+      elif .type == "result" then
+        "Done"
+      else empty end
+    ' 2>/dev/null | while IFS= read -r line; do
+        echo -e "${MAGENTA}  [agent $(_ts)]${NC} $line"
+    done
+    return 0
+}
+
 run_agent() {
     local prompt_file="$1"
     if [[ ! -f "$prompt_file" ]]; then
@@ -53,7 +85,8 @@ run_agent() {
     log_info "Agent command: $AGENT_CMD $AGENT_ARGS"
     local start_seconds=$SECONDS
     # shellcheck disable=SC2086
-    cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS
+    cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS --output-format stream-json \
+        | _filter_agent_stream
     local elapsed=$(( SECONDS - start_seconds ))
     log_info "Agent finished (${elapsed}s elapsed)"
 }
