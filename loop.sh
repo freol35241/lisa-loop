@@ -74,13 +74,15 @@ _filter_agent_stream() {
            else "" end)
         ] | .[] | select(length > 0)
       elif .type == "result" then
-        "RESULT: " + (.result // "")
+        "RESULT_B64: " + ((.result // "") | @base64)
       else empty end
     ' 2>/dev/null | while IFS= read -r line; do
         if [[ "$line" == TOOL:\ * ]]; then
             echo -e "${MAGENTA}  [agent $(_ts)]${NC} ${line#TOOL: }"
-        elif [[ "$line" == RESULT:\ * ]]; then
-            local result_text="${line#RESULT: }"
+        elif [[ "$line" == RESULT_B64:\ * ]]; then
+            local result_b64="${line#RESULT_B64: }"
+            local result_text
+            result_text="$(echo "$result_b64" | base64 -d 2>/dev/null)" || result_text=""
             if [[ -n "$result_text" ]]; then
                 echo ""
                 echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── Agent response ──"
