@@ -208,21 +208,30 @@ count_tasks_for_pass() {
         return
     fi
 
-    # Use awk to parse task blocks: find tasks matching the pass and status.
+    # Use POSIX-compatible awk to parse task blocks.
     # A task block starts with "### Task" and ends at the next "### Task" or EOF.
     # Within a block, check for "**Spiral pass:** N" and "**Status:** STATUS".
+    # NOTE: Avoids gawk-specific match(..., arr) syntax for macOS compatibility.
     awk -v pass="$pass" -v status="$status" '
-        /^### Task/ { in_task=1; found_pass=0; found_status=0; next }
+        /^### Task/ {
+            if (in_task && found_pass && found_status) count++
+            in_task=1; found_pass=0; found_status=0
+            next
+        }
         in_task && /\*\*Spiral pass:\*\*/ {
-            # Extract pass number — match digits after the tag
-            match($0, /\*\*Spiral pass:\*\*[[:space:]]*([0-9]+)/, arr)
-            if (arr[1] == pass) found_pass=1
+            # Extract pass number using gsub to strip non-digits
+            line = $0
+            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/[^0-9].*/, "", line)
+            if (line == pass) found_pass=1
         }
         in_task && /\*\*Status:\*\*/ {
             if (index($0, status)) found_status=1
         }
-        in_task && found_pass && found_status { count++; in_task=0 }
-        END { print count+0 }
+        END {
+            if (in_task && found_pass && found_status) count++
+            print count+0
+        }
     ' IMPLEMENTATION_PLAN.md
 }
 
@@ -393,12 +402,12 @@ descend_gate() {
                     redirect_text+="$line"$'\n'
                 done
                 mkdir -p "spiral/pass-$pass"
-                cat > "spiral/pass-$pass/human-redirect.md" <<EOF
+                cat > "spiral/pass-$pass/descend-redirect.md" <<EOF
 # Human Redirect — Pass $pass (Descend Review)
 
 $redirect_text
 EOF
-                log_info "Guidance saved. Re-running descend phase."
+                log_info "Guidance saved to spiral/pass-$pass/descend-redirect.md. Re-running descend phase."
                 return 1  # redirect — re-run descend
                 ;;
             *)
@@ -486,9 +495,13 @@ run_descend() {
     descend_gate "$pass"
     local gate_result=$?
     if [[ $gate_result -eq 1 ]]; then
-        # Redirect — re-run descend
+        # Redirect — re-run descend with redirect guidance
         log_info "Re-running descend with redirect guidance..."
-        run_agent "prompts/PROMPT_descend.md" "$CLAUDE_MODEL_DESCEND" "$context"
+        local redirect_context="$context"
+        if [[ -f "spiral/pass-$pass/descend-redirect.md" ]]; then
+            redirect_context+=$'\n'"Descend redirect file: spiral/pass-$pass/descend-redirect.md"
+        fi
+        run_agent "prompts/PROMPT_descend.md" "$CLAUDE_MODEL_DESCEND" "$redirect_context"
         git_commit_all "descend: pass $pass — post-redirect refinement" || true
     fi
 
@@ -499,13 +512,23 @@ run_descend() {
 
 run_build() {
     local pass="$1"
+    local start_iter="${2:-1}"
     log_phase "PASS $pass — BUILD (Ralph loop)"
 
     write_state "$pass" "build" "in_progress" 0
 
     local context="Current spiral pass: $pass"
 
-    for ((iter = 1; iter <= MAX_RALPH_ITERATIONS; iter++)); do
+    # Stall detection: track task counts across iterations
+    local prev_done prev_blocked prev_todo prev_inprog stall_count
+    prev_done=$(count_tasks_for_pass "$pass" "DONE")
+    prev_blocked=$(count_tasks_for_pass "$pass" "BLOCKED")
+    prev_todo=$(count_tasks_for_pass "$pass" "TODO")
+    prev_inprog=$(count_tasks_for_pass "$pass" "IN_PROGRESS")
+    stall_count=0
+
+    local build_complete=false
+    for ((iter = start_iter; iter <= MAX_RALPH_ITERATIONS; iter++)); do
         echo ""
         log_phase "Build — Pass $pass, Iteration $iter / $MAX_RALPH_ITERATIONS"
 
@@ -530,6 +553,7 @@ run_build() {
                 local gate_result=$?
                 if [[ $gate_result -eq 0 ]]; then
                     # Fix — continue build loop (human resolved blocks)
+                    stall_count=0
                     continue
                 elif [[ $gate_result -eq 2 ]]; then
                     # Abort
@@ -539,13 +563,57 @@ run_build() {
                 # Skip — fall through to exit build loop
             fi
             log_success "All tasks for pass $pass complete."
+            build_complete=true
+            break
+        fi
+
+        # Stall detection: check if task counts changed since last iteration
+        local cur_done cur_blocked cur_todo cur_inprog
+        cur_done=$(count_tasks_for_pass "$pass" "DONE")
+        cur_blocked=$(count_tasks_for_pass "$pass" "BLOCKED")
+        cur_todo=$(count_tasks_for_pass "$pass" "TODO")
+        cur_inprog=$(count_tasks_for_pass "$pass" "IN_PROGRESS")
+
+        if [[ "$cur_done" -eq "$prev_done" && "$cur_blocked" -eq "$prev_blocked" \
+           && "$cur_todo" -eq "$prev_todo" && "$cur_inprog" -eq "$prev_inprog" ]]; then
+            stall_count=$((stall_count + 1))
+            log_warn "No task progress detected (stall count: $stall_count/2)."
+        else
+            stall_count=0
+            prev_done=$cur_done
+            prev_blocked=$cur_blocked
+            prev_todo=$cur_todo
+            prev_inprog=$cur_inprog
+        fi
+
+        if [[ $stall_count -ge 2 ]]; then
+            log_warn "Build stalled — no progress for 2 consecutive iterations."
+            if has_blocked_tasks "$pass"; then
+                local done_count blocked_count total_count
+                done_count=$(count_tasks_for_pass "$pass" "DONE")
+                blocked_count=$(count_tasks_for_pass "$pass" "BLOCKED")
+                total_count=$((done_count + blocked_count + cur_todo + cur_inprog))
+
+                block_gate "$pass" "$done_count" "$total_count" "$blocked_count"
+                local gate_result=$?
+                if [[ $gate_result -eq 0 ]]; then
+                    stall_count=0
+                    continue
+                elif [[ $gate_result -eq 2 ]]; then
+                    log_error "Build aborted by user."
+                    return 1
+                fi
+                # Skip — fall through to exit build loop
+            else
+                log_warn "No blocked tasks found — nothing left to do. Proceeding to ascend."
+            fi
             break
         fi
 
         log_info "Tasks remain — continuing Ralph loop."
     done
 
-    if [[ $iter -gt $MAX_RALPH_ITERATIONS ]]; then
+    if [[ "$build_complete" != "true" ]] && [[ $iter -gt $MAX_RALPH_ITERATIONS ]]; then
         log_warn "Reached max Ralph iterations ($MAX_RALPH_ITERATIONS). Some tasks may remain."
     fi
 
@@ -581,7 +649,22 @@ run_ascend() {
 # --- Finalize -----------------------------------------------------------------
 
 finalize_output() {
+    local pass="$1"
     log_phase "FINALIZING — Producing deliverables"
+
+    # If output files weren't drafted during ascend, run a finalization agent call
+    if [[ ! -f "output/answer.md" ]] || [[ ! -f "output/report.md" ]]; then
+        log_info "Output files not yet drafted. Running finalization agent..."
+        mkdir -p output
+        local context="Current spiral pass: $pass"
+        context+=$'\n'"FINALIZATION MODE: The human has ACCEPTED the results."
+        context+=$'\n'"You MUST produce output/answer.md and output/report.md now."
+        context+=$'\n'"Read the review package at spiral/pass-$pass/review-package.md for the current answer."
+        context+=$'\n'"Read all spiral/pass-*/convergence.md files for the convergence history."
+        context+=$'\n'"Follow the report format specified in the PROMPT_ascend.md instructions."
+        run_agent "prompts/PROMPT_ascend.md" "$CLAUDE_MODEL_ASCEND" "$context"
+        git_commit_all "final: generate output deliverables" || true
+    fi
 
     # Create SPIRAL_COMPLETE.md
     cat > "spiral/SPIRAL_COMPLETE.md" <<EOF
@@ -590,18 +673,10 @@ finalize_output() {
 The spiral has converged and the human has accepted the results.
 
 Completed: $(date -Iseconds)
-Final pass: $1
+Final pass: $pass
 EOF
 
-    # If output files don't exist yet, note that ascend should have drafted them
-    if [[ ! -f "output/answer.md" ]]; then
-        log_warn "output/answer.md not found — check spiral/pass-$1/review-package.md for the answer."
-    fi
-    if [[ ! -f "output/report.md" ]]; then
-        log_warn "output/report.md not found — check spiral artifacts for report content."
-    fi
-
-    git_commit_all "final: spiral complete — answer accepted at pass $1" || true
+    git_commit_all "final: spiral complete — answer accepted at pass $pass" || true
     git_push
 
     log_success "Done. Final deliverables in output/."
@@ -744,7 +819,7 @@ cmd_resume() {
             ;;
         build)
             log_info "Resuming: build phase of pass $pass (from iteration $STATE_RALPH_ITER)."
-            run_build "$pass" || return 1
+            run_build "$pass" "$STATE_RALPH_ITER" || return 1
             run_ascend "$pass"
             review_gate "$pass"
             local gate_result=$?
