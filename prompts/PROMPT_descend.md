@@ -29,6 +29,8 @@ If this is **Pass N > 1**:
 - Read `spiral/pass-{N-1}/human-redirect.md` — human guidance (if file exists)
 - Read any files in `methodology/reconsiderations/` — unresolved methodology issues from build
 
+If a **descend redirect file** exists at `spiral/pass-N/descend-redirect.md`, read it — it contains human guidance from a descend-phase review. This is distinct from the post-ascend redirect (`human-redirect.md` from the previous pass).
+
 ### 2. Refine Methodology
 
 Based on what you've read, identify what methodology needs to be added, changed, or refined for this pass. For each subsystem or aspect you address:
@@ -55,6 +57,11 @@ After any methodology change:
    - Level 2: Coupled subsystem pair tests (combined behavior)
    - Level 3: Full system tests (limiting cases, conservation)
 4. **Update `methodology/overview.md`** — Keep the system-level summary current.
+5. **Update `validation/` living documents** — If the methodology refinement introduces new limiting cases, reference datasets, or sanity checks:
+   - Add new entries to `validation/limiting-cases.md` (format: `LC-NNN`)
+   - Add new entries to `validation/reference-data.md` (format: `RD-NNN`)
+   - Add new checks to `validation/sanity-checks.md`
+   These documents are checked during every ascend phase. Keep them current with the methodology.
 
 ### 4. Update Implementation Plan
 

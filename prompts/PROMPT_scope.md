@@ -99,6 +99,12 @@ A failure on any check indicates a likely error and should block acceptance.
 
 After creating this file, also write the same content to `validation/sanity-checks.md` as the living validation document that will be updated in subsequent passes.
 
+After creating the validation strategy, also populate:
+- `validation/limiting-cases.md` — Extract the limiting cases from your validation strategy and format them using the template's `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
+- `validation/reference-data.md` — Extract the reference datasets from your validation strategy and format them using the template's `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
+
+These are the living validation documents that will be checked during every ascend phase and refined during descend phases.
+
 ### 4. `spiral/pass-0/literature-survey.md`
 
 Survey of candidate methods at varying fidelity.
@@ -209,7 +215,32 @@ The cumulative implementation plan. Tasks for Pass 1 should be fully detailed; l
 - **Tag every task** with `**Spiral pass:** N` indicating which pass introduced it.
 - **Pass 1 tasks** should be fully detailed. Pass 2+ tasks can be sketched with `TODO` placeholders.
 
-### 7. `spiral/pass-0/PASS_COMPLETE.md`
+### 7. `methodology/overview.md`
+
+Populate the methodology overview based on your literature survey:
+
+```markdown
+# Methodology Overview
+
+## System Description
+[What physical system is being modeled, from BRIEF.md]
+
+## Subsystem Decomposition
+[What subsystems are needed, from your analysis]
+
+## Modeling Approach
+[High-level description of the recommended approach, from literature survey]
+
+## Key Assumptions
+[System-level assumptions identified so far]
+
+## Scope and Limitations
+[What this model will and won't cover]
+```
+
+This is an initial version. The descend phase will refine and extend it.
+
+### 8. `spiral/pass-0/PASS_COMPLETE.md`
 
 Create this file **last**, after all other artifacts are complete.
 
@@ -227,6 +258,9 @@ Create this file **last**, after all other artifacts are complete.
 - spiral/pass-0/spiral-plan.md
 - IMPLEMENTATION_PLAN.md
 - validation/sanity-checks.md
+- validation/limiting-cases.md
+- validation/reference-data.md
+- methodology/overview.md
 
 ## Key Decisions
 [List the most important scoping decisions made]
