@@ -1,7 +1,7 @@
 # Operational Guide
 
 <!-- This file tells the AI agent how to build, test, and run the project.
-     It is read by ALL four phase agents (scope, descend, build, ascend).
+     It is read by ALL four phase agents (scope, refine, build, validate).
      Update it as your project evolves. -->
 
 ## Language & Runtime
@@ -30,7 +30,7 @@
 # e.g., pytest tests/ -v
 ```
 
-## Run Specific Test Levels
+## Run Subsystem-Level Tests
 
 ```bash
 # Level 0 — Unit tests (individual equations)
@@ -39,7 +39,15 @@
 # Level 1 — Subsystem tests
 # e.g., pytest tests/ -v -m "level1"
 
-# Level 2 — Coupled subsystem tests
+# Per-subsystem filtering:
+# e.g., pytest tests/ -v -m "[subsystem_name]"
+# e.g., pytest tests/ -v -m "level0 and [subsystem_name]"
+```
+
+## Run Integration and System Tests
+
+```bash
+# Level 2 — Coupled subsystem pair tests
 # e.g., pytest tests/ -v -m "level2"
 
 # Level 3 — Full system tests

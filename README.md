@@ -5,9 +5,9 @@ A methodology and toolbox for solving complex engineering and research problems 
 Lisa Loop v2 fuses two established engineering paradigms:
 
 - **The V-Model** (systems engineering): every level of decomposition is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
-- **The Design Spiral** (Evans, 1959): the same aspects are revisited iteratively at increasing fidelity until the design converges.
+- **The Design Spiral** (Evans, 1959): the same subsystems are revisited iteratively at increasing fidelity until the design converges.
 
-**The fusion:** each revolution of the spiral passes through the full V — from requirements through implementation and back up through V&V — at increasing fidelity. The spiral terminates when the answer has converged, not when tasks are complete.
+**The fusion:** each revolution of the spiral visits every subsystem in sequence, each doing a half-V (refine methodology → build → verify), then the system is validated as a whole. The spiral terminates when the system-level answer has converged, not when tasks are complete.
 
 ## Three Absolute Rules
 
@@ -39,92 +39,103 @@ chmod +x loop.sh
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    OUTER LOOP: SPIRAL                        │
-│              (convergence-driven, human-gated)               │
-│                                                              │
-│   ┌──────────┐    ┌──────────────────┐    ┌──────────────┐  │
-│   │ DESCEND  │    │     BUILD        │    │   ASCEND     │  │
-│   │          │ →  │                  │ →  │              │  │
-│   │ refine   │    │ ┌──────────────┐ │    │ verify       │  │
-│   │ methodol │    │ │ INNER LOOP:  │ │    │ validate     │  │
-│   │ + update │    │ │ RALPH        │ │    │ converge?    │  │
-│   │ plan     │    │ │              │ │    │              │  │
-│   │          │    │ │ pick task →  │ │    │ [agent]      │  │
-│   │ [agent]  │    │ │ implement → │ │    │              │  │
-│   │          │    │ │ test →      │ │    │              │  │
-│   │          │    │ │ fix → next  │ │    │              │  │
-│   │          │    │ │              │ │    │              │  │
-│   │          │    │ │ [agent]      │ │    │              │  │
-│   │          │    │ └──────────────┘ │    │              │  │
-│   └──────────┘    └──────────────────┘    └──────┬───────┘  │
-│        ↑                                         │           │
-│        │            ┌────────────────────────┐   │           │
-│        │            │   HUMAN REVIEW GATE    │ ←─┘           │
-│        │            │                        │               │
-│        │            │  • Accept (exit loop)  │               │
-│        │            │  • Continue            │               │
-│        │            │  • Redirect            │               │
-│        │            └────────────┬───────────┘               │
-│        │                         │                           │
-│        └─────────────────────────┘                           │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         OUTER LOOP: SPIRAL                               │
+│                   (convergence-driven, human-gated)                      │
+│                                                                          │
+│   ┌─ For each subsystem (in dependency order): ──────────────────────┐   │
+│   │                                                                  │   │
+│   │   ┌────────────────┐    ┌──────────────────────────────────┐     │   │
+│   │   │    REFINE      │    │         BUILD + VERIFY           │     │   │
+│   │   │                │    │                                  │     │   │
+│   │   │  methodology   │ →  │  ┌────────────────────────────┐  │     │   │
+│   │   │  + plan for    │    │  │ RALPH LOOP                 │  │     │   │
+│   │   │  THIS subsys   │    │  │                            │  │     │   │
+│   │   │                │    │  │ pick task → implement →    │  │     │   │
+│   │   │  [opus]        │    │  │ test (L0,L1) → next       │  │     │   │
+│   │   │                │    │  │                            │  │     │   │
+│   │   │                │    │  │ [sonnet]                   │  │     │   │
+│   │   │                │    │  └────────────────────────────┘  │     │   │
+│   │   └────────────────┘    └──────────────────────────────────┘     │   │
+│   │                                                                  │   │
+│   └──────────────────────────── repeat for each subsystem ───────────┘   │
+│                                                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐   │
+│   │                    SYSTEM VALIDATION                              │   │
+│   │                                                                  │   │
+│   │  integration tests (L2, L3) · sanity checks · limiting cases     │   │
+│   │  reference data · convergence assessment                         │   │
+│   │                                                                  │   │
+│   │  [opus]                                                          │   │
+│   └──────────────────────────────────┬───────────────────────────────┘   │
+│                                      │                                   │
+│              ┌───────────────────────┴───────────────────────┐           │
+│              │           HUMAN REVIEW GATE                   │           │
+│              │                                               │           │
+│              │  • Accept (answer converged, exit spiral)     │           │
+│              │  • Continue (next revolution)                 │           │
+│              │  • Redirect (guidance for next revolution)    │           │
+│              └───────────────────────┬───────────────────────┘           │
+│                                      │                                   │
+│                     ┌────────────────┘                                   │
+│                     ↓                                                    │
+│              (next spiral pass)                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Outer Loop (Spiral):** Convergence-driven. Each pass produces a progressively refined answer. Human-gated: the human reviews results after each pass and decides to accept, continue, or redirect.
+**Outer Loop (Spiral):** Convergence-driven. Each pass iterates over all subsystems, then validates the system as a whole. Human-gated: the human reviews results after each pass and decides to accept, continue, or redirect.
 
-**Inner Loop (Ralph Loop):** Autonomous task execution within a single spiral pass. The agent picks tasks from the implementation plan, implements them, runs tests, and fixes issues.
+**Per-Subsystem Half-V:** Each subsystem goes through refine (methodology + plan update) → build (autonomous Ralph loop implementing tasks) → local verification (L0, L1 tests).
+
+**System Validation:** After all subsystems are updated, integration tests (L2), system tests (L3), sanity checks, limiting cases, reference data comparisons, and convergence assessment.
+
+## Key Distinction: Verification vs. Validation
+
+- **Verification** is local to each subsystem: "Did I implement my equations correctly?" Tests at Level 0 (individual functions) and Level 1 (subsystem models). Happens within each subsystem's build phase.
+- **Validation** is global, at the system level: "Does the assembled system answer the question with physically sensible numbers?" Tests at Level 2 (coupled subsystems) and Level 3 (full system), plus sanity checks, limiting cases, reference data. Happens once per spiral pass after all subsystems are updated.
+
+## Subsystem Decomposition
+
+The problem is decomposed into subsystems during Pass 0 (scoping). The decomposition is captured in `SUBSYSTEMS.md` — the most critical artifact in the process. Each subsystem:
+
+- Models one distinct physical phenomenon or sub-question
+- Has typed interfaces: named quantities with units flowing between subsystems
+- Can be verified in isolation with synthetic inputs
+- Has its own methodology, implementation plan, and verification cases
+
+Within a spiral pass, subsystems run in dependency order. Each subsystem uses the latest available values from subsystems that already ran (Gauss-Seidel pattern), and previous-pass values from subsystems that haven't yet. Circular dependencies are expected and resolved by the spiral iteration.
 
 ## Pass 0 — Scoping
 
-The only non-repeating pass. Establishes what we're trying to answer and how we'll know we've succeeded. No code is written.
+The only non-repeating pass. Establishes what we're solving, how we'll know we've succeeded, what subsystems exist, and how they connect. **No code is written.**
 
 **Produces:**
-- Acceptance criteria — what "correct" looks like, quantitatively
-- Validation strategy — how results will be validated (limiting cases, reference data, conservation laws)
-- Sanity checks — engineering judgment tests
-- Literature survey — candidate methods with citations
-- Spiral plan — anticipated progression across passes
-- Initial implementation plan
+- `SUBSYSTEMS.md` — Subsystem definitions, interfaces, iteration order (the central new artifact)
+- Per-subsystem initial files: methodology stubs, implementation plans, verification cases
+- Acceptance criteria, validation strategy, sanity checks, literature survey, spiral plan
+- System-level methodology overview
 
-**Human review:** Mandatory after scoping.
+**Human review:** Mandatory. The decomposition is the most critical review item.
 
-## Pass N (N ≥ 1) — Three Phases
+## Pass N (N >= 1) — Subsystem Iteration + System Validation
 
-### Descend (Left Leg of V)
+### Phase 1: Subsystem Iteration
 
-Refines methodology based on previous pass results. Reads convergence data, human feedback, and existing methodology. Updates the implementation plan with tasks for this pass.
+For each subsystem in dependency order:
 
-- Every method choice must cite a peer-reviewed source
-- Alternatives must be documented
-- Tasks tagged with current pass number
+**Refine (opus):** Refines methodology for this subsystem at this pass's fidelity. Updates equations, assumptions, plan tasks. Reads previous pass validation results and human feedback.
 
-### Build (Bottom of V — Ralph Loop)
+**Build (sonnet, Ralph loop):** Autonomous iterative implementation. Each iteration picks a task, implements it matching the methodology exactly, writes derivation docs, runs L0/L1 tests, generates plots. If methodology doesn't work in practice, raises a formal reconsideration.
 
-Autonomous iterative implementation. Each iteration:
+### Phase 2: System Validation (opus)
 
-1. Pick next TODO task with dependencies met
-2. Implement code matching methodology exactly
-3. Write derivation documentation
-4. Run hierarchical verification tests
-5. Generate/update plots
-6. Mark task DONE or BLOCKED
+Runs after all subsystems have been updated:
+- Integration tests (L2) — coupled subsystem pairs
+- System tests (L3) — full system
+- Sanity checks, limiting cases, reference data, acceptance criteria
+- Convergence assessment — compares key outputs with previous pass
 
-If methodology doesn't work in practice, the agent raises a formal reconsideration rather than silently changing the approach.
-
-### Ascend (Right Leg of V)
-
-Verification, validation, and convergence assessment:
-
-- **Verification:** Run full test suite (all levels), check methodology compliance, derivation completeness, traceability
-- **Validation:** Execute sanity checks, check limiting cases, compare reference data, dimensional analysis
-- **Convergence:** Compare key outputs with previous pass, assess whether changes are within accuracy bounds
-
-Produces a review package for the human.
-
-## Human Interaction
-
-### After Ascend (Mandatory)
+### Phase 3: Human Review Gate (mandatory)
 
 ```
   SPIRAL PASS N COMPLETE — REVIEW REQUIRED
@@ -134,57 +145,40 @@ Produces a review package for the human.
   [R] REDIRECT — Provide guidance for Pass N+1.
 ```
 
-### During Build (When Blocked)
+## Human Interaction
+
+### During Subsystem Build (When Blocked)
 
 ```
-  BUILD PHASE BLOCKED — HUMAN INPUT NEEDED
+  BUILD BLOCKED: [subsystem-name] — HUMAN INPUT NEEDED
 
   [F] FIX — Resolve the blocks, then resume build.
-  [S] SKIP — Skip blocked items, proceed to Ascend.
+  [S] SKIP — Skip blocked items, continue to next subsystem.
   [X] ABORT — Stop this spiral pass.
 ```
 
-### After Descend (Optional, configurable)
-
-```
-  DESCEND COMPLETE — METHODOLOGY REVIEW
-
-  [P] PROCEED — Start building.
-  [R] REDIRECT — Adjust before building.
-```
-
-## The Implementation Plan
-
-`IMPLEMENTATION_PLAN.md` is a single, cumulative, living document that spans the entire project. Created in Pass 0, updated by every descend phase, executed by the Ralph loop.
-
-Each task specifies: status, spiral pass, subsystem, methodology reference, implementation items, derivation, verification tests, plots, and dependencies.
-
-## Verification, Validation, and Convergence
-
-These are distinct concepts:
-
-- **Verification:** "Did we build the thing right?" — code matches methodology, tests pass, derivations are complete
-- **Validation:** "Did we build the right thing?" — results match physical reality (sanity checks, limiting cases, reference data, conservation laws)
-- **Convergence:** "Has the answer stabilized?" — key outputs are no longer changing significantly between passes
-
-The spiral terminates when the human accepts that all three are satisfied.
-
 ## Final Deliverables
 
-When the human accepts, the loop produces:
+When the human accepts:
 
 1. **`output/answer.md`** — Direct response to the question in BRIEF.md
-2. **`output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
+2. **`output/report.md`** — Full development report: problem statement, subsystem decomposition, per-subsystem methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
 
 ## Traceability Chain
 
-Every claim in the final output traces through:
-
 ```
-BRIEF.md → acceptance criteria → methodology → peer-reviewed source →
-governing equations → discrete implementation → source code →
-verification test → verification result → validation check →
-convergence assessment → human acceptance → final answer
+BRIEF.md → acceptance criteria
+  → subsystem decomposition (SUBSYSTEMS.md)
+    → per-subsystem methodology (subsystems/[name]/methodology.md)
+      → peer-reviewed source (references/)
+        → governing equations
+          → discrete implementation (subsystems/[name]/derivations/)
+            → source code (src/)
+              → subsystem verification (L0, L1 tests)
+                → system validation (L2, L3, sanity checks)
+                  → convergence assessment
+                    → human acceptance
+                      → final answer + report
 ```
 
 ## Configuration
@@ -193,87 +187,88 @@ All configuration is in `lisa.conf`:
 
 ```bash
 # Model selection per phase
-CLAUDE_MODEL_SCOPE="opus"       # Pass 0 scoping
-CLAUDE_MODEL_DESCEND="opus"     # Methodology refinement
-CLAUDE_MODEL_BUILD="sonnet"     # Implementation (inner loop)
-CLAUDE_MODEL_ASCEND="opus"      # V&V and convergence
+CLAUDE_MODEL_SCOPE="opus"        # Pass 0 scoping
+CLAUDE_MODEL_REFINE="opus"       # Per-subsystem methodology refinement
+CLAUDE_MODEL_BUILD="sonnet"      # Per-subsystem implementation (Ralph loop)
+CLAUDE_MODEL_VALIDATE="opus"     # System-level V&V and convergence
 
 # Loop limits
-MAX_SPIRAL_PASSES=5             # Max spiral passes
-MAX_RALPH_ITERATIONS=50         # Max build iterations per pass
-MAX_RALPH_BLOCKED_RETRIES=1     # Unblock attempts before surfacing
+MAX_SPIRAL_PASSES=5              # Max spiral passes
+MAX_RALPH_ITERATIONS=50          # Max build iterations per subsystem per pass
 
 # Human review
-REVIEW_DESCEND=false            # Review methodology after descend?
-NO_PAUSE=false                  # Skip all human review?
+NO_PAUSE=false                   # Skip all human review?
 
 # Git
-NO_PUSH=false                   # Skip git push?
+NO_PUSH=false                    # Skip git push?
 ```
 
 ## Directory Structure
 
 ```
 project-root/
-├── loop.sh                         # The spiral-V loop script
-├── lisa.conf                       # Configuration
-├── BRIEF.md                        # Project description (you write this)
-├── AGENTS.md                       # Build/test/plot commands (you write this)
-├── IMPLEMENTATION_PLAN.md          # Cumulative plan (created Pass 0, updated each Descend)
+├── loop.sh
+├── lisa.conf
+├── BRIEF.md                            # Project description (user writes)
+├── AGENTS.md                           # Build/test/plot commands (user writes)
+├── SUBSYSTEMS.md                       # Subsystem manifest + interfaces (created Pass 0)
 │
 ├── prompts/
-│   ├── PROMPT_scope.md             # Pass 0: scoping
-│   ├── PROMPT_descend.md           # Left leg of V: methodology + plan
-│   ├── PROMPT_build.md             # Bottom of V: Ralph loop iteration
-│   └── PROMPT_ascend.md            # Right leg of V: V&V + convergence
+│   ├── PROMPT_scope.md                 # Pass 0: decomposition + scoping
+│   ├── PROMPT_subsystem_refine.md      # Per-subsystem methodology + plan
+│   ├── PROMPT_subsystem_build.md       # Per-subsystem Ralph loop iteration
+│   └── PROMPT_system_validate.md       # System-level V&V + convergence
+│
+├── subsystems/
+│   └── [name]/                         # One directory per subsystem
+│       ├── methodology.md              # Equations, assumptions, citations
+│       ├── plan.md                     # Implementation tasks
+│       ├── verification-cases.md       # L0 and L1 test specifications
+│       └── derivations/                # Code ↔ equations mapping
 │
 ├── spiral/
-│   ├── current-state.md            # Loop state for resume
-│   ├── pass-0/                     # Scoping artifacts
+│   ├── current-state.md
+│   ├── pass-0/
 │   │   ├── acceptance-criteria.md
 │   │   ├── validation-strategy.md
 │   │   ├── sanity-checks.md
 │   │   ├── literature-survey.md
 │   │   ├── spiral-plan.md
 │   │   └── PASS_COMPLETE.md
-│   ├── pass-N/                     # Per-pass artifacts
-│   │   ├── descend-summary.md
-│   │   ├── reconsiderations/
-│   │   ├── verification-report.md
-│   │   ├── validation-report.md
+│   ├── pass-N/
+│   │   ├── subsystems/
+│   │   │   └── [name]/
+│   │   │       ├── refine-summary.md
+│   │   │       └── reconsiderations/
+│   │   ├── system-validation.md
 │   │   ├── convergence.md
 │   │   ├── review-package.md
-│   │   ├── human-redirect.md       # (if redirected)
+│   │   ├── human-redirect.md          # (if redirected)
 │   │   └── PASS_COMPLETE.md
-│   └── SPIRAL_COMPLETE.md          # Created on acceptance
+│   └── SPIRAL_COMPLETE.md
 │
 ├── methodology/
-│   ├── overview.md
-│   ├── [subsystem].md              # One per physical subsystem
-│   ├── assumptions-register.md
-│   ├── coupling-strategy.md
-│   ├── verification-cases.md
-│   └── reconsiderations/           # Formal methodology change requests
+│   ├── overview.md                     # System-level: description, decomposition
+│   └── assumptions-register.md         # Cross-cutting assumptions
 │
 ├── validation/
-│   ├── sanity-checks.md            # Living engineering judgment checks
+│   ├── sanity-checks.md
 │   ├── limiting-cases.md
 │   ├── reference-data.md
-│   └── convergence-log.md          # Cumulative convergence table
+│   └── convergence-log.md
 │
 ├── references/
-│   ├── core/                       # Your papers (PDFs)
-│   └── retrieved/                  # Papers found by agent
+│   ├── core/
+│   └── retrieved/
 │
-├── derivations/                    # Code ↔ equations mapping
 ├── plots/
-│   └── REVIEW.md                   # Visual review summary
-├── src/                            # Source code
-├── tests/                          # Test suite
+│   └── REVIEW.md
+├── src/
+├── tests/
 │
 └── output/
-    ├── answer.md                   # Final answer
-    └── report.md                   # Development report
+    ├── answer.md
+    └── report.md
 ```
 
 ## Lineage
@@ -282,6 +277,6 @@ Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) crea
 
 **Lisa Loop v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
 
-**Lisa Loop v2** restructures the waterfall-with-feedback model into a spiral-V architecture: each revolution of the spiral passes through the full V-model, methodology is refined continuously rather than locked upfront, and convergence tracking determines when the answer is ready. The spiral history — not just the final answer — is the deliverable.
+**Lisa Loop v2** restructures the process into a subsystem-based spiral-V architecture: the scoping phase decomposes the problem into subsystems with typed interfaces, and each spiral pass iterates over subsystems individually — each doing its own half-V (refine → build → verify) — followed by system-level validation and convergence checking. This is a faithful mapping of Evans' design spiral, where each revolution visits distinct sectors in sequence, each using updated inputs from the sectors before it. The spiral history — not just the final answer — is the deliverable.
 
 Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
