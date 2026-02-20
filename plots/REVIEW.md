@@ -1,11 +1,13 @@
 # Plot Review
 
-<!-- Updated by the build phase whenever plots are generated or regenerated.
+<!-- Updated by the build phase whenever plots are generated or regenerated,
+     and by the ascend phase during verification.
      This is the primary artifact for human visual review. -->
 
 ## Latest Update
 
-**Iteration:** [build iteration number]
+**Spiral pass:** [pass number]
+**Phase:** [build iteration N / ascend]
 **Date:** [date]
 
 ## Plots

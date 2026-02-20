@@ -1,14 +1,19 @@
-# Lisa Loop
+# Lisa Loop v2
 
-Methodology-rigorous development loop for engineering and scientific software.
+A methodology and toolbox for solving complex engineering and research problems with AI agents, grounded in peer-reviewed literature, with explicit verification, validation, and convergence tracking.
 
-Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) — a bash loop that repeatedly feeds a prompt to an AI coding agent — for domains where **methodological correctness** matters as much as functional correctness. Ship performance models, structural analysis, control systems, thermodynamics: a test can pass perfectly while implementing the wrong physics. Lisa adds what Ralph lacks:
+Lisa Loop v2 fuses two established engineering paradigms:
 
-1. A **methodology phase** that establishes the correct approach before any code is written, grounded in peer-reviewed literature
-2. **Hierarchical verification** that catches physical regression across coupled subsystems
-3. A **reconsideration protocol** that lets the implementation phase push back on methodology through a controlled channel
+- **The V-Model** (systems engineering): every level of decomposition is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
+- **The Design Spiral** (Evans, 1959): the same aspects are revisited iteratively at increasing fidelity until the design converges.
 
-Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
+**The fusion:** each revolution of the spiral passes through the full V — from requirements through implementation and back up through V&V — at increasing fidelity. The spiral terminates when the answer has converged, not when tasks are complete.
+
+## Three Absolute Rules
+
+1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper. No method without a citation.
+2. **Engineering judgment is a first-class, auditable artifact.** "Do these numbers make physical sense?" is always asked, and the checks are written down, versioned, and executed.
+3. **The spiral history is the deliverable, not just the answer.** Every methodological choice, every refinement, every convergence step is preserved as a complete record.
 
 ## Quick Start
 
@@ -16,181 +21,267 @@ Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
 2. Edit `BRIEF.md` with your project description
 3. Add reference papers to `references/core/`
 4. Edit `AGENTS.md` with your build/test commands
-5. Run the loop:
+5. Run:
 
 ```bash
 chmod +x loop.sh
 
-# Phase 1: Develop methodology (review & approve)
-./loop.sh methodology
+# Run the full spiral — scoping through convergence
+./loop.sh run
 
-# Phase 2: Plan implementation
-./loop.sh plan
-
-# Phase 3: Build with verification
-./loop.sh build
-
-# Optional: Compliance audit
-./loop.sh review
-
-# Optional: Triage review findings
-./loop.sh triage
+# Or step by step:
+./loop.sh scope                  # Pass 0: scoping only
+./loop.sh run --max-passes 3     # Limit spiral passes
+./loop.sh resume                 # Resume from where you left off
+./loop.sh status                 # Check current state
 ```
 
-## Phases
+## Architecture
 
 ```
-Phase 1: METHODOLOGY  →  methodology/*.md
-                              ↓
-Phase 2: PLANNING     →  IMPLEMENTATION_PLAN.md
-                              ↓
-Phase 3: BUILDING     →  src/ + tests/ + plots/ + derivations/
-                              ↑
-                    (methodology reconsideration)
-                              ↓
-         REVIEW       →  REVIEW_REPORT.md
-                              ↓
-         TRIAGE       →  TRIAGE_SUMMARY.md + reconsiderations + plan updates
-                              ↓
-                   ┌─────────────────────────┐
-                   │ methodology findings?    │
-                   │  YES → ./loop.sh methodology → plan → build │
-                   │  NO  → ./loop.sh plan → build               │
-                   └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    OUTER LOOP: SPIRAL                        │
+│              (convergence-driven, human-gated)               │
+│                                                              │
+│   ┌──────────┐    ┌──────────────────┐    ┌──────────────┐  │
+│   │ DESCEND  │    │     BUILD        │    │   ASCEND     │  │
+│   │          │ →  │                  │ →  │              │  │
+│   │ refine   │    │ ┌──────────────┐ │    │ verify       │  │
+│   │ methodol │    │ │ INNER LOOP:  │ │    │ validate     │  │
+│   │ + update │    │ │ RALPH        │ │    │ converge?    │  │
+│   │ plan     │    │ │              │ │    │              │  │
+│   │          │    │ │ pick task →  │ │    │ [agent]      │  │
+│   │ [agent]  │    │ │ implement → │ │    │              │  │
+│   │          │    │ │ test →      │ │    │              │  │
+│   │          │    │ │ fix → next  │ │    │              │  │
+│   │          │    │ │              │ │    │              │  │
+│   │          │    │ │ [agent]      │ │    │              │  │
+│   │          │    │ └──────────────┘ │    │              │  │
+│   └──────────┘    └──────────────────┘    └──────┬───────┘  │
+│        ↑                                         │           │
+│        │            ┌────────────────────────┐   │           │
+│        │            │   HUMAN REVIEW GATE    │ ←─┘           │
+│        │            │                        │               │
+│        │            │  • Accept (exit loop)  │               │
+│        │            │  • Continue            │               │
+│        │            │  • Redirect            │               │
+│        │            └────────────┬───────────┘               │
+│        │                         │                           │
+│        └─────────────────────────┘                           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 1: Methodology
+**Outer Loop (Spiral):** Convergence-driven. Each pass produces a progressively refined answer. Human-gated: the human reviews results after each pass and decides to accept, continue, or redirect.
 
-Each iteration, the agent reads your brief, existing methodology docs, and reference papers. It identifies the most important methodological gap and addresses it — specifying a method for an unaddressed phenomenon, resolving inconsistencies between subsystems, adding verification cases.
+**Inner Loop (Ralph Loop):** Autonomous task execution within a single spiral pass. The agent picks tasks from the implementation plan, implements them, runs tests, and fixes issues.
 
-All method choices must trace to peer-reviewed sources. Equations must come from papers the agent has actually read. The agent must never fabricate equations from memory.
+## Pass 0 — Scoping
 
-Terminates when the agent creates `METHODOLOGY_COMPLETE.md`. Human reviews and approves.
+The only non-repeating pass. Establishes what we're trying to answer and how we'll know we've succeeded. No code is written.
 
-### Phase 2: Planning
+**Produces:**
+- Acceptance criteria — what "correct" looks like, quantitatively
+- Validation strategy — how results will be validated (limiting cases, reference data, conservation laws)
+- Sanity checks — engineering judgment tests
+- Literature survey — candidate methods with citations
+- Spiral plan — anticipated progression across passes
+- Initial implementation plan
 
-Translates the methodology into an implementation plan with tasks covering code, derivation documentation, verification tests, and plots. Ordered bottom-up through the verification hierarchy.
+**Human review:** Mandatory after scoping.
 
-### Phase 3: Building
+## Pass N (N ≥ 1) — Three Phases
 
-Standard iterative building with three additions:
+### Descend (Left Leg of V)
 
-- **Methodology adherence** — code is checked against methodology specs after every implementation
-- **Hierarchical verification** — changes at level N trigger re-verification at levels N through 3
-- **Reconsideration protocol** — if the methodology doesn't work in practice, the agent raises a formal reconsideration instead of silently changing the approach
+Refines methodology based on previous pass results. Reads convergence data, human feedback, and existing methodology. Updates the implementation plan with tasks for this pass.
 
-### Triage
+- Every method choice must cite a peer-reviewed source
+- Alternatives must be documented
+- Tasks tagged with current pass number
 
-After a review, triage categorizes every finding as either **METHODOLOGY** (wrong approach) or **IMPLEMENTATION** (wrong translation of approach to code). Methodology findings are routed to `methodology/reconsiderations/` for the methodology phase to resolve. Implementation findings are added as priority items at the top of `IMPLEMENTATION_PLAN.md`.
+### Build (Bottom of V — Ralph Loop)
 
-Triage tells you what to run next:
-- If methodology reconsiderations exist: `./loop.sh methodology` first, then `plan`, then `build`
-- If only implementation findings exist: `./loop.sh plan` and `./loop.sh build` can proceed directly
+Autonomous iterative implementation. Each iteration:
 
-## Hierarchical Verification
+1. Pick next TODO task with dependencies met
+2. Implement code matching methodology exactly
+3. Write derivation documentation
+4. Run hierarchical verification tests
+5. Generate/update plots
+6. Mark task DONE or BLOCKED
+
+If methodology doesn't work in practice, the agent raises a formal reconsideration rather than silently changing the approach.
+
+### Ascend (Right Leg of V)
+
+Verification, validation, and convergence assessment:
+
+- **Verification:** Run full test suite (all levels), check methodology compliance, derivation completeness, traceability
+- **Validation:** Execute sanity checks, check limiting cases, compare reference data, dimensional analysis
+- **Convergence:** Compare key outputs with previous pass, assess whether changes are within accuracy bounds
+
+Produces a review package for the human.
+
+## Human Interaction
+
+### After Ascend (Mandatory)
 
 ```
-Level 0: Individual functions     (equation → known output)
-Level 1: Subsystem models         (correct over valid range)
-Level 2: Coupled subsystem pairs  (sensible combined results)
-Level 3: Full system              (known limiting cases)
+  SPIRAL PASS N COMPLETE — REVIEW REQUIRED
+
+  [A] ACCEPT — Answer has converged. Produce final report.
+  [C] CONTINUE — Proceed to Pass N+1.
+  [R] REDIRECT — Provide guidance for Pass N+1.
 ```
 
-Each level has automated tests (backpressure) and plots (human review). When anything at level N changes, all levels N through 3 re-run.
+### During Build (When Blocked)
 
-Verification cases are specified during the methodology phase, before code exists.
+```
+  BUILD PHASE BLOCKED — HUMAN INPUT NEEDED
+
+  [F] FIX — Resolve the blocks, then resume build.
+  [S] SKIP — Skip blocked items, proceed to Ascend.
+  [X] ABORT — Stop this spiral pass.
+```
+
+### After Descend (Optional, configurable)
+
+```
+  DESCEND COMPLETE — METHODOLOGY REVIEW
+
+  [P] PROCEED — Start building.
+  [R] REDIRECT — Adjust before building.
+```
+
+## The Implementation Plan
+
+`IMPLEMENTATION_PLAN.md` is a single, cumulative, living document that spans the entire project. Created in Pass 0, updated by every descend phase, executed by the Ralph loop.
+
+Each task specifies: status, spiral pass, subsystem, methodology reference, implementation items, derivation, verification tests, plots, and dependencies.
+
+## Verification, Validation, and Convergence
+
+These are distinct concepts:
+
+- **Verification:** "Did we build the thing right?" — code matches methodology, tests pass, derivations are complete
+- **Validation:** "Did we build the right thing?" — results match physical reality (sanity checks, limiting cases, reference data, conservation laws)
+- **Convergence:** "Has the answer stabilized?" — key outputs are no longer changing significantly between passes
+
+The spiral terminates when the human accepts that all three are satisfied.
+
+## Final Deliverables
+
+When the human accepts, the loop produces:
+
+1. **`output/answer.md`** — Direct response to the question in BRIEF.md
+2. **`output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
+
+## Traceability Chain
+
+Every claim in the final output traces through:
+
+```
+BRIEF.md → acceptance criteria → methodology → peer-reviewed source →
+governing equations → discrete implementation → source code →
+verification test → verification result → validation check →
+convergence assessment → human acceptance → final answer
+```
+
+## Configuration
+
+All configuration is in `lisa.conf`:
+
+```bash
+# Model selection per phase
+CLAUDE_MODEL_SCOPE="opus"       # Pass 0 scoping
+CLAUDE_MODEL_DESCEND="opus"     # Methodology refinement
+CLAUDE_MODEL_BUILD="sonnet"     # Implementation (inner loop)
+CLAUDE_MODEL_ASCEND="opus"      # V&V and convergence
+
+# Loop limits
+MAX_SPIRAL_PASSES=5             # Max spiral passes
+MAX_RALPH_ITERATIONS=50         # Max build iterations per pass
+MAX_RALPH_BLOCKED_RETRIES=1     # Unblock attempts before surfacing
+
+# Human review
+REVIEW_DESCEND=false            # Review methodology after descend?
+NO_PAUSE=false                  # Skip all human review?
+
+# Git
+NO_PUSH=false                   # Skip git push?
+```
 
 ## Directory Structure
 
 ```
 project-root/
-├── loop.sh                         # The bash loop script
-├── PROMPT_methodology.md           # Phase 1 prompt
-├── PROMPT_plan.md                  # Phase 2 prompt
-├── PROMPT_build.md                 # Phase 3 prompt
-├── PROMPT_review.md                # One-shot review/audit prompt
-├── PROMPT_triage.md                # Triage review findings prompt
+├── loop.sh                         # The spiral-V loop script
+├── lisa.conf                       # Configuration
 ├── BRIEF.md                        # Project description (you write this)
 ├── AGENTS.md                       # Build/test/plot commands (you write this)
-├── IMPLEMENTATION_PLAN.md          # Generated by planning phase
+├── IMPLEMENTATION_PLAN.md          # Cumulative plan (created Pass 0, updated each Descend)
+│
+├── prompts/
+│   ├── PROMPT_scope.md             # Pass 0: scoping
+│   ├── PROMPT_descend.md           # Left leg of V: methodology + plan
+│   ├── PROMPT_build.md             # Bottom of V: Ralph loop iteration
+│   └── PROMPT_ascend.md            # Right leg of V: V&V + convergence
+│
+├── spiral/
+│   ├── current-state.md            # Loop state for resume
+│   ├── pass-0/                     # Scoping artifacts
+│   │   ├── acceptance-criteria.md
+│   │   ├── validation-strategy.md
+│   │   ├── sanity-checks.md
+│   │   ├── literature-survey.md
+│   │   ├── spiral-plan.md
+│   │   └── PASS_COMPLETE.md
+│   ├── pass-N/                     # Per-pass artifacts
+│   │   ├── descend-summary.md
+│   │   ├── reconsiderations/
+│   │   ├── verification-report.md
+│   │   ├── validation-report.md
+│   │   ├── convergence.md
+│   │   ├── review-package.md
+│   │   ├── human-redirect.md       # (if redirected)
+│   │   └── PASS_COMPLETE.md
+│   └── SPIRAL_COMPLETE.md          # Created on acceptance
+│
 ├── methodology/
 │   ├── overview.md
 │   ├── [subsystem].md              # One per physical subsystem
-│   ├── coupling-strategy.md
 │   ├── assumptions-register.md
+│   ├── coupling-strategy.md
 │   ├── verification-cases.md
 │   └── reconsiderations/           # Formal methodology change requests
+│
+├── validation/
+│   ├── sanity-checks.md            # Living engineering judgment checks
+│   ├── limiting-cases.md
+│   ├── reference-data.md
+│   └── convergence-log.md          # Cumulative convergence table
+│
 ├── references/
 │   ├── core/                       # Your papers (PDFs)
-│   └── retrieved/                  # Papers found by the agent
+│   └── retrieved/                  # Papers found by agent
+│
 ├── derivations/                    # Code ↔ equations mapping
 ├── plots/
-│   ├── REVIEW.md                   # Visual review summary
-│   └── [subsystem]/
+│   └── REVIEW.md                   # Visual review summary
 ├── src/                            # Source code
-└── tests/                          # Test suite
+├── tests/                          # Test suite
+│
+└── output/
+    ├── answer.md                   # Final answer
+    └── report.md                   # Development report
 ```
-
-## Configuration
-
-### Agent CLI
-
-By default, Lisa Loop uses Claude Code. Override with environment variables:
-
-```bash
-# Use a different agent
-AGENT_CMD=amp ./loop.sh build
-
-# Custom arguments
-AGENT_ARGS="-p --model sonnet" ./loop.sh methodology
-```
-
-### Other Options
-
-```bash
-# Skip git push after build iterations
-NO_PUSH=1 ./loop.sh build
-
-# Skip human review pauses (fully autonomous)
-NO_PAUSE=1 ./loop.sh methodology
-
-# Limit iterations
-./loop.sh methodology 10
-./loop.sh build 50
-```
-
-## Human Review Points
-
-Lisa Loop pauses for human review at three points:
-
-1. **Methodology complete** — review the full methodology before proceeding to planning
-2. **Plots updated** — visual verification of model behavior after build iterations
-3. **Reconsideration raised** — the agent found the methodology doesn't work and proposes a change
-
-These are the primary human touchpoints. Engineers look at methodology docs and plots, not code.
-
-## Reconsideration Protocol
-
-During building, the agent might discover the specified methodology is problematic (doesn't converge, assumption too restrictive, outside valid range). Rather than silently changing the approach:
-
-1. Creates `methodology/reconsiderations/[topic]-[issue].md` with evidence
-2. Marks the task as BLOCKED
-3. The loop pauses for human review
-
-The human either approves the change (updates methodology) or rejects it with guidance. This is a feature: the implementation phase can push back on methodology through a controlled channel.
-
-## Key Principles
-
-1. **Methodology is a first-class artifact.** Version-controlled, reviewable, and the code is checked against it.
-2. **The agent cannot silently make methodological choices.** It follows the spec or raises a formal reconsideration.
-3. **Verification is derived from methodology.** Test cases are specified before code exists.
-4. **Literature grounding is mandatory.** No method without a peer-reviewed source.
-5. **Hierarchical verification catches physical regression.** Changes trigger re-verification up the tree.
-6. **Visual verification for humans.** Plots are mandatory. Engineers spot wrong physics in plots faster than in code.
-7. **Front-load methodology, automate implementation.** Human expertise validates the approach. The loop translates equations to code.
-8. **Transparency over abstraction.** Raw bash loop, visible prompt files, no hidden state.
-9. **Agent CLI agnostic.** Works with Claude Code, amp, codex, opencode, or any CLI that accepts piped prompts.
 
 ## Lineage
 
-Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) created by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum). Ralph is a bash loop that repeatedly feeds an AI agent a prompt, with filesystem persistence as shared state. Lisa adds methodology rigor, hierarchical verification, and visual human review for engineering/scientific software where correctness goes beyond passing tests.
+Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) created by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum) — a bash loop that feeds prompts to an AI agent with filesystem persistence as shared state.
+
+**Lisa Loop v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
+
+**Lisa Loop v2** restructures the waterfall-with-feedback model into a spiral-V architecture: each revolution of the spiral passes through the full V-model, methodology is refined continuously rather than locked upfront, and convergence tracking determines when the answer is ready. The spiral history — not just the final answer — is the deliverable.
+
+Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
