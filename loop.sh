@@ -1,30 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Lisa Loop — Methodology-rigorous engineering software development loop
+# Lisa Loop v2 — Spiral-V development loop for engineering and scientific software
+#
+# Architecture: Outer spiral (convergence-driven, human-gated) with inner
+# Ralph loop (autonomous task execution) at each pass's build phase.
 #
 # Usage:
-#   ./loop.sh methodology [max_iterations]   # Phase 1: Develop methodology
-#   ./loop.sh plan [max_iterations]           # Phase 2: Plan implementation
-#   ./loop.sh build [max_iterations]          # Phase 3: Build with methodology adherence
-#   ./loop.sh review                          # One-shot methodology compliance audit
-#   ./loop.sh triage                         # Route review findings to methodology/implementation
-#
-# Environment variables:
-#   AGENT_CMD   — Agent CLI command (default: claude)
-#   AGENT_ARGS  — Additional agent arguments (default: see below)
-#   NO_PUSH     — Set to 1 to skip git push after build iterations
-#   NO_PAUSE    — Set to 1 to skip human review pauses
+#   ./loop.sh scope                  # Run Pass 0 (scoping) only
+#   ./loop.sh run [--max-passes N]   # Full spiral (scope if needed, then iterate)
+#   ./loop.sh resume                 # Resume from current state
+#   ./loop.sh status                 # Print current state and exit
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # --- Configuration -----------------------------------------------------------
 
-AGENT_CMD="${AGENT_CMD:-claude}"
-AGENT_ARGS="${AGENT_ARGS:--p --dangerously-skip-permissions --model opus --verbose}"
-NO_PUSH="${NO_PUSH:-0}"
-NO_PAUSE="${NO_PAUSE:-0}"
+# Source project config if it exists
+[[ -f "$SCRIPT_DIR/lisa.conf" ]] && source "$SCRIPT_DIR/lisa.conf"
+
+# Claude Code model selection per phase (defaults)
+CLAUDE_MODEL_SCOPE="${CLAUDE_MODEL_SCOPE:-opus}"
+CLAUDE_MODEL_DESCEND="${CLAUDE_MODEL_DESCEND:-opus}"
+CLAUDE_MODEL_BUILD="${CLAUDE_MODEL_BUILD:-sonnet}"
+CLAUDE_MODEL_ASCEND="${CLAUDE_MODEL_ASCEND:-opus}"
+
+# Loop limits
+MAX_SPIRAL_PASSES="${MAX_SPIRAL_PASSES:-5}"
+MAX_RALPH_ITERATIONS="${MAX_RALPH_ITERATIONS:-50}"
+MAX_RALPH_BLOCKED_RETRIES="${MAX_RALPH_BLOCKED_RETRIES:-1}"
+
+# Human review
+REVIEW_DESCEND="${REVIEW_DESCEND:-false}"
+NO_PAUSE="${NO_PAUSE:-false}"
+
+# Git
+NO_PUSH="${NO_PUSH:-false}"
 
 # --- Colors -------------------------------------------------------------------
 
@@ -34,7 +46,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+BOLD='\033[1m'
+NC='\033[0m'
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -48,11 +61,7 @@ log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 _filter_agent_stream() {
     # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
     # and emit human-readable progress lines showing agent tool calls, plus the
-    # final result text (equivalent to what `-p --output-format text` would show).
-    #
-    # NOTE: This filter is specific to Claude Code's stream-json format.
-    # For non-Claude agents the caller should skip this filter entirely
-    # (see _is_claude_agent / run_agent).
+    # final result text.
     #
     # Falls back to raw passthrough if jq is not available.
     if ! command -v jq &>/dev/null; then
@@ -96,32 +105,29 @@ _filter_agent_stream() {
     return 0
 }
 
-_is_claude_agent() {
-    # Return 0 (true) when AGENT_CMD looks like the Claude Code CLI.
-    [[ "$(basename "$AGENT_CMD")" == "claude" ]]
-}
-
 run_agent() {
+    # Usage: run_agent <prompt_file> <model> [context_string]
     local prompt_file="$1"
+    local model="$2"
+    local context="${3:-}"
+
     if [[ ! -f "$prompt_file" ]]; then
         log_error "Prompt file not found: $prompt_file"
         exit 1
     fi
-    log_info "Calling agent with prompt: $prompt_file"
-    log_info "Agent command: $AGENT_CMD $AGENT_ARGS"
+    log_info "Calling agent with prompt: $prompt_file (model: $model)"
     local start_seconds=$SECONDS
-    if _is_claude_agent; then
-        # Claude Code supports --output-format stream-json; use it for
-        # structured progress logging via _filter_agent_stream.
-        # shellcheck disable=SC2086
-        cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS --output-format stream-json \
-            | _filter_agent_stream
-    else
-        # Non-Claude agent — pass through raw stdout so the operator still
-        # sees whatever the agent emits.
-        # shellcheck disable=SC2086
-        cat "$prompt_file" | $AGENT_CMD $AGENT_ARGS
-    fi
+
+    {
+        if [[ -n "$context" ]]; then
+            echo "$context"
+            echo ""
+        fi
+        cat "$prompt_file"
+    } | claude -p --dangerously-skip-permissions --verbose \
+               --model "$model" --output-format stream-json \
+        | _filter_agent_stream
+
     local elapsed=$(( SECONDS - start_seconds ))
     log_info "Agent finished (${elapsed}s elapsed)"
 }
@@ -141,8 +147,8 @@ git_commit_all() {
 }
 
 git_push() {
-    if [[ "$NO_PUSH" == "1" ]]; then
-        log_info "Skipping push (NO_PUSH=1)"
+    if [[ "$NO_PUSH" == "true" || "$NO_PUSH" == "1" ]]; then
+        log_info "Skipping push (NO_PUSH=$NO_PUSH)"
         return
     fi
     local branch
@@ -151,283 +157,730 @@ git_push() {
     git push -u origin "$branch"
 }
 
-pause_for_review() {
-    local reason="$1"
-    if [[ "$NO_PAUSE" == "1" ]]; then
-        log_warn "Review pause skipped (NO_PAUSE=1): $reason"
+# --- State Management --------------------------------------------------------
+
+STATE_FILE="spiral/current-state.md"
+
+write_state() {
+    local pass="$1"
+    local phase="$2"
+    local status="$3"
+    local ralph_iter="${4:-0}"
+    mkdir -p spiral
+    cat > "$STATE_FILE" <<EOF
+# Spiral State
+pass: $pass
+phase: $phase
+status: $status
+ralph_iteration: $ralph_iter
+EOF
+}
+
+read_state() {
+    # Sets global variables: STATE_PASS, STATE_PHASE, STATE_STATUS, STATE_RALPH_ITER
+    if [[ ! -f "$STATE_FILE" ]]; then
+        STATE_PASS=0
+        STATE_PHASE="not_started"
+        STATE_STATUS="pending"
+        STATE_RALPH_ITER=0
+        return
+    fi
+    STATE_PASS=$(grep '^pass:' "$STATE_FILE" | awk '{print $2}')
+    STATE_PHASE=$(grep '^phase:' "$STATE_FILE" | awk '{print $2}')
+    STATE_STATUS=$(grep '^status:' "$STATE_FILE" | awk '{print $2}')
+    STATE_RALPH_ITER=$(grep '^ralph_iteration:' "$STATE_FILE" | awk '{print $2}')
+    STATE_PASS="${STATE_PASS:-0}"
+    STATE_PHASE="${STATE_PHASE:-not_started}"
+    STATE_STATUS="${STATE_STATUS:-pending}"
+    STATE_RALPH_ITER="${STATE_RALPH_ITER:-0}"
+}
+
+# --- Ralph Loop Detection ----------------------------------------------------
+
+count_tasks_for_pass() {
+    # Count tasks for a given pass with a given status
+    # Usage: count_tasks_for_pass <pass_number> <status>
+    local pass="$1"
+    local status="$2"
+
+    if [[ ! -f "IMPLEMENTATION_PLAN.md" ]]; then
+        echo 0
+        return
+    fi
+
+    # Use awk to parse task blocks: find tasks matching the pass and status.
+    # A task block starts with "### Task" and ends at the next "### Task" or EOF.
+    # Within a block, check for "**Spiral pass:** N" and "**Status:** STATUS".
+    awk -v pass="$pass" -v status="$status" '
+        /^### Task/ { in_task=1; found_pass=0; found_status=0; next }
+        in_task && /\*\*Spiral pass:\*\*/ {
+            # Extract pass number — match digits after the tag
+            match($0, /\*\*Spiral pass:\*\*[[:space:]]*([0-9]+)/, arr)
+            if (arr[1] == pass) found_pass=1
+        }
+        in_task && /\*\*Status:\*\*/ {
+            if (index($0, status)) found_status=1
+        }
+        in_task && found_pass && found_status { count++; in_task=0 }
+        END { print count+0 }
+    ' IMPLEMENTATION_PLAN.md
+}
+
+all_pass_tasks_done() {
+    # Returns 0 (true) if no TODO or IN_PROGRESS tasks remain for the given pass
+    local pass="$1"
+    local todo_count
+    local inprog_count
+    todo_count=$(count_tasks_for_pass "$pass" "TODO")
+    inprog_count=$(count_tasks_for_pass "$pass" "IN_PROGRESS")
+    [[ "$todo_count" -eq 0 && "$inprog_count" -eq 0 ]]
+}
+
+has_blocked_tasks() {
+    # Returns 0 (true) if any tasks for the given pass are BLOCKED
+    local pass="$1"
+    local blocked_count
+    blocked_count=$(count_tasks_for_pass "$pass" "BLOCKED")
+    [[ "$blocked_count" -gt 0 ]]
+}
+
+# --- Human Interaction Gates --------------------------------------------------
+
+review_gate() {
+    # Mandatory review after ascend phase
+    local pass="$1"
+    if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
+        log_warn "Review gate skipped (NO_PAUSE=$NO_PAUSE) — defaulting to CONTINUE"
+        return 0  # continue
+    fi
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}  SPIRAL PASS $pass COMPLETE — REVIEW REQUIRED${NC}"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "  Review package: spiral/pass-$pass/review-package.md"
+    echo "  Plots:          plots/REVIEW.md"
+    echo ""
+    echo "  [A] ACCEPT — Answer has converged. Produce final report."
+    echo "  [C] CONTINUE — Proceed to Pass $((pass + 1))."
+    echo "  [R] REDIRECT — Provide guidance for Pass $((pass + 1))."
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    while true; do
+        read -rp "  Your choice [A/C/R]: " choice
+        case "${choice^^}" in
+            A)
+                log_success "ACCEPTED — producing final output."
+                return 1  # accept
+                ;;
+            C)
+                log_info "CONTINUE — proceeding to next pass."
+                return 0  # continue
+                ;;
+            R)
+                echo ""
+                echo "  Enter your guidance for the next pass (end with an empty line):"
+                local redirect_text=""
+                while IFS= read -r line; do
+                    [[ -z "$line" ]] && break
+                    redirect_text+="$line"$'\n'
+                done
+                mkdir -p "spiral/pass-$pass"
+                cat > "spiral/pass-$pass/human-redirect.md" <<EOF
+# Human Redirect — Pass $pass
+
+$redirect_text
+EOF
+                log_info "REDIRECT — guidance saved to spiral/pass-$pass/human-redirect.md"
+                return 0  # continue with redirect
+                ;;
+            *)
+                echo "  Please enter A, C, or R."
+                ;;
+        esac
+    done
+}
+
+block_gate() {
+    # Shown when all remaining tasks are blocked during build
+    local pass="$1"
+    local completed="$2"
+    local total="$3"
+    local blocked="$4"
+
+    if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
+        log_warn "Block gate skipped (NO_PAUSE=$NO_PAUSE) — defaulting to SKIP"
+        return 1  # skip
+    fi
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}  BUILD PHASE BLOCKED — HUMAN INPUT NEEDED${NC}"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "  Completed: $completed/$total tasks"
+    echo "  Blocked:   $blocked tasks"
+    echo ""
+    echo "  See IMPLEMENTATION_PLAN.md for blocked items and details."
+    echo ""
+    echo "  [F] FIX — Resolve the blocks, then resume build."
+    echo "  [S] SKIP — Skip blocked items, proceed to Ascend."
+    echo "  [X] ABORT — Stop this spiral pass."
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    while true; do
+        read -rp "  Your choice [F/S/X]: " choice
+        case "${choice^^}" in
+            F)
+                log_info "FIX — resolve blocks in IMPLEMENTATION_PLAN.md, then the build loop will resume."
+                return 0  # fix — resume build loop
+                ;;
+            S)
+                log_info "SKIP — proceeding to ascend phase."
+                return 1  # skip — exit build loop
+                ;;
+            X)
+                log_error "ABORT — stopping spiral pass."
+                return 2  # abort
+                ;;
+            *)
+                echo "  Please enter F, S, or X."
+                ;;
+        esac
+    done
+}
+
+descend_gate() {
+    # Optional review after descend phase (if REVIEW_DESCEND=true)
+    local pass="$1"
+    if [[ "$REVIEW_DESCEND" != "true" ]]; then
+        return 0  # proceed without review
+    fi
+    if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
+        log_warn "Descend review skipped (NO_PAUSE=$NO_PAUSE)"
+        return 0
+    fi
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}  DESCEND COMPLETE — METHODOLOGY REVIEW${NC}"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "  Methodology: spiral/pass-$pass/descend-summary.md"
+    echo "  Updated plan: IMPLEMENTATION_PLAN.md"
+    echo ""
+    echo "  [P] PROCEED — Start building."
+    echo "  [R] REDIRECT — Adjust before building."
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    while true; do
+        read -rp "  Your choice [P/R]: " choice
+        case "${choice^^}" in
+            P)
+                log_info "PROCEED — starting build phase."
+                return 0
+                ;;
+            R)
+                echo ""
+                echo "  Enter your guidance (end with an empty line):"
+                local redirect_text=""
+                while IFS= read -r line; do
+                    [[ -z "$line" ]] && break
+                    redirect_text+="$line"$'\n'
+                done
+                mkdir -p "spiral/pass-$pass"
+                cat > "spiral/pass-$pass/human-redirect.md" <<EOF
+# Human Redirect — Pass $pass (Descend Review)
+
+$redirect_text
+EOF
+                log_info "Guidance saved. Re-running descend phase."
+                return 1  # redirect — re-run descend
+                ;;
+            *)
+                echo "  Please enter P or R."
+                ;;
+        esac
+    done
+}
+
+scope_review_gate() {
+    # Mandatory review after Pass 0 scoping
+    if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
+        log_warn "Scope review skipped (NO_PAUSE=$NO_PAUSE)"
         return
     fi
     echo ""
-    log_warn "═══════════════════════════════════════════════════════════"
-    log_warn "  HUMAN REVIEW REQUIRED: $reason"
-    log_warn "═══════════════════════════════════════════════════════════"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}  PASS 0 (SCOPING) COMPLETE — REVIEW REQUIRED${NC}"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    read -rp "  Press ENTER to continue, or Ctrl+C to stop... "
+    echo "  Review the following artifacts:"
+    echo "    spiral/pass-0/acceptance-criteria.md"
+    echo "    spiral/pass-0/validation-strategy.md"
+    echo "    spiral/pass-0/sanity-checks.md"
+    echo "    spiral/pass-0/literature-survey.md"
+    echo "    spiral/pass-0/spiral-plan.md"
+    echo "    IMPLEMENTATION_PLAN.md"
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    read -rp "  Press ENTER to approve and continue, or Ctrl+C to stop and edit... "
     echo ""
 }
 
-check_plots_changed() {
-    # Check if any files in plots/ were modified in the last commit
-    if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q '^plots/'; then
+# --- Phase: Scope (Pass 0) ---------------------------------------------------
+
+run_scope() {
+    log_phase "PASS 0 — SCOPING"
+
+    # Check if already complete
+    if [[ -f "spiral/pass-0/PASS_COMPLETE.md" ]]; then
+        log_success "Pass 0 already complete."
         return 0
     fi
-    return 1
+
+    write_state 0 "scope" "in_progress"
+    mkdir -p spiral/pass-0
+
+    log_info "Running scope agent..."
+    run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE"
+
+    log_info "Committing scope artifacts..."
+    git_commit_all "scope: pass 0 — scoping complete" || true
+
+    scope_review_gate
+
+    write_state 0 "scope" "complete"
+    log_success "Pass 0 (scoping) complete."
 }
 
-check_reconsiderations() {
-    # Check if any reconsideration documents exist that haven't been addressed
-    local recon_dir="methodology/reconsiderations"
-    if [[ -d "$recon_dir" ]]; then
-        local count
-        count=$(find "$recon_dir" -name '*.md' 2>/dev/null | wc -l)
-        if [[ "$count" -gt 0 ]]; then
-            return 0
-        fi
-    fi
-    return 1
-}
+# --- Phase: Descend -----------------------------------------------------------
 
-# --- Phase: Methodology -------------------------------------------------------
+run_descend() {
+    local pass="$1"
+    log_phase "PASS $pass — DESCEND (methodology refinement)"
 
-run_methodology() {
-    local max="${1:-50}"
-    log_phase "METHODOLOGY PHASE (max $max iterations)"
+    write_state "$pass" "descend" "in_progress"
+    mkdir -p "spiral/pass-$pass"
 
-    for ((i = 1; i <= max; i++)); do
-        echo ""
-        log_phase "Methodology — Iteration $i / $max"
-
-        # Check if methodology is already marked complete
-        log_info "Checking for METHODOLOGY_COMPLETE.md..."
-        if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
-            log_success "METHODOLOGY_COMPLETE.md found."
-            pause_for_review "Review methodology before proceeding"
-            if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
-                log_success "Methodology phase complete. Proceed to: ./loop.sh plan"
-                return 0
-            else
-                log_info "METHODOLOGY_COMPLETE.md removed — continuing iterations."
-            fi
-        fi
-
-        # Call agent
-        log_info "Step 1/3: Running agent to identify and address a methodology gap..."
-        run_agent PROMPT_methodology.md
-
-        # Commit the iteration's work
-        log_info "Step 2/3: Committing iteration work..."
-        git_commit_all "methodology: iteration $i" || true
-
-        # Check if the agent marked methodology complete
-        log_info "Step 3/3: Checking if agent marked methodology complete..."
-        if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
-            log_success "Agent marked methodology complete after iteration $i."
-            pause_for_review "Review completed methodology"
-            if [[ -f "METHODOLOGY_COMPLETE.md" ]]; then
-                log_success "Methodology approved. Proceed to: ./loop.sh plan"
-                return 0
-            else
-                log_info "METHODOLOGY_COMPLETE.md removed — continuing iterations."
-            fi
-        else
-            log_info "Methodology not yet complete — continuing to next iteration."
-        fi
-    done
-
-    log_warn "Reached max iterations ($max) without methodology completion."
-    return 1
-}
-
-# --- Phase: Planning ----------------------------------------------------------
-
-run_plan() {
-    local max="${1:-20}"
-    log_phase "PLANNING PHASE (max $max iterations)"
-
-    if [[ ! -f "METHODOLOGY_COMPLETE.md" ]]; then
-        log_error "No METHODOLOGY_COMPLETE.md found. Run methodology phase first."
-        exit 1
+    # Build context string for the agent
+    local prev_pass=$((pass - 1))
+    local context="Current spiral pass: $pass"
+    context+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
+    if [[ -f "spiral/pass-$prev_pass/human-redirect.md" ]]; then
+        context+=$'\n'"Human redirect file: spiral/pass-$prev_pass/human-redirect.md"
     fi
 
-    for ((i = 1; i <= max; i++)); do
-        echo ""
-        log_phase "Planning — Iteration $i / $max"
+    log_info "Running descend agent..."
+    run_agent "prompts/PROMPT_descend.md" "$CLAUDE_MODEL_DESCEND" "$context"
 
-        # Call agent
-        log_info "Step 1/3: Running agent to develop implementation plan..."
-        run_agent PROMPT_plan.md
+    log_info "Committing descend artifacts..."
+    git_commit_all "descend: pass $pass — methodology refinement" || true
 
-        # Commit
-        log_info "Step 2/3: Committing iteration work..."
-        git_commit_all "plan: iteration $i" || true
+    # Optional descend review
+    descend_gate "$pass"
+    local gate_result=$?
+    if [[ $gate_result -eq 1 ]]; then
+        # Redirect — re-run descend
+        log_info "Re-running descend with redirect guidance..."
+        run_agent "prompts/PROMPT_descend.md" "$CLAUDE_MODEL_DESCEND" "$context"
+        git_commit_all "descend: pass $pass — post-redirect refinement" || true
+    fi
 
-        # Check if IMPLEMENTATION_PLAN.md exists and is marked ready
-        log_info "Step 3/3: Checking if plan is marked complete..."
-        if [[ -f "IMPLEMENTATION_PLAN.md" ]] && grep -q '^\[PLAN_COMPLETE\]' "IMPLEMENTATION_PLAN.md"; then
-            log_success "Implementation plan marked complete after iteration $i."
-            pause_for_review "Review implementation plan"
-            log_success "Planning complete. Proceed to: ./loop.sh build"
-            return 0
-        else
-            log_info "Plan not yet complete — continuing to next iteration."
-        fi
-    done
-
-    log_warn "Reached max iterations ($max) without plan completion."
-    return 1
+    write_state "$pass" "descend" "complete"
 }
 
-# --- Phase: Building ----------------------------------------------------------
+# --- Phase: Build (Ralph Loop) -----------------------------------------------
 
 run_build() {
-    local max="${1:-100}"
-    log_phase "BUILDING PHASE (max $max iterations)"
+    local pass="$1"
+    log_phase "PASS $pass — BUILD (Ralph loop)"
 
-    if [[ ! -f "IMPLEMENTATION_PLAN.md" ]]; then
-        log_error "No IMPLEMENTATION_PLAN.md found. Run planning phase first."
-        exit 1
-    fi
+    write_state "$pass" "build" "in_progress" 0
 
-    for ((i = 1; i <= max; i++)); do
+    local context="Current spiral pass: $pass"
+
+    for ((iter = 1; iter <= MAX_RALPH_ITERATIONS; iter++)); do
         echo ""
-        log_phase "Building — Iteration $i / $max"
+        log_phase "Build — Pass $pass, Iteration $iter / $MAX_RALPH_ITERATIONS"
 
-        # Check for unresolved reconsiderations before starting
-        log_info "Step 1/6: Checking for unresolved reconsiderations..."
-        if check_reconsiderations; then
-            log_warn "Unresolved methodology reconsiderations found."
-            echo ""
-            log_info "Reconsiderations in methodology/reconsiderations/:"
-            ls -1 methodology/reconsiderations/*.md 2>/dev/null || true
-            echo ""
-            pause_for_review "Resolve methodology reconsiderations before continuing"
-        else
-            log_info "No unresolved reconsiderations."
-        fi
+        write_state "$pass" "build" "in_progress" "$iter"
 
-        # Call agent
-        log_info "Step 2/6: Running agent to implement next task..."
-        run_agent PROMPT_build.md
+        log_info "Running build agent (iteration $iter)..."
+        run_agent "prompts/PROMPT_build.md" "$CLAUDE_MODEL_BUILD" "$context"
 
-        # Commit the iteration's work
-        log_info "Step 3/6: Committing iteration work..."
-        if git_commit_all "build: iteration $i"; then
-            log_info "Step 4/6: Pushing to remote..."
-            git_push
+        log_info "Committing build work..."
+        git_commit_all "build: pass $pass iteration $iter" || true
 
-            # Check if plots changed — pause for visual review
-            log_info "Step 5/6: Checking if plots were updated..."
-            if check_plots_changed; then
-                log_info "Plots updated in this iteration."
-                if [[ -f "plots/REVIEW.md" ]]; then
-                    echo ""
-                    log_info "--- plots/REVIEW.md ---"
-                    cat plots/REVIEW.md
-                    echo ""
-                    log_info "--- end ---"
+        # Check if all tasks for this pass are done
+        if all_pass_tasks_done "$pass"; then
+            if has_blocked_tasks "$pass"; then
+                log_warn "All non-blocked tasks complete. Some tasks are BLOCKED."
+                local done_count blocked_count total_count
+                done_count=$(count_tasks_for_pass "$pass" "DONE")
+                blocked_count=$(count_tasks_for_pass "$pass" "BLOCKED")
+                total_count=$((done_count + blocked_count))
+
+                block_gate "$pass" "$done_count" "$total_count" "$blocked_count"
+                local gate_result=$?
+                if [[ $gate_result -eq 0 ]]; then
+                    # Fix — continue build loop (human resolved blocks)
+                    continue
+                elif [[ $gate_result -eq 2 ]]; then
+                    # Abort
+                    log_error "Build aborted by user."
+                    return 1
                 fi
-                pause_for_review "Visual review of updated plots"
-            else
-                log_info "No plot changes in this iteration."
+                # Skip — fall through to exit build loop
             fi
-        else
-            log_info "Step 4/6: Skipping push (no changes committed)."
-            log_info "Step 5/6: Skipping plot check (no changes committed)."
+            log_success "All tasks for pass $pass complete."
+            break
         fi
 
-        # Check for new reconsiderations created this iteration
-        log_info "Step 6/6: Checking for new reconsiderations..."
-        if check_reconsiderations; then
-            log_warn "New methodology reconsideration raised."
-            echo ""
-            log_info "Reconsiderations:"
-            ls -1 methodology/reconsiderations/*.md 2>/dev/null || true
-            echo ""
-            pause_for_review "Review methodology reconsideration"
-        else
-            log_info "No new reconsiderations."
-        fi
-
-        # Check if all tasks are done
-        log_info "Checking if build is complete..."
-        if [[ -f "IMPLEMENTATION_PLAN.md" ]] && grep -q '^\[BUILD_COMPLETE\]' "IMPLEMENTATION_PLAN.md"; then
-            log_success "All implementation tasks complete after iteration $i."
-            log_success "Run ./loop.sh review for a final compliance audit."
-            return 0
-        else
-            log_info "Build not yet complete — continuing to next iteration."
-        fi
+        log_info "Tasks remain — continuing Ralph loop."
     done
 
-    log_warn "Reached max iterations ($max). Some tasks may remain."
-    return 1
-}
-
-# --- Phase: Review ------------------------------------------------------------
-
-run_review() {
-    log_phase "REVIEW — One-shot methodology compliance audit"
-
-    log_info "Step 1/2: Running agent to perform compliance audit..."
-    run_agent PROMPT_review.md
-
-    log_info "Step 2/2: Committing audit results..."
-    git_commit_all "review: compliance audit" || true
-
-    log_success "Review complete. Check REVIEW_REPORT.md for results."
-}
-
-# --- Phase: Triage ------------------------------------------------------------
-
-run_triage() {
-    log_phase "TRIAGE — Route review findings to methodology and implementation"
-
-    if [[ ! -f "REVIEW_REPORT.md" ]]; then
-        log_error "No REVIEW_REPORT.md found. Run review phase first."
-        exit 1
+    if [[ $iter -gt $MAX_RALPH_ITERATIONS ]]; then
+        log_warn "Reached max Ralph iterations ($MAX_RALPH_ITERATIONS). Some tasks may remain."
     fi
 
-    log_info "Step 1/2: Running agent to triage review findings..."
-    run_agent PROMPT_triage.md
+    write_state "$pass" "build" "complete"
+    return 0
+}
 
-    log_info "Step 2/2: Committing triage results..."
-    git_commit_all "triage: route review findings to methodology and implementation" || true
+# --- Phase: Ascend ------------------------------------------------------------
 
-    if [[ -f "TRIAGE_SUMMARY.md" ]]; then
+run_ascend() {
+    local pass="$1"
+    log_phase "PASS $pass — ASCEND (verification, validation, convergence)"
+
+    write_state "$pass" "ascend" "in_progress"
+
+    # Build context string
+    local prev_pass=$((pass - 1))
+    local context="Current spiral pass: $pass"
+    context+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
+
+    log_info "Running ascend agent..."
+    run_agent "prompts/PROMPT_ascend.md" "$CLAUDE_MODEL_ASCEND" "$context"
+
+    log_info "Committing ascend artifacts..."
+    git_commit_all "ascend: pass $pass — V&V and convergence" || true
+
+    log_info "Pushing to remote..."
+    git_push
+
+    write_state "$pass" "ascend" "complete"
+}
+
+# --- Finalize -----------------------------------------------------------------
+
+finalize_output() {
+    log_phase "FINALIZING — Producing deliverables"
+
+    # Create SPIRAL_COMPLETE.md
+    cat > "spiral/SPIRAL_COMPLETE.md" <<EOF
+# Spiral Complete
+
+The spiral has converged and the human has accepted the results.
+
+Completed: $(date -Iseconds)
+Final pass: $1
+EOF
+
+    # If output files don't exist yet, note that ascend should have drafted them
+    if [[ ! -f "output/answer.md" ]]; then
+        log_warn "output/answer.md not found — check spiral/pass-$1/review-package.md for the answer."
+    fi
+    if [[ ! -f "output/report.md" ]]; then
+        log_warn "output/report.md not found — check spiral artifacts for report content."
+    fi
+
+    git_commit_all "final: spiral complete — answer accepted at pass $1" || true
+    git_push
+
+    log_success "Done. Final deliverables in output/."
+    if [[ -f "output/answer.md" ]]; then
         echo ""
-        log_info "--- TRIAGE_SUMMARY.md ---"
-        cat TRIAGE_SUMMARY.md
+        log_info "--- output/answer.md ---"
+        cat output/answer.md
         echo ""
         log_info "--- end ---"
     fi
+}
 
-    if check_reconsiderations; then
-        log_warn "Methodology reconsiderations were created."
-        log_warn "Run ./loop.sh methodology to resolve them, then ./loop.sh plan and ./loop.sh build"
+# --- Commands -----------------------------------------------------------------
+
+cmd_scope() {
+    run_scope
+}
+
+cmd_run() {
+    local max_passes="$MAX_SPIRAL_PASSES"
+
+    # Parse --max-passes flag
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --max-passes)
+                max_passes="$2"
+                shift 2
+                ;;
+            --max-passes=*)
+                max_passes="${1#*=}"
+                shift
+                ;;
+            *)
+                log_error "Unknown flag: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    log_phase "LISA LOOP v2 — SPIRAL RUN (max $max_passes passes)"
+
+    # Ensure scoping is done first
+    if [[ ! -f "spiral/pass-0/PASS_COMPLETE.md" ]]; then
+        log_info "Pass 0 (scoping) not complete. Running scope first."
+        run_scope
     else
-        log_success "Only implementation findings. Run ./loop.sh plan and ./loop.sh build to proceed."
+        log_info "Pass 0 already complete. Starting spiral passes."
     fi
 
-    log_success "Triage complete. Check TRIAGE_SUMMARY.md for results."
+    # Spiral passes
+    for ((pass = 1; pass <= max_passes; pass++)); do
+        echo ""
+        log_phase "═══ SPIRAL PASS $pass / $max_passes ═══"
+
+        # Skip completed passes (for resume support)
+        if [[ -f "spiral/pass-$pass/PASS_COMPLETE.md" ]]; then
+            log_info "Pass $pass already complete — skipping."
+            continue
+        fi
+
+        # 1. Descend
+        run_descend "$pass"
+
+        # 2. Build (Ralph loop)
+        if ! run_build "$pass"; then
+            log_error "Build phase aborted at pass $pass."
+            return 1
+        fi
+
+        # 3. Ascend
+        run_ascend "$pass"
+
+        # 4. Human review gate
+        review_gate "$pass"
+        local gate_result=$?
+        if [[ $gate_result -eq 1 ]]; then
+            # Accepted
+            finalize_output "$pass"
+            return 0
+        fi
+        # Otherwise: continue or redirect (redirect saved during gate)
+    done
+
+    log_warn "Reached max spiral passes ($max_passes) without convergence."
+    log_info "Review the latest pass results and decide whether to accept or continue."
+}
+
+cmd_resume() {
+    log_phase "RESUMING FROM SAVED STATE"
+
+    read_state
+
+    log_info "Current state: pass=$STATE_PASS phase=$STATE_PHASE status=$STATE_STATUS ralph_iter=$STATE_RALPH_ITER"
+
+    if [[ "$STATE_PHASE" == "not_started" ]]; then
+        log_info "No previous run found. Starting fresh."
+        cmd_run "$@"
+        return
+    fi
+
+    if [[ "$STATE_PASS" -eq 0 ]]; then
+        if [[ "$STATE_STATUS" != "complete" ]]; then
+            log_info "Resuming: Pass 0 (scope) was incomplete."
+            run_scope
+        fi
+        # Continue with full run
+        cmd_run "$@"
+        return
+    fi
+
+    local pass="$STATE_PASS"
+
+    case "$STATE_PHASE" in
+        descend)
+            if [[ "$STATE_STATUS" != "complete" ]]; then
+                log_info "Resuming: descend phase of pass $pass."
+                run_descend "$pass"
+            fi
+            # Continue with build, ascend, review
+            run_build "$pass" || return 1
+            run_ascend "$pass"
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            # Continue with remaining passes
+            for ((p = pass + 1; p <= MAX_SPIRAL_PASSES; p++)); do
+                run_descend "$p"
+                run_build "$p" || return 1
+                run_ascend "$p"
+                review_gate "$p"
+                gate_result=$?
+                if [[ $gate_result -eq 1 ]]; then
+                    finalize_output "$p"
+                    return 0
+                fi
+            done
+            ;;
+        build)
+            log_info "Resuming: build phase of pass $pass (from iteration $STATE_RALPH_ITER)."
+            run_build "$pass" || return 1
+            run_ascend "$pass"
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            for ((p = pass + 1; p <= MAX_SPIRAL_PASSES; p++)); do
+                run_descend "$p"
+                run_build "$p" || return 1
+                run_ascend "$p"
+                review_gate "$p"
+                gate_result=$?
+                if [[ $gate_result -eq 1 ]]; then
+                    finalize_output "$p"
+                    return 0
+                fi
+            done
+            ;;
+        ascend)
+            if [[ "$STATE_STATUS" != "complete" ]]; then
+                log_info "Resuming: ascend phase of pass $pass."
+                run_ascend "$pass"
+            fi
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            for ((p = pass + 1; p <= MAX_SPIRAL_PASSES; p++)); do
+                run_descend "$p"
+                run_build "$p" || return 1
+                run_ascend "$p"
+                review_gate "$p"
+                gate_result=$?
+                if [[ $gate_result -eq 1 ]]; then
+                    finalize_output "$p"
+                    return 0
+                fi
+            done
+            ;;
+        review)
+            log_info "Resuming: review gate of pass $pass."
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            for ((p = pass + 1; p <= MAX_SPIRAL_PASSES; p++)); do
+                run_descend "$p"
+                run_build "$p" || return 1
+                run_ascend "$p"
+                review_gate "$p"
+                gate_result=$?
+                if [[ $gate_result -eq 1 ]]; then
+                    finalize_output "$p"
+                    return 0
+                fi
+            done
+            ;;
+        *)
+            log_warn "Unknown phase: $STATE_PHASE. Starting full run."
+            cmd_run "$@"
+            ;;
+    esac
+}
+
+cmd_status() {
+    read_state
+
+    echo ""
+    echo -e "${BOLD}Lisa Loop v2 — Current Status${NC}"
+    echo ""
+
+    if [[ "$STATE_PHASE" == "not_started" ]]; then
+        echo "  State: Not started"
+        echo "  Next:  ./loop.sh scope   (or ./loop.sh run)"
+    else
+        echo "  Spiral pass:     $STATE_PASS"
+        echo "  Phase:           $STATE_PHASE"
+        echo "  Status:          $STATE_STATUS"
+        if [[ "$STATE_PHASE" == "build" ]]; then
+            echo "  Ralph iteration: $STATE_RALPH_ITER"
+        fi
+
+        if [[ -f "spiral/SPIRAL_COMPLETE.md" ]]; then
+            echo ""
+            echo -e "  ${GREEN}Spiral COMPLETE — answer accepted.${NC}"
+        fi
+
+        echo ""
+        echo "  Pass artifacts:"
+        for d in spiral/pass-*/; do
+            [[ -d "$d" ]] || continue
+            local pnum="${d#spiral/pass-}"
+            pnum="${pnum%/}"
+            local status_marker=""
+            if [[ -f "${d}PASS_COMPLETE.md" ]]; then
+                status_marker=" ✓"
+            fi
+            echo "    pass-$pnum$status_marker"
+        done
+
+        if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+            echo ""
+            echo "  Implementation plan tasks:"
+            local todo done blocked inprog
+            todo=$(grep -c '\*\*Status:\*\* TODO' IMPLEMENTATION_PLAN.md 2>/dev/null || echo 0)
+            done=$(grep -c '\*\*Status:\*\* DONE' IMPLEMENTATION_PLAN.md 2>/dev/null || echo 0)
+            blocked=$(grep -c '\*\*Status:\*\* BLOCKED' IMPLEMENTATION_PLAN.md 2>/dev/null || echo 0)
+            inprog=$(grep -c '\*\*Status:\*\* IN_PROGRESS' IMPLEMENTATION_PLAN.md 2>/dev/null || echo 0)
+            echo "    TODO:        $todo"
+            echo "    IN_PROGRESS: $inprog"
+            echo "    DONE:        $done"
+            echo "    BLOCKED:     $blocked"
+        fi
+    fi
+    echo ""
 }
 
 # --- Main ---------------------------------------------------------------------
 
 usage() {
-    echo "Usage: ./loop.sh <mode> [max_iterations]"
+    echo "Lisa Loop v2 — Spiral-V development loop"
     echo ""
-    echo "Modes:"
-    echo "  methodology [max]   Phase 1: Develop methodology (default max: 50)"
-    echo "  plan [max]          Phase 2: Plan implementation (default max: 20)"
-    echo "  build [max]         Phase 3: Build with verification (default max: 100)"
-    echo "  review              One-shot compliance audit"
-    echo "  triage              Route review findings to methodology/implementation"
+    echo "Usage: ./loop.sh <command> [options]"
     echo ""
-    echo "Environment variables:"
-    echo "  AGENT_CMD   Agent CLI command (default: claude)"
-    echo "  AGENT_ARGS  Agent CLI arguments"
-    echo "  NO_PUSH     Set to 1 to skip git push after build iterations"
-    echo "  NO_PAUSE    Set to 1 to skip human review pauses"
+    echo "Commands:"
+    echo "  scope                  Run Pass 0 (scoping) only"
+    echo "  run [--max-passes N]   Full spiral (scope if needed, then iterate)"
+    echo "  resume                 Resume from current state"
+    echo "  status                 Print current state and exit"
+    echo ""
+    echo "Configuration: lisa.conf (see file for all options)"
 }
 
 if [[ $# -lt 1 ]]; then
@@ -435,30 +888,27 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 
-MODE="$1"
-MAX="${2:-}"
+COMMAND="$1"
+shift
 
-case "$MODE" in
-    methodology)
-        run_methodology "${MAX:-50}"
+case "$COMMAND" in
+    scope)
+        cmd_scope
         ;;
-    plan)
-        run_plan "${MAX:-20}"
+    run)
+        cmd_run "$@"
         ;;
-    build)
-        run_build "${MAX:-100}"
+    resume)
+        cmd_resume "$@"
         ;;
-    review)
-        run_review
-        ;;
-    triage)
-        run_triage
+    status)
+        cmd_status
         ;;
     -h|--help|help)
         usage
         ;;
     *)
-        log_error "Unknown mode: $MODE"
+        log_error "Unknown command: $COMMAND"
         usage
         exit 1
         ;;

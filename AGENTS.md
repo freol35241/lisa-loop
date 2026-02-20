@@ -1,6 +1,7 @@
 # Operational Guide
 
 <!-- This file tells the AI agent how to build, test, and run the project.
+     It is read by ALL four phase agents (scope, descend, build, ascend).
      Update it as your project evolves. -->
 
 ## Language & Runtime
