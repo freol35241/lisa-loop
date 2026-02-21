@@ -1,7 +1,8 @@
 # Assumptions Register
 
 <!-- Central registry of all assumptions made across all subsystems.
-     Updated by the methodology phase whenever a subsystem is specified or modified. -->
+     Updated by the scope phase (Pass 0) and subsystem refine phases
+     whenever cross-cutting assumptions are added or modified. -->
 
 ## Format
 
@@ -20,4 +21,4 @@ Each assumption entry follows this format:
 
 ## Assumptions
 
-<!-- Populated during the methodology phase -->
+<!-- Populated during scoping and subsystem refine phases -->

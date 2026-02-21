@@ -268,23 +268,90 @@ count_tasks_for_subsystem_pass() {
     ' "$plan_file"
 }
 
+count_uncompleted_tasks_up_to_pass() {
+    # Count TODO or IN_PROGRESS tasks for a subsystem where spiral pass <= given pass
+    local subsystem="$1"
+    local max_pass="$2"
+    local plan_file="subsystems/$subsystem/plan.md"
+
+    if [[ ! -f "$plan_file" ]]; then
+        echo 0
+        return
+    fi
+
+    awk -v max_pass="$max_pass" '
+        /^### Task/ {
+            if (in_task && task_pass <= max_pass && (found_todo || found_inprog)) count++
+            in_task=1; task_pass=9999; found_todo=0; found_inprog=0
+            next
+        }
+        in_task && /\*\*Spiral pass:\*\*/ {
+            line = $0
+            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/[^0-9].*/, "", line)
+            task_pass = line + 0
+        }
+        in_task && /\*\*Status:\*\*/ {
+            if (index($0, "TODO")) found_todo=1
+            if (index($0, "IN_PROGRESS")) found_inprog=1
+        }
+        END {
+            if (in_task && task_pass <= max_pass && (found_todo || found_inprog)) count++
+            print count+0
+        }
+    ' "$plan_file"
+}
+
+count_blocked_tasks_up_to_pass() {
+    # Count BLOCKED tasks for a subsystem where spiral pass <= given pass
+    local subsystem="$1"
+    local max_pass="$2"
+    local plan_file="subsystems/$subsystem/plan.md"
+
+    if [[ ! -f "$plan_file" ]]; then
+        echo 0
+        return
+    fi
+
+    awk -v max_pass="$max_pass" '
+        /^### Task/ {
+            if (in_task && task_pass <= max_pass && found_blocked) count++
+            in_task=1; task_pass=9999; found_blocked=0
+            next
+        }
+        in_task && /\*\*Spiral pass:\*\*/ {
+            line = $0
+            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/[^0-9].*/, "", line)
+            task_pass = line + 0
+        }
+        in_task && /\*\*Status:\*\*/ {
+            if (index($0, "BLOCKED")) found_blocked=1
+        }
+        END {
+            if (in_task && task_pass <= max_pass && found_blocked) count++
+            print count+0
+        }
+    ' "$plan_file"
+}
+
 all_subsystem_pass_tasks_done() {
-    # Returns 0 (true) if no TODO or IN_PROGRESS tasks remain for the given subsystem/pass
+    # Returns 0 (true) if no TODO or IN_PROGRESS tasks remain for the given
+    # subsystem at or below the given pass (catches leftover tasks from earlier passes)
     local subsystem="$1"
     local pass="$2"
-    local todo_count
-    local inprog_count
-    todo_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "TODO")
-    inprog_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "IN_PROGRESS")
-    [[ "$todo_count" -eq 0 && "$inprog_count" -eq 0 ]]
+    local remaining
+    remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
+    [[ "$remaining" -eq 0 ]]
 }
 
 has_subsystem_blocked_tasks() {
-    # Returns 0 (true) if any tasks for the given subsystem/pass are BLOCKED
+    # Returns 0 (true) if any tasks for the given subsystem at or below the
+    # given pass are BLOCKED
     local subsystem="$1"
     local pass="$2"
     local blocked_count
-    blocked_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
+    blocked_count=$(count_blocked_tasks_up_to_pass "$subsystem" "$pass")
     [[ "$blocked_count" -gt 0 ]]
 }
 
