@@ -466,6 +466,74 @@ block_gate() {
     done
 }
 
+environment_gate() {
+    # Check if the scope agent flagged missing runtimes/toolchains.
+    # Only fires for system-level tooling — package-level deps are handled by scope.
+    local env_file="spiral/pass-0/environment-resolution.md"
+
+    # Skip if the file doesn't exist or is empty
+    if [[ ! -s "$env_file" ]]; then
+        return 0
+    fi
+
+    if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
+        log_warn "Environment gate skipped (NO_PAUSE=$NO_PAUSE) — proceeding with possible missing tooling"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}  ENVIRONMENT RESOLUTION REQUIRED${NC}"
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "  The scope agent detected missing runtimes or toolchains."
+    echo "  Details: $env_file"
+    echo ""
+    echo -e "${YELLOW}$(cat "$env_file")${NC}"
+    echo ""
+    echo "  [F] FIX — I'll install the missing runtimes/tooling. Press Enter when ready."
+    echo "  [S] SKIP — Proceed anyway. I accept the risk of build failures."
+    echo ""
+    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    while true; do
+        read -rp "  Your choice [F/S]: " choice
+        case "${choice^^}" in
+            F)
+                log_info "FIX — install the missing tooling, then press Enter."
+                read -rp "  Press ENTER when you've installed the missing tooling... "
+                echo ""
+
+                # Re-verify: run version checks for items listed in the env file
+                log_info "Re-verifying environment..."
+                local verify_failed=false
+
+                # Extract tool check commands from the env file and re-run them
+                # Simple approach: re-run common version checks and see if env file
+                # should be cleared
+                local recheck_context="Re-verify the local environment. Read spiral/pass-0/environment-resolution.md to see what was missing. Run the version/availability checks again for those specific tools. If everything is now available, clear the file (write an empty file to spiral/pass-0/environment-resolution.md). If tools are still missing, update the file with what remains missing."
+                run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$recheck_context"
+
+                if [[ -s "$env_file" ]]; then
+                    log_warn "Some tooling is still missing. Returning to environment gate."
+                    continue
+                else
+                    log_success "Environment verified — all required tooling is now available."
+                    return 0
+                fi
+                ;;
+            S)
+                log_warn "SKIP — proceeding with possible missing tooling."
+                return 0
+                ;;
+            *)
+                echo "  Please enter F or S."
+                ;;
+        esac
+    done
+}
+
 scope_review_gate() {
     # Mandatory review after Pass 0 scoping
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
@@ -478,6 +546,7 @@ scope_review_gate() {
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
     echo "  Review the following artifacts:"
+    echo "    AGENTS.md                              (resolved technology stack)"
     echo "    SUBSYSTEMS.md                          (subsystem decomposition)"
     echo "    subsystems/*/methodology.md            (per-subsystem methodology)"
     echo "    subsystems/*/plan.md                   (per-subsystem plans)"
@@ -513,6 +582,8 @@ run_scope() {
 
     log_info "Committing scope artifacts..."
     git_commit_all "scope: pass 0 — scoping complete" || true
+
+    environment_gate
 
     scope_review_gate
 

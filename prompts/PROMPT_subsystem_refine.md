@@ -13,7 +13,7 @@ You are a research engineer refining the methodology and updating the implementa
 Read **all** of the following:
 
 - `BRIEF.md` — project goals
-- `AGENTS.md` — project-specific operational guidance
+- `AGENTS.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there. Do not write tasks that assume a different stack.
 - `SUBSYSTEMS.md` — the subsystem manifest (your interfaces: what you consume, what you provide)
 - `subsystems/[name]/methodology.md` — your current methodology
 - `subsystems/[name]/plan.md` — your current implementation plan

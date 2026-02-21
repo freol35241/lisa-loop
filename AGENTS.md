@@ -4,11 +4,54 @@
      It is read by ALL four phase agents (scope, refine, build, validate).
      Update it as your project evolves. -->
 
-## Language & Runtime
+## Technology Preferences (Human-Provided, Optional)
 
-<!-- e.g., Python 3.11+, Rust 1.75+, Julia 1.10+ -->
+<!-- State your technology preferences here BEFORE running scope.
+     If left blank, the scope agent will choose freely based on the problem requirements.
 
-[Specify language and minimum version]
+     Examples:
+       - "Use Python 3.11+ with NumPy/SciPy"
+       - "Must be Rust for performance"
+       - "Python with PyO3 for hot loops"
+       - "Julia 1.10+ for numerical work"
+
+     You may also specify preferred test frameworks, linters, or build tools.
+     The scope agent will respect your preferences when selecting the stack. -->
+
+## Resolved Technology Stack (Scope-Agent-Populated)
+
+<!-- This section is populated by the scope agent during Pass 0 after probing
+     the local environment. Do not edit manually unless you know what you're doing.
+     If you pre-filled the command sections below before running scope, the scope
+     agent will verify they work rather than overwriting them. -->
+
+### Language & Runtime
+
+<!-- Filled by scope agent. Example: Python 3.11.5 (verified), Rust 1.75.0 (verified) -->
+
+[To be resolved by scope agent]
+
+### Key Dependencies
+
+<!-- Filled by scope agent with installed packages and verified versions.
+     Example:
+       - numpy 1.26.2 (installed via pip)
+       - scipy 1.11.4 (installed via pip)
+       - pytest 7.4.3 (installed via pip) -->
+
+[To be resolved by scope agent]
+
+### Test Framework
+
+<!-- Filled by scope agent. Example: pytest 7.4.3 with pytest-mark for test levels -->
+
+[To be resolved by scope agent]
+
+### Stack Justification
+
+<!-- Filled by scope agent with reasoning for the technology choices. -->
+
+[To be resolved by scope agent]
 
 ## Setup
 
