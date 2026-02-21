@@ -201,7 +201,82 @@ Note: L2 (coupled subsystem pairs) and L3 (full system) tests are specified in t
 
 ---
 
-### 3. System-Level Files
+### 3. Technology Stack Selection — `AGENTS.md` + Environment Probing
+
+**This artifact ensures that all subsequent agents use a concrete, verified technology stack rather than making implicit choices.**
+
+#### Reason About Stack Selection
+
+Before probing the environment, reason about the best technology stack for this project:
+
+- **Computational requirements:** Is the problem compute-bound (→ favor compiled language: Rust, C++, Fortran) or I/O-bound / prototyping-oriented (→ scripting language like Python is fine)?
+- **Ecosystem:** Are there domain-specific libraries that favor a particular language? (e.g., NumPy/SciPy for numerical Python, nalgebra/ndarray for Rust, LAPACK for Fortran)
+- **Subsystem decomposition:** Do all subsystems have similar needs, or do some need different tools? (Usually one language suffices; avoid multi-language complexity unless strongly justified.)
+- **Spiral plan:** Will later passes need higher-performance implementations? If so, consider starting with a language that can scale, or plan for a rewrite in the spiral plan.
+- **Human preferences:** Read the "Technology Preferences" section of `AGENTS.md`. If the human stated preferences, respect them. If blank, choose freely.
+
+#### Probe the Local Environment
+
+**You must actually execute commands to check what is installed — do not guess based on training data.** Run concrete commands such as:
+
+- `python3 --version`, `python3 -c "import sys; print(sys.version)"`
+- `pip --version`, `pip list`
+- `node --version`, `npm --version`
+- `cargo --version`, `rustc --version`
+- `gcc --version`, `g++ --version`, `gfortran --version`
+- `julia --version`
+- Any other runtime relevant to the chosen stack
+
+Record actual versions found. This is critical for reproducibility and for detecting missing tooling early.
+
+#### Handle Two Categories of Dependencies
+
+**1. Runtimes and toolchains** (Python interpreter, Rust compiler, C/C++ compiler, Node.js, system-level libraries like LAPACK/BLAS, etc.):
+
+Check if these are present by running version commands. If a required runtime is **not available**:
+- Do **NOT** attempt to install it
+- Create `spiral/pass-0/environment-resolution.md` listing what is missing:
+
+```markdown
+# Environment Resolution Required
+
+## Missing Runtimes / Toolchains
+
+### [Tool Name]
+- **What:** [e.g., Python 3.10+]
+- **Why needed:** [e.g., Primary implementation language]
+- **Suggested install:** [e.g., `apt install python3` or `pyenv install 3.11`]
+- **Alternative:** [Could a different stack choice avoid this? If so, describe.]
+
+## Status
+Waiting for human resolution before proceeding.
+```
+
+If all required runtimes are present, do **NOT** create this file (or create it empty).
+
+**2. Package-level dependencies** (pip packages, cargo crates, npm packages, etc.):
+
+Install these directly using the appropriate package manager. These are routine development dependencies:
+- Run the install command (e.g., `pip install numpy scipy pytest`)
+- Verify the install succeeded (e.g., `python3 -c "import numpy; print(numpy.__version__)"`)
+- Record installed versions in AGENTS.md
+
+#### Populate AGENTS.md
+
+Update the "Resolved Technology Stack" section of `AGENTS.md`:
+
+- **Language & Runtime:** Fill with verified language and version (e.g., "Python 3.11.5 (verified present)")
+- **Key Dependencies:** List all installed packages with versions
+- **Test Framework:** Specify the chosen test framework and version
+- **Stack Justification:** Brief reasoning for the technology choices
+
+Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, tested commands** — no more placeholders. If the human pre-filled any command sections before running scope, verify those commands work (run them) rather than overwriting them.
+
+**Backward compatibility:** If AGENTS.md already has concrete (non-placeholder) commands filled in by the user, verify they work and keep them. Only populate sections that contain placeholders or template text.
+
+---
+
+### 4. System-Level Files
 
 #### `spiral/pass-0/acceptance-criteria.md`
 
@@ -401,7 +476,7 @@ If you identify any cross-cutting assumptions during scoping, add them to the ex
 
 ---
 
-### 4. `spiral/pass-0/PASS_COMPLETE.md`
+### 5. `spiral/pass-0/PASS_COMPLETE.md`
 
 Create this file **last**, after all other artifacts are complete.
 
@@ -413,6 +488,7 @@ Create this file **last**, after all other artifacts are complete.
 
 ## Artifacts Produced
 - SUBSYSTEMS.md
+- AGENTS.md (resolved technology stack, concrete commands)
 - subsystems/[name]/methodology.md (for each subsystem)
 - subsystems/[name]/plan.md (for each subsystem)
 - subsystems/[name]/verification-cases.md (for each subsystem)
@@ -421,6 +497,7 @@ Create this file **last**, after all other artifacts are complete.
 - spiral/pass-0/sanity-checks.md
 - spiral/pass-0/literature-survey.md
 - spiral/pass-0/spiral-plan.md
+- spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)
 - methodology/overview.md
 - validation/sanity-checks.md
 - validation/limiting-cases.md
@@ -439,7 +516,7 @@ Create this file **last**, after all other artifacts are complete.
 
 ---
 
-### 5. Code Organization
+### 6. Code Organization
 
 Establish the code layout in `AGENTS.md` (append to the existing file, do not overwrite):
 
@@ -474,9 +551,15 @@ If during scoping you identify shared infrastructure needs (e.g., common physica
 - Order-of-magnitude estimates must be derivable from first principles.
 - Acceptance criteria must be traceable to the decisions that depend on the answer.
 
+### Environment Probing
+
+- Do not assume any runtimes or tools are available. Verify by running version/availability checks.
+- You may install package-level dependencies (pip, cargo, npm) directly, but do not attempt to install compilers, interpreters, or system-level tooling — flag these for the human if missing.
+- Use bash tool calls to probe the environment — do not guess based on training data.
+
 ### No Code
 
-- Do **not** write any source code, tests, or implementation in this pass.
+- Do **not** write any source code, tests, or implementation in this pass (installing dependencies and probing the environment are not "code").
 - The implementation plans specify *what* to implement, not *how* in code.
 - Methodology documents describe the mathematical/physical approach.
 

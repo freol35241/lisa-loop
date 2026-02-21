@@ -67,6 +67,15 @@ Your code **must** match the methodology specification exactly:
 - If you need shared utility code (unit conversions, interpolation, physical constants, etc.), check if `src/common/` already has it. If not, create it there. Do not duplicate utilities inside your subsystem directory.
 - Import from other subsystems via their public interface (e.g., `from src.other_subsystem import compute_X`). Do not copy their code or modify their files.
 
+### Technology Stack Adherence
+
+- Read the "Resolved Technology Stack" section of `AGENTS.md` before writing any code.
+- Use the specified language, libraries, and test framework — no exceptions.
+- Do not introduce new languages or major dependencies not listed in `AGENTS.md`.
+- If you need an additional package-level dependency not yet listed, you may install it (pip/cargo/npm) and add it to the dependency list in `AGENTS.md`.
+- If you believe a fundamentally different tool or language is needed, do not install it — instead follow the Reconsideration Protocol and flag it for the next refine phase.
+- Use the exact build/test/lint commands from `AGENTS.md`.
+
 ### Derivation Documentation
 
 For every function implementing a physical equation, create or update a document in `subsystems/[name]/derivations/`:
