@@ -48,16 +48,20 @@ Populate `SUBSYSTEMS.md` (at the project root) with:
 ### [subsystem-a] → [subsystem-b]
 - **Quantities:** [What flows from A to B, with units]
 - **Expected range:** [Order of magnitude bounds]
+- **Initial estimate:** [Best-guess numerical value for Pass 1 bootstrapping — from literature, reference design, or engineering judgment. Must be a specific number with units, not a range.]
 - **Coupling strength:** [Weak / moderate / strong — how much does B's answer depend on A?]
 
 ### [subsystem-b] → [subsystem-a]  (circular dependency)
 - **Quantities:** [What flows from B back to A]
+- **Initial estimate:** [Starting value for the first spiral pass]
 - **Resolution:** Previous pass values used; convergence tracked.
 
 ## Dependency Notes
 
 [Any circular dependencies and how they're resolved by the spiral iteration. Which links use "latest from this pass" vs. "carry forward from last pass."]
 ```
+
+**Initial estimates are critical.** The design spiral requires a "parent design" — numerical starting values for every interface quantity. Without these, the first coupled computation cannot run. Derive initial estimates from: reference designs in the literature, back-of-envelope calculations, the brief's requirements, or engineering judgment. Document the source of each estimate. These values will be updated by the spiral; they only need to be in the right ballpark.
 
 #### Decomposition Heuristics
 
@@ -82,6 +86,10 @@ The decomposition is the highest-leverage decision in the process. Follow these 
 - Subsystems defined by code structure ("the solver," "the I/O layer") rather than by physical phenomenon
 - A subsystem that needs outputs from every other subsystem — sign of a missing abstraction
 
+**Naming convention:** Subsystem names must be single tokens in kebab-case (lowercase, hyphens). Examples: `hull-form`, `wind-loads`, `added-resistance`. No spaces, no underscores, no capitals. These names become directory names and bash variables — they must be filesystem-safe and shell-safe.
+
+**Shared infrastructure:** If multiple subsystems will need the same utility code (unit conversions, physical constants, atmospheric models, interpolation routines, coordinate transforms), do NOT create a subsystem for it. Instead, note the shared needs in the spiral plan and establish `src/common/` as the home for shared utilities. The first subsystem build agent that needs a utility creates it there; subsequent agents import it. Shared utilities are not a subsystem — they have no methodology, no plan, no verification cases. They are tested indirectly through the subsystems that use them.
+
 **Iteration order:** List subsystems in approximately topological order (providers before consumers). Exact ordering matters less than getting the general flow right — the spiral converges regardless because it uses a Gauss-Seidel pattern: within a pass, each subsystem uses the latest available values from subsystems that already ran, and previous-pass values from subsystems that haven't yet.
 
 **Flag uncertainties:** If the decomposition is uncertain (e.g., two plausible ways to cut), document both options and your recommendation with reasoning. This is the most important item for human review.
@@ -89,6 +97,8 @@ The decomposition is the highest-leverage decision in the process. Follow these 
 ---
 
 ### 2. Per-Subsystem Initial Files
+
+**Division of labor:** The methodology files created here are *stubs*. They identify the recommended method, cite the source paper, list key equations by name/number, and document assumptions and valid ranges. They do NOT contain full equation derivations with every variable defined — that level of detail is the refine phase's job in Pass 1. This intentional fidelity gap is what gives the first refine phase meaningful work: transforming a method recommendation into a complete, implementable specification.
 
 For **each** subsystem defined in `SUBSYSTEMS.md`, create the following files:
 
@@ -118,7 +128,7 @@ Initial methodology stub:
 [Which method and why, considering spiral progression]
 
 ## Key Equations
-[From papers — not fabricated. Flag with [NEEDS_PAPER] if source not yet available.]
+[Identify by name and equation number from the source paper — e.g., "Eq. 12 in Faltinsen (1990)" or "ITTC-57 friction line." Do NOT write out the full mathematical expressions here — that is the refine phase's job. If a specific paper is needed but not yet available, flag with [NEEDS_PAPER].]
 
 ## Assumptions
 [List all assumptions for this subsystem]
@@ -426,6 +436,26 @@ Create this file **last**, after all other artifacts are complete.
 ## Open Questions for Human Review
 [Anything that needs human input before proceeding to Pass 1]
 ```
+
+---
+
+### 5. Code Organization
+
+Establish the code layout in `AGENTS.md` (append to the existing file, do not overwrite):
+
+```
+## Code Organization
+
+Source code is organized by subsystem:
+- `src/[subsystem-name]/` — Implementation code owned by this subsystem
+- `src/common/` — Shared utilities (unit conversions, interpolation, I/O helpers, atmospheric models, etc.)
+- `tests/[subsystem-name]/` — L0 and L1 tests for this subsystem
+- `tests/integration/` — L2 and L3 tests (system-level)
+
+**Ownership rule:** Each subsystem's build agent may only create or modify files in `src/[subsystem-name]/` and `tests/[subsystem-name]/`. Shared utilities in `src/common/` may be created by any subsystem's build agent when the need first arises, but once created, other agents should import from `src/common/` rather than duplicate functionality.
+```
+
+If during scoping you identify shared infrastructure needs (e.g., common physical constants, unit conversion, atmospheric models, interpolation utilities), note these in the spiral plan as infrastructure to be created by the first subsystem that needs them.
 
 ---
 

@@ -6,6 +6,18 @@ You are a senior engineer conducting system-level verification, validation, and 
 
 > **Dynamic context is prepended above this prompt by loop.sh.** It tells you the current pass number and where to find previous pass results. Look for lines starting with `Current spiral pass:` and `Previous pass results:` at the top of this prompt.
 
+## Two-Phase Execution
+
+This prompt is invoked twice per spiral pass by loop.sh:
+
+**Phase A** (context will say "VALIDATION PHASE A"): Run all tests and collect raw results. Focus on sections 2 (L2 tests), 3 (L3 tests), and 8 (validation checks). Produce `spiral/pass-N/test-results.md` with all raw test output, sanity check results, limiting case results, and reference data comparisons. Do NOT produce the review package, convergence assessment, or PASS_COMPLETE.md yet.
+
+**Phase B** (context will say "VALIDATION PHASE B"): Read the test results from Phase A. Perform the audit checks (sections 4–7), convergence assessment (section 9), and produce all report artifacts (section 10). The test results are already collected — focus your context budget on analysis and judgment.
+
+If the context does not specify a phase, execute both phases in sequence (single-call fallback for finalization mode).
+
+The section numbering below applies to both phases — Phase A executes sections 1–3 and 8, Phase B executes sections 1 and 4–10 (re-reading context in section 1 is intentional — the agent has no memory between calls).
+
 ## Your Task
 
 ### 1. Read Context
@@ -43,6 +55,10 @@ Check interface consistency for each subsystem pair defined in the `SUBSYSTEMS.m
 
 Record all results.
 
+**Pass 1 bootstrapping:** If this is the first pass with coupled computations, use the initial estimates from `SUBSYSTEMS.md` Interface Map as starting values for any interface quantities that have not yet been computed by a subsystem in this pass. Document which initial estimates were used and note that convergence assessment is not meaningful for Pass 1 — it establishes the baseline.
+
+If L2 or L3 test files do not yet exist in `tests/integration/`, create them based on the test specifications in `spiral/pass-0/validation-strategy.md`. Use the test command patterns from `AGENTS.md`.
+
 ### 3. System Verification (L3) — Full System
 
 Run L3 tests using the test command from `AGENTS.md`.
@@ -55,7 +71,7 @@ Record all results.
 
 ### 4. Methodology Compliance Spot-Check
 
-For each subsystem with code in `src/`:
+For each subsystem with code in `src/[subsystem-name]/`:
 
 - [ ] Every equation in the subsystem methodology has a corresponding implementation
 - [ ] The implementation uses the same variable names, or the mapping is documented in `subsystems/[name]/derivations/`
@@ -144,6 +160,31 @@ Overall convergence assessment:
 ### 10. Produce Artifacts
 
 Create **all** of the following:
+
+#### `spiral/pass-N/test-results.md` (Phase A only)
+
+Raw test execution results:
+
+```markdown
+# Spiral Pass N — Test Results (Raw)
+
+## L2 Test Results
+[Verbatim test output for coupled subsystem pair tests]
+
+## L3 Test Results
+[Verbatim test output for full system tests]
+
+## Sanity Check Results
+[Each check with actual observed value]
+
+## Limiting Case Results
+[Each case with actual result]
+
+## Reference Data Comparison Results
+[Each comparison with actual values]
+```
+
+Phase B reads this file to produce the analyzed reports below.
 
 #### `spiral/pass-N/system-validation.md`
 

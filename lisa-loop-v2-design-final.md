@@ -78,6 +78,8 @@ Within a spiral pass, subsystems run in dependency order. When subsystem B runs 
 
 This is the Gauss-Seidel pattern: use the latest available information, let the spiral converge. Circular dependencies are expected and handled by the iteration.
 
+For Pass 1, when no previous-pass values exist, the initial estimates from `SUBSYSTEMS.md` are used as the starting values. These estimates bootstrap the first coupled computation. By Pass 2, actual computed values replace the estimates, and convergence tracking begins.
+
 ## Decomposition Heuristics
 
 The decomposition into subsystems is the highest-leverage decision in the process. The scope phase must follow these heuristics:
@@ -137,10 +139,12 @@ The only non-repeating pass. Establishes what we're solving, how we'll know we'v
 ### [subsystem-a] → [subsystem-b]
 - **Quantities:** [What flows from A to B, with units]
 - **Expected range:** [Order of magnitude bounds]
+- **Initial estimate:** [Best-guess numerical value for Pass 1 bootstrapping — from literature, reference design, or engineering judgment. Must be a specific number with units, not a range.]
 - **Coupling strength:** [Weak / moderate / strong — how much does B's answer depend on A?]
 
 ### [subsystem-b] → [subsystem-a]  (circular dependency)
 - **Quantities:** [What flows from B back to A]
+- **Initial estimate:** [Starting value for the first spiral pass]
 - **Resolution:** Previous pass values used; convergence tracked.
 
 ## Dependency Notes
