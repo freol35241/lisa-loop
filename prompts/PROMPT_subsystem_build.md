@@ -60,6 +60,13 @@ Your code **must** match the methodology specification exactly:
 
 **If your implementation deviates from the methodology for any reason, STOP.** Do not commit code that contradicts the methodology. Instead, use the Reconsideration Protocol (see below).
 
+### Code Organization
+
+- Create source files in `src/[subsystem-name]/` only. Do not create or modify files in other subsystems' directories.
+- Create test files in `tests/[subsystem-name]/` only. Integration tests in `tests/integration/` are created by the system validation phase, not here.
+- If you need shared utility code (unit conversions, interpolation, physical constants, etc.), check if `src/common/` already has it. If not, create it there. Do not duplicate utilities inside your subsystem directory.
+- Import from other subsystems via their public interface (e.g., `from src.other_subsystem import compute_X`). Do not copy their code or modify their files.
+
 ### Derivation Documentation
 
 For every function implementing a physical equation, create or update a document in `subsystems/[name]/derivations/`:

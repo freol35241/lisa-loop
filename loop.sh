@@ -569,12 +569,10 @@ run_subsystem_build() {
     context+=$'\n'"Subsystem: $subsystem"
     context+=$'\n'"Subsystem directory: subsystems/$subsystem/"
 
-    # Stall detection: track task counts across iterations
-    local prev_done prev_blocked prev_todo prev_inprog stall_count
-    prev_done=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "DONE")
-    prev_blocked=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
-    prev_todo=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "TODO")
-    prev_inprog=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "IN_PROGRESS")
+    # Stall detection: track remaining task count across iterations
+    # Uses cross-pass counting to detect progress on leftover tasks from earlier passes
+    local prev_remaining stall_count
+    prev_remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
     stall_count=0
 
     local build_complete=false
@@ -617,23 +615,16 @@ run_subsystem_build() {
             break
         fi
 
-        # Stall detection: check if task counts changed since last iteration
-        local cur_done cur_blocked cur_todo cur_inprog
-        cur_done=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "DONE")
-        cur_blocked=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
-        cur_todo=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "TODO")
-        cur_inprog=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "IN_PROGRESS")
+        # Stall detection: check if remaining task count decreased
+        local cur_remaining
+        cur_remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
 
-        if [[ "$cur_done" -eq "$prev_done" && "$cur_blocked" -eq "$prev_blocked" \
-           && "$cur_todo" -eq "$prev_todo" && "$cur_inprog" -eq "$prev_inprog" ]]; then
+        if [[ "$cur_remaining" -eq "$prev_remaining" ]]; then
             stall_count=$((stall_count + 1))
-            log_warn "No task progress for $subsystem (stall count: $stall_count/2)."
+            log_warn "No task progress for $subsystem (stall count: $stall_count/2, remaining: $cur_remaining)."
         else
             stall_count=0
-            prev_done=$cur_done
-            prev_blocked=$cur_blocked
-            prev_todo=$cur_todo
-            prev_inprog=$cur_inprog
+            prev_remaining=$cur_remaining
         fi
 
         if [[ $stall_count -ge 2 ]]; then
@@ -642,7 +633,7 @@ run_subsystem_build() {
                 local done_count blocked_count total_count
                 done_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "DONE")
                 blocked_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
-                total_count=$((done_count + blocked_count + cur_todo + cur_inprog))
+                total_count=$((done_count + blocked_count + cur_remaining))
 
                 block_gate "$pass" "$subsystem" "$done_count" "$total_count" "$blocked_count"
                 local gate_result=$?
@@ -681,11 +672,23 @@ run_system_validate() {
 
     # Build context string
     local prev_pass=$((pass - 1))
-    local context="Current spiral pass: $pass"
-    context+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
 
-    log_info "Running system validation agent..."
-    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context"
+    # Phase A: Run tests and collect results
+    log_info "System validation phase A: running tests and collecting results..."
+    local context_a="Current spiral pass: $pass"
+    context_a+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
+    context_a+=$'\n'"VALIDATION PHASE A: Run all L2 and L3 tests, execute sanity checks, limiting cases, and reference data comparisons. Collect raw results into spiral/pass-$pass/test-results.md. Do NOT produce the review package or convergence assessment yet — that happens in Phase B."
+
+    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_a"
+    git_commit_all "validate: pass $pass phase A — test results collected" || true
+
+    # Phase B: Audit, analyze, and produce reports
+    log_info "System validation phase B: analysis, convergence, and reporting..."
+    local context_b="Current spiral pass: $pass"
+    context_b+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
+    context_b+=$'\n'"VALIDATION PHASE B: Test results have already been collected in spiral/pass-$pass/test-results.md. Now perform the methodology compliance spot-check, derivation completeness check, assumptions register check, traceability check, convergence assessment, and produce all report artifacts (system-validation.md, convergence.md, review-package.md, PASS_COMPLETE.md). Update validation/convergence-log.md and plots/REVIEW.md."
+
+    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_b"
 
     write_state "$pass" "system_validate" "complete"
 }
@@ -767,8 +770,10 @@ cmd_run() {
     ensure_scope_complete
 
     # Parse subsystem list
-    local subsystems
-    subsystems=($(parse_subsystems))
+    local subsystems=()
+    while IFS= read -r s; do
+        [[ -n "$s" ]] && subsystems+=("$s")
+    done < <(parse_subsystems)
 
     if [[ ${#subsystems[@]} -eq 0 ]]; then
         log_error "No subsystems found in SUBSYSTEMS.md. Check the Iteration Order section."
@@ -851,8 +856,10 @@ cmd_resume() {
     local pass="$STATE_PASS"
 
     # Parse subsystem list
-    local subsystems
-    subsystems=($(parse_subsystems))
+    local subsystems=()
+    while IFS= read -r s; do
+        [[ -n "$s" ]] && subsystems+=("$s")
+    done < <(parse_subsystems)
 
     if [[ ${#subsystems[@]} -eq 0 ]]; then
         log_error "No subsystems found in SUBSYSTEMS.md."
@@ -1050,8 +1057,10 @@ cmd_status() {
 
         # Show per-subsystem task status if subsystems exist
         if [[ -f "SUBSYSTEMS.md" ]]; then
-            local subs
-            subs=($(parse_subsystems 2>/dev/null)) || true
+            local subs=()
+            while IFS= read -r s; do
+                [[ -n "$s" ]] && subs+=("$s")
+            done < <(parse_subsystems 2>/dev/null)
             if [[ ${#subs[@]} -gt 0 ]]; then
                 echo ""
                 echo "  Subsystem task status:"
