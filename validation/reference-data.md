@@ -1,8 +1,8 @@
 # Reference Data
 
 <!-- Published experimental or computational data for validation.
-     Populated during scoping (Pass 0) and refined during descend phases.
-     Compared against during every ascend phase. -->
+     Populated during scoping (Pass 0) and refined during subsystem refine phases.
+     Compared against during every system validation phase. -->
 
 ## Format
 
@@ -19,4 +19,4 @@
 
 ## Reference Datasets
 
-<!-- Populated during the scoping and descend phases -->
+<!-- Populated during scoping and subsystem refine phases -->

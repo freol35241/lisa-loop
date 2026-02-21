@@ -1,8 +1,8 @@
 # Limiting Cases
 
 <!-- Cases where the answer is known analytically or from first principles.
-     Populated during scoping (Pass 0) and refined during descend phases.
-     Checked during every ascend phase. -->
+     Populated during scoping (Pass 0) and refined during subsystem refine phases.
+     Checked during every system validation phase. -->
 
 ## Format
 
@@ -17,4 +17,4 @@
 
 ## Limiting Cases
 
-<!-- Populated during the scoping and descend phases -->
+<!-- Populated during scoping and subsystem refine phases -->

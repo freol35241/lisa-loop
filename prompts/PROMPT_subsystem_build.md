@@ -118,7 +118,7 @@ After implementing, run verification at Level 0 and Level 1 for this subsystem:
 
 If the methodology specification does not work in practice, **do not silently change the approach.** Instead:
 
-1. Create `subsystems/[name]/derivations/reconsideration-[issue].md`:
+1. Create `spiral/pass-N/subsystems/[name]/reconsiderations/[issue].md` (create the directory if it doesn't exist):
 
 ```markdown
 # Reconsideration: [Subsystem] — [Issue]
@@ -139,9 +139,8 @@ If the methodology specification does not work in practice, **do not silently ch
 [What other subsystems, tests, or verification cases would be affected]
 ```
 
-2. Also create a copy at `spiral/pass-N/subsystems/[name]/reconsiderations/[issue].md` for the spiral history record (create the directory if it doesn't exist).
-3. Mark the current task as `BLOCKED` in `subsystems/[name]/plan.md`.
-4. Commit everything and exit. The next subsystem refine phase will address the reconsideration.
+2. Mark the current task as `BLOCKED` in `subsystems/[name]/plan.md`.
+3. Commit everything and exit. The next subsystem refine phase will address the reconsideration.
 
 ## Blocked Task Handling
 

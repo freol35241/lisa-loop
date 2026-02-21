@@ -1,7 +1,8 @@
 # Methodology Overview
 
 <!-- This document provides a system-level summary of the modeling approach.
-     It is updated by the methodology phase as subsystems are specified. -->
+     Initially populated by the scope phase (Pass 0).
+     Updated by the subsystem refine phases as methodology evolves. -->
 
 ## System Description
 

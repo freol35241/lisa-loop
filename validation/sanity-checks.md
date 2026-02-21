@@ -1,7 +1,7 @@
 # Sanity Checks
 
 <!-- Living document. Initially populated by the scope phase (Pass 0).
-     Updated by the ascend phase after each spiral pass with actual results.
+     Updated by the system validation phase after each spiral pass with actual results.
      Each check is an engineering judgment test — a failure indicates a likely error. -->
 
 ## Format
