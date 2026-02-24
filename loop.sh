@@ -49,6 +49,7 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
 
 # --- Helpers ------------------------------------------------------------------
@@ -62,8 +63,8 @@ log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 
 _filter_agent_stream() {
     # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
-    # and emit human-readable progress lines showing agent tool calls, plus the
-    # final result text.
+    # and emit human-readable progress lines showing agent tool calls, thinking,
+    # and the final result text.
     #
     # Falls back to raw passthrough if jq is not available.
     if ! command -v jq &>/dev/null; then
@@ -72,24 +73,35 @@ _filter_agent_stream() {
     fi
     jq --unbuffered -r '
       if .type == "assistant" then
-        [.message.content[]? | select(.type == "tool_use") |
-          "TOOL: " +
-          "\(.name)" +
-          (if .name == "Read" then " \(.input.file_path // "")"
-           elif .name == "Edit" then " \(.input.file_path // "")"
-           elif .name == "Write" then " \(.input.file_path // "")"
-           elif .name == "Bash" then " $ \((.input.command // "") | split("\n")[0] | .[0:80])"
-           elif .name == "Glob" then " \(.input.pattern // "")"
-           elif .name == "Grep" then " \(.input.pattern // "")"
-           elif .name == "Task" then " \(.input.description // "")"
-           elif .name == "TodoWrite" then ""
-           else "" end)
+        [.message.content[]? |
+          if .type == "thinking" then
+            "THINKING: " + (.thinking // "")
+          elif .type == "tool_use" then
+            "TOOL: " +
+            "\(.name)" +
+            (if .name == "Read" then " \(.input.file_path // "")"
+             elif .name == "Edit" then " \(.input.file_path // "")"
+             elif .name == "Write" then " \(.input.file_path // "")"
+             elif .name == "Bash" then " $ \((.input.command // "") | split("\n")[0] | .[0:80])"
+             elif .name == "Glob" then " \(.input.pattern // "")"
+             elif .name == "Grep" then " \(.input.pattern // "")"
+             elif .name == "Task" then " \(.input.description // "")"
+             elif .name == "TodoWrite" then ""
+             else "" end)
+          else empty end
         ] | .[] | select(length > 0)
       elif .type == "result" then
         "RESULT_B64: " + ((.result // "") | @base64)
       else empty end
     ' 2>/dev/null | while IFS= read -r line; do
-        if [[ "$line" == TOOL:\ * ]]; then
+        if [[ "$line" == THINKING:\ * ]]; then
+            local thought="${line#THINKING: }"
+            # Truncate long thinking to first 200 chars for terminal readability
+            if [[ ${#thought} -gt 200 ]]; then
+                thought="${thought:0:200}..."
+            fi
+            echo -e "${DIM}  [thinking $(_ts)] ${thought}${NC}"
+        elif [[ "$line" == TOOL:\ * ]]; then
             echo -e "${MAGENTA}  [agent $(_ts)]${NC} ${line#TOOL: }"
         elif [[ "$line" == RESULT_B64:\ * ]]; then
             local result_b64="${line#RESULT_B64: }"
@@ -97,9 +109,8 @@ _filter_agent_stream() {
             result_text="$(echo "$result_b64" | base64 -d 2>/dev/null)" || result_text=""
             if [[ -n "$result_text" ]]; then
                 echo ""
-                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── Agent response ──"
+                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── Result ──"
                 echo "$result_text"
-                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── End agent response ──"
                 echo ""
             fi
         fi
@@ -245,16 +256,16 @@ count_tasks_for_subsystem_pass() {
 
     # Use POSIX-compatible awk to parse task blocks.
     # A task block starts with "### Task" and ends at the next "### Task" or EOF.
-    # Within a block, check for "**Spiral pass:** N" and "**Status:** STATUS".
+    # Within a block, check for "**Pass:** N" or "**Spiral pass:** N" and "**Status:** STATUS".
     awk -v pass="$pass" -v status="$status" '
         /^### Task/ {
             if (in_task && found_pass && found_status) count++
             in_task=1; found_pass=0; found_status=0
             next
         }
-        in_task && /\*\*Spiral pass:\*\*/ {
+        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
             line = $0
-            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
             sub(/[^0-9].*/, "", line)
             if (line == pass) found_pass=1
         }
@@ -285,9 +296,9 @@ count_uncompleted_tasks_up_to_pass() {
             in_task=1; task_pass=9999; found_todo=0; found_inprog=0
             next
         }
-        in_task && /\*\*Spiral pass:\*\*/ {
+        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
             line = $0
-            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
             sub(/[^0-9].*/, "", line)
             task_pass = line + 0
         }
@@ -319,9 +330,9 @@ count_blocked_tasks_up_to_pass() {
             in_task=1; task_pass=9999; found_blocked=0
             next
         }
-        in_task && /\*\*Spiral pass:\*\*/ {
+        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
             line = $0
-            sub(/.*\*\*Spiral pass:\*\*[[:space:]]*/, "", line)
+            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
             sub(/[^0-9].*/, "", line)
             task_pass = line + 0
         }
@@ -358,23 +369,83 @@ has_subsystem_blocked_tasks() {
 # --- Human Interaction Gates --------------------------------------------------
 
 review_gate() {
-    # Mandatory review after system validation phase
     local pass="$1"
+    local review_file="spiral/pass-$pass/review-package.md"
+
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
         log_warn "Review gate skipped (NO_PAUSE=$NO_PAUSE) — defaulting to CONTINUE"
-        return 0  # continue
+        return 0
     fi
+
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo -e "${BOLD}  SPIRAL PASS $pass COMPLETE — REVIEW REQUIRED${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    echo "  Review package: spiral/pass-$pass/review-package.md"
-    echo "  Plots:          plots/REVIEW.md"
+
+    # Extract and display key info from review package if it exists
+    if [[ -f "$review_file" ]]; then
+        # Current answer (first non-empty line after ## Current Answer)
+        local answer
+        answer=$(awk '/^## Current Answer/{found=1; next} found && /\S/{print; found=0}' "$review_file")
+        if [[ -n "$answer" ]]; then
+            echo -e "  ${BOLD}Answer:${NC} $answer"
+        fi
+
+        # Convergence status
+        local convergence
+        convergence=$(grep -i 'overall assessment\|CONVERGED\|NOT YET\|DIVERGING' "$review_file" | head -1 | sed 's/.*: *//')
+        if [[ -n "$convergence" ]]; then
+            local conv_color="$YELLOW"
+            [[ "$convergence" == *CONVERGED* && "$convergence" != *NOT* ]] && conv_color="$GREEN"
+            [[ "$convergence" == *DIVERGING* ]] && conv_color="$RED"
+            echo -e "  ${BOLD}Convergence:${NC} ${conv_color}${convergence}${NC}"
+        fi
+
+        # Test summary
+        local tests
+        tests=$(grep -E '^L[0-3]:' "$review_file" | head -1)
+        if [[ -n "$tests" ]]; then
+            echo -e "  ${BOLD}Tests:${NC} $tests"
+        fi
+
+        # Sanity checks
+        local sanity
+        sanity=$(grep -i 'sanity checks' "$review_file" | head -1 | sed 's/.*: *//')
+        if [[ -n "$sanity" ]]; then
+            echo -e "  ${BOLD}Sanity:${NC} $sanity"
+        fi
+
+        # Failures (if any)
+        local failures
+        failures=$(grep -i 'failure\|FAIL' "$review_file" | grep -v '^#' | head -3)
+        if [[ -n "$failures" ]]; then
+            echo ""
+            echo -e "  ${RED}Failures:${NC}"
+            while IFS= read -r f; do
+                echo -e "    ${RED}•${NC} $f"
+            done <<< "$failures"
+        fi
+
+        # Agent recommendation
+        local recommendation
+        recommendation=$(awk '/^## Recommendation/{found=1; next} found && /\S/{print; found=0}' "$review_file")
+        if [[ -n "$recommendation" ]]; then
+            echo ""
+            echo -e "  ${BOLD}Agent recommends:${NC} $recommendation"
+        fi
+    else
+        echo -e "  ${YELLOW}Review package not found at $review_file${NC}"
+    fi
+
     echo ""
-    echo "  [A] ACCEPT — Answer has converged. Produce final report."
-    echo "  [C] CONTINUE — Proceed to Pass $((pass + 1))."
-    echo "  [R] REDIRECT — Provide guidance for Pass $((pass + 1))."
+    echo -e "  ${CYAN}Files:${NC}"
+    echo "    Review:  $review_file"
+    echo "    Plots:   plots/REVIEW.md"
+    echo ""
+    echo -e "  ${BOLD}[A]${NC} ACCEPT — converged, produce final report"
+    echo -e "  ${BOLD}[C]${NC} CONTINUE — next spiral pass"
+    echo -e "  ${BOLD}[R]${NC} REDIRECT — provide guidance (opens \$EDITOR)"
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
@@ -384,28 +455,32 @@ review_gate() {
         case "${choice^^}" in
             A)
                 log_success "ACCEPTED — producing final output."
-                return 1  # accept
+                return 1
                 ;;
             C)
                 log_info "CONTINUE — proceeding to next pass."
-                return 0  # continue
+                return 0
                 ;;
             R)
-                echo ""
-                echo "  Enter your guidance for the next pass (end with an empty line):"
-                local redirect_text=""
-                while IFS= read -r line; do
-                    [[ -z "$line" ]] && break
-                    redirect_text+="$line"$'\n'
-                done
+                local redirect_file="spiral/pass-$pass/human-redirect.md"
                 mkdir -p "spiral/pass-$pass"
-                cat > "spiral/pass-$pass/human-redirect.md" <<EOF
+                # Seed with template
+                cat > "$redirect_file" <<REDIRECT_EOF
 # Human Redirect — Pass $pass
 
-$redirect_text
-EOF
-                log_info "REDIRECT — guidance saved to spiral/pass-$pass/human-redirect.md"
-                return 0  # continue with redirect
+<!-- Write your guidance for the next pass below. Save and close when done. -->
+<!-- Delete this comment block. -->
+
+REDIRECT_EOF
+                # Open in editor
+                local editor="${EDITOR:-${VISUAL:-vi}}"
+                "$editor" "$redirect_file"
+                if [[ -s "$redirect_file" ]]; then
+                    log_info "REDIRECT — guidance saved to $redirect_file"
+                else
+                    log_warn "Redirect file is empty. Treating as CONTINUE."
+                fi
+                return 0
                 ;;
             *)
                 echo "  Please enter A, C, or R."
@@ -415,7 +490,6 @@ EOF
 }
 
 block_gate() {
-    # Shown when all remaining tasks are blocked during subsystem build
     local pass="$1"
     local subsystem="$2"
     local completed="$3"
@@ -424,22 +498,36 @@ block_gate() {
 
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
         log_warn "Block gate skipped (NO_PAUSE=$NO_PAUSE) — defaulting to SKIP"
-        return 1  # skip
+        return 1
     fi
+
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}  BUILD BLOCKED: $subsystem — HUMAN INPUT NEEDED${NC}"
+    echo -e "${RED}${BOLD}  BUILD BLOCKED: $subsystem${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    echo "  Subsystem:  $subsystem"
-    echo "  Completed:  $completed/$total tasks"
-    echo "  Blocked:    $blocked tasks"
+    echo -e "  Completed: ${GREEN}$completed${NC} / $total tasks"
+    echo -e "  Blocked:   ${RED}$blocked${NC} tasks"
     echo ""
-    echo "  See subsystems/$subsystem/plan.md for blocked items."
-    echo ""
-    echo "  [F] FIX — Resolve the blocks, then resume build."
-    echo "  [S] SKIP — Skip blocked items, continue to next subsystem."
-    echo "  [X] ABORT — Stop this spiral pass."
+
+    # Show blocked task names and reasons
+    local plan_file="subsystems/$subsystem/plan.md"
+    if [[ -f "$plan_file" ]]; then
+        echo -e "  ${BOLD}Blocked tasks:${NC}"
+        awk '
+            /^### Task/ { task=$0; sub(/^### /, "", task); in_task=1; is_blocked=0; reason="" }
+            in_task && /\*\*Status:\*\* BLOCKED/ { is_blocked=1 }
+            in_task && /\*\*BLOCKED:\*\*/ { reason=$0; sub(/.*\*\*BLOCKED:\*\*[[:space:]]*/, "", reason) }
+            /^### Task/ && prev_blocked { printf "    • %s\n", prev_task; if (prev_reason != "") printf "      Reason: %s\n", prev_reason }
+            { prev_task=task; prev_blocked=is_blocked; prev_reason=reason }
+            END { if (is_blocked) { printf "    • %s\n", task; if (reason != "") printf "      Reason: %s\n", reason } }
+        ' "$plan_file"
+        echo ""
+    fi
+
+    echo -e "  ${BOLD}[F]${NC} FIX — resolve blocks, then resume build"
+    echo -e "  ${BOLD}[S]${NC} SKIP — continue to next subsystem"
+    echo -e "  ${BOLD}[X]${NC} ABORT — stop this spiral pass"
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
@@ -448,16 +536,16 @@ block_gate() {
         read -rp "  Your choice [F/S/X]: " choice
         case "${choice^^}" in
             F)
-                log_info "FIX — resolve blocks in subsystems/$subsystem/plan.md, then the build loop will resume."
-                return 0  # fix — resume build loop
+                log_info "FIX — resolve blocks in subsystems/$subsystem/plan.md, then build resumes."
+                return 0
                 ;;
             S)
                 log_info "SKIP — continuing to next subsystem."
-                return 1  # skip — exit build loop for this subsystem
+                return 1
                 ;;
             X)
                 log_error "ABORT — stopping spiral pass."
-                return 2  # abort
+                return 2
                 ;;
             *)
                 echo "  Please enter F, S, or X."
@@ -535,31 +623,47 @@ environment_gate() {
 }
 
 scope_review_gate() {
-    # Mandatory review after Pass 0 scoping
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
         log_warn "Scope review skipped (NO_PAUSE=$NO_PAUSE)"
         return
     fi
+
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo -e "${BOLD}  PASS 0 (SCOPING) COMPLETE — REVIEW REQUIRED${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    echo "  Review the following artifacts:"
-    echo "    AGENTS.md                              (resolved technology stack)"
-    echo "    SUBSYSTEMS.md                          (subsystem decomposition)"
-    echo "    subsystems/*/methodology.md            (per-subsystem methodology)"
-    echo "    subsystems/*/plan.md                   (per-subsystem plans)"
-    echo "    subsystems/*/verification-cases.md     (per-subsystem V&V specs)"
-    echo "    spiral/pass-0/acceptance-criteria.md"
-    echo "    spiral/pass-0/validation-strategy.md"
-    echo "    spiral/pass-0/sanity-checks.md"
-    echo "    spiral/pass-0/literature-survey.md"
-    echo "    spiral/pass-0/spiral-plan.md"
+
+    # Show discovered subsystems
+    if [[ -f "SUBSYSTEMS.md" ]]; then
+        echo -e "  ${BOLD}Subsystems discovered:${NC}"
+        parse_subsystems | while IFS= read -r s; do
+            echo -e "    ${CYAN}•${NC} $s"
+        done
+        echo ""
+    fi
+
+    # Show technology stack
+    if grep -q 'Language & Runtime' AGENTS.md 2>/dev/null; then
+        local stack
+        stack=$(awk '/^### Language & Runtime/{found=1; next} found && /\S/ && !/^#/{print; found=0}' AGENTS.md)
+        if [[ -n "$stack" ]]; then
+            echo -e "  ${BOLD}Stack:${NC} $stack"
+            echo ""
+        fi
+    fi
+
+    echo -e "  ${CYAN}Review these artifacts:${NC}"
+    echo "    SUBSYSTEMS.md                          subsystem decomposition"
+    echo "    AGENTS.md                              resolved technology stack"
+    echo "    subsystems/*/methodology.md            per-subsystem methods"
+    echo "    subsystems/*/plan.md                   per-subsystem plans"
+    echo "    spiral/pass-0/acceptance-criteria.md   success criteria"
+    echo "    spiral/pass-0/spiral-plan.md           anticipated progression"
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    read -rp "  Press ENTER to approve and continue, or Ctrl+C to stop and edit... "
+    read -rp "  Press ENTER to approve, or Ctrl+C to stop and edit... "
     echo ""
 }
 
@@ -650,6 +754,14 @@ run_subsystem_build() {
     for ((iter = start_iter; iter <= MAX_RALPH_ITERATIONS; iter++)); do
         echo ""
         log_phase "Build — Pass $pass, $subsystem, Iteration $iter / $MAX_RALPH_ITERATIONS"
+
+        # Show task progress
+        local total_tasks done_tasks todo_tasks blocked_tasks
+        total_tasks=$(grep -c '^### Task' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
+        done_tasks=$(grep -c '\*\*Status:\*\* DONE' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
+        blocked_tasks=$(grep -c '\*\*Status:\*\* BLOCKED' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
+        todo_tasks=$(( total_tasks - done_tasks - blocked_tasks ))
+        echo -e "  ${CYAN}Progress:${NC} ${GREEN}${done_tasks} done${NC} / ${YELLOW}${todo_tasks} remaining${NC} / ${RED}${blocked_tasks} blocked${NC} (of ${total_tasks} total)"
 
         write_state "$pass" "subsystem_build" "in_progress" "$subsystem" "$iter"
 

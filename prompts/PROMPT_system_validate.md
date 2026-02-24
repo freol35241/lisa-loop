@@ -188,7 +188,7 @@ Phase B reads this file to produce the analyzed reports below.
 
 #### `spiral/pass-N/system-validation.md`
 
-Combined verification + validation report:
+Combined verification + validation report. Keep the format below but **be concise**: for passing checks, a single line is sufficient (e.g., "PASS: Order of magnitude — total resistance 142 kN, expected ~100-200 kN"). Reserve detailed analysis for failures and anomalies.
 
 ```markdown
 # Spiral Pass N — System Validation Report
@@ -263,54 +263,37 @@ Combined verification + validation report:
 
 #### `spiral/pass-N/review-package.md`
 
-This is the primary artifact for human review. Use this **exact format**:
+This is the primary artifact for human review at the terminal. It is a **dashboard with pointers** — not a duplicate of the detailed reports. Use this **exact format**:
 
 ```markdown
 # Spiral Pass N — Review Package
 
-## Summary
-[One paragraph: what was done this pass, which subsystems were refined, why]
-
 ## Current Answer
-[The actual answer to the user's question, as of this pass. Specific and quantitative.]
+[The actual quantitative answer to BRIEF.md, as of this pass.]
 
-## Subsystem Status
-| Subsystem | Tasks Done | Tasks Blocked | Key Result |
-|-----------|-----------|---------------|------------|
-| [name]    | X/Y       | Z             | [value]    |
+## Convergence: [CONVERGED / NOT YET / DIVERGING]
+| Quantity | Δ from prev | Converged? |
+|----------|------------|------------|
+| [qty]    | [X.X%]     | [yes/no]   |
 
-## Convergence
-| Quantity          | Pass N-1   | Pass N     | Δ (%)  | Converged? |
-|-------------------|-----------|-----------|--------|------------|
-| [key output 1]   | [value]   | [value]   | [X.X]  | [yes/no]   |
+## Tests
+L0: [pass/total] | L1: [pass/total] | L2: [pass/total] | L3: [pass/total]
+Failures: [list any, or "None"]
 
-Overall assessment: [CONVERGED / NOT YET CONVERGED / DIVERGING]
+## Sanity Checks: [pass/total]
+Failures: [list any, or "None"]
 
-## Verification (per subsystem)
-| Subsystem | L0 Tests | L1 Tests | Issues |
-|-----------|----------|----------|--------|
-| [name]    | X/Y      | X/Y      | [any]  |
+## Engineering Judgment (HUMAN REVIEW)
+1. [Plot: path] → [what to look for]
+2. [Key result] → [is this reasonable?]
 
-## Validation — System Level
-- Integration tests (L2): X/Y passing
-- Full system tests (L3): X/Y passing
-- [ ] Order of magnitude: [result]
-- [ ] Trends: [result]
-- [ ] Conservation: [result]
-- [ ] Dimensional analysis: [result]
-- [ ] Limiting cases: [result]
-- [ ] Reference data comparison: [result]
+## Recommendation
+[ACCEPT / CONTINUE: reason / BLOCKED: reason]
 
-## Validation — Engineering Judgment (YOUR REVIEW)
-1. [Plot: path] → Does [quantity] vs [parameter] show expected shape?
-2. [Key result]: [quantity] = [value] [units] → Reasonable for [context]?
-3. [Trend]: When [parameter] increases, [quantity] [direction] → Expected?
-
-## Agent Recommendation
-[ACCEPT / CONTINUE: refine X because Y / BLOCKED: need Z]
-
-## If Continuing — Proposed Refinements for Pass N+1
-- [What to refine per subsystem and why, with literature pointers]
+## Details
+- Full validation: spiral/pass-N/system-validation.md
+- Convergence analysis: spiral/pass-N/convergence.md
+- Plots: plots/REVIEW.md
 ```
 
 #### Update `validation/convergence-log.md`
@@ -393,6 +376,7 @@ The loop will finalize these upon human acceptance.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 - **Do not modify source code, methodology, or derivation documents.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/convergence-log.md`, `plots/REVIEW.md`, and optionally `output/` drafts.
 - **L0 and L1 tests were already run per-subsystem during build.** You may re-run them for confirmation, but your primary focus is L2, L3, and system-level validation.
+- **Verify TDD compliance:** Check that tests exist for all implemented code. Each implemented function should have a corresponding test that was written as part of a red/green pair in the build phase.
 
 ## Output
 

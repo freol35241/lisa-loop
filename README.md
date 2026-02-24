@@ -91,7 +91,7 @@ chmod +x loop.sh
 
 ## Key Distinction: Verification vs. Validation
 
-- **Verification** is local to each subsystem: "Did I implement my equations correctly?" Tests at Level 0 (individual functions) and Level 1 (subsystem models). Happens within each subsystem's build phase.
+- **Verification** is local to each subsystem: "Did I implement my equations correctly?" Tests at Level 0 (individual functions) and Level 1 (subsystem models). Happens within each subsystem's build phase using a strict red/green TDD cycle.
 - **Validation** is global, at the system level: "Does the assembled system answer the question with physically sensible numbers?" Tests at Level 2 (coupled subsystems) and Level 3 (full system), plus sanity checks, limiting cases, reference data. Happens once per spiral pass after all subsystems are updated.
 
 ## Subsystem Decomposition
@@ -125,7 +125,7 @@ For each subsystem in dependency order:
 
 **Refine (opus):** Refines methodology for this subsystem at this pass's fidelity. Updates equations, assumptions, plan tasks. Reads previous pass validation results and human feedback.
 
-**Build (sonnet, Ralph loop):** Autonomous iterative implementation. Each iteration picks a task, implements it matching the methodology exactly, writes derivation docs, runs L0/L1 tests, generates plots. If methodology doesn't work in practice, raises a formal reconsideration.
+**Build (sonnet, Ralph loop):** Autonomous iterative implementation using a strict red/green TDD cycle. Each iteration picks a task, writes a failing test from a verification case (red), implements code to make it pass (green), and repeats for each test/implement pair. Derivation docs are written only when the equation-to-code mapping is non-trivial. If methodology doesn't work in practice, raises a formal reconsideration.
 
 ### Phase 2: System Validation (opus)
 
@@ -137,24 +137,44 @@ Runs after all subsystems have been updated:
 
 ### Phase 3: Human Review Gate (mandatory)
 
-```
-  SPIRAL PASS N COMPLETE — REVIEW REQUIRED
+The review gate extracts key information from the review package and displays it directly in the terminal:
 
-  [A] ACCEPT — Answer has converged. Produce final report.
-  [C] CONTINUE — Proceed to Pass N+1.
-  [R] REDIRECT — Provide guidance for Pass N+1.
+```
+  ═══════════════════════════════════════════════════════
+    SPIRAL PASS N COMPLETE — REVIEW REQUIRED
+  ═══════════════════════════════════════════════════════
+
+    Answer:      [current quantitative answer]
+    Convergence: [CONVERGED / NOT YET / DIVERGING]
+    Tests:       L0: X/Y | L1: X/Y | L2: X/Y | L3: X/Y
+    Agent recommends: [ACCEPT / CONTINUE / BLOCKED]
+
+    [A] ACCEPT — converged, produce final report
+    [C] CONTINUE — next spiral pass
+    [R] REDIRECT — provide guidance (opens $EDITOR)
 ```
 
 ## Human Interaction
 
 ### During Subsystem Build (When Blocked)
 
-```
-  BUILD BLOCKED: [subsystem-name] — HUMAN INPUT NEEDED
+The block gate shows blocked task names and reasons:
 
-  [F] FIX — Resolve the blocks, then resume build.
-  [S] SKIP — Skip blocked items, continue to next subsystem.
-  [X] ABORT — Stop this spiral pass.
+```
+  ═══════════════════════════════════════════════════════
+    BUILD BLOCKED: [subsystem-name]
+  ═══════════════════════════════════════════════════════
+
+    Completed: X / Y tasks
+    Blocked:   Z tasks
+
+    Blocked tasks:
+      • Task N: [name]
+        Reason: [why blocked]
+
+    [F] FIX — resolve blocks, then resume build
+    [S] SKIP — continue to next subsystem
+    [X] ABORT — stop this spiral pass
 ```
 
 ## Final Deliverables
