@@ -146,29 +146,34 @@ Initial implementation plan for this subsystem:
 
 ## Tasks
 
-### Task 1: [Short descriptive name]
+### Task 1: [Short name]
 - **Status:** TODO
-- **Spiral pass:** 1
-- **Methodology ref:** [Section in subsystems/[name]/methodology.md]
-- **Implementation:**
-  - [ ] [Specific code to write]
-  - [ ] [Specific code to write]
-- **Derivation:**
-  - [ ] Document discretization / mapping from continuous equations to code
-- **Verification:**
-  - [ ] [Specific L0 or L1 test from verification-cases.md]
-- **Plots:**
-  - [ ] [Specific plot for visual verification]
-- **Dependencies:** [Other tasks in THIS subsystem that must complete first]
+- **Pass:** 1
+- **Methodology:** [section ref]
+- **Checklist:**
+  - [ ] [Write test for X — must fail initially (red)]
+  - [ ] [Implement X — test must pass (green)]
+  - [ ] [Write test for Y — must fail initially (red)]
+  - [ ] [Implement Y — test must pass (green)]
+  - [ ] [Derivation doc for Z (only if non-trivial)]
+  - [ ] [Plot: description]
+- **Dependencies:** [task refs or "None"]
 ```
+
+Structure each task's checklist as alternating red/green pairs: write-test then implement,
+write-test then implement. Each test item references a specific verification case. Each
+implement item references the methodology section. This enforces red-before-green ordering
+during the build phase.
+
+Verification cases must be written during scoping (in `verification-cases.md`) so they're
+available as test specifications during build.
 
 **Task rules:**
 - Order tasks bottom-up: Level 0 (individual functions) then Level 1 (subsystem models)
 - Each task completable in a single Ralph iteration
-- No more than **5 implementation checkboxes** per task — split if larger
-- Include tasks for: implementation, derivation docs, verification tests, plots
+- No more than **5 checklist items** per task — split if larger
 - Infrastructure tasks (setup, test framework, etc.) come first if needed
-- Tag every task with `**Spiral pass:** 1` for Pass 1 tasks
+- Tag every task with `**Pass:** 1` for Pass 1 tasks
 - Pass 2+ tasks can be sketched with TODO placeholders
 
 #### `subsystems/[name]/verification-cases.md`

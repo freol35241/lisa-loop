@@ -42,7 +42,7 @@ Based on what you've read, identify what methodology needs to be added, changed,
 - **Valid range** — Parameter ranges where this method applies. What happens outside.
 - **Inputs and outputs** — Precise interface specification. Units for everything. Must match what `SUBSYSTEMS.md` says this subsystem consumes and provides.
 - **Numerical considerations** — Known issues with discretization, convergence, stability.
-- **Alternatives considered** — What other approaches exist, why this one was chosen.
+- **Recommended Approach** — Include a one-line note referencing which alternatives were evaluated and where (e.g., "See spiral/pass-0/literature-survey.md §[subsystem]"). Do not repeat alternatives analysis here — it belongs in the literature survey.
 
 ### 3. Update Cross-Cutting Documents
 
@@ -72,65 +72,76 @@ Note: L2 and L3 tests are handled at the system level, not here.
 
 Update `subsystems/[name]/plan.md`:
 
-- **Add new tasks** for this pass, tagged with `**Spiral pass:** N`
+- **Add new tasks** for this pass, tagged with `**Pass:** N`
 - **Revise existing tasks** if methodology changed (update methodology refs, verification cases)
 - **Keep completed tasks** as historical record (status DONE from previous passes)
 - **Address reconsiderations:** if `spiral/pass-{N-1}/subsystems/[name]/reconsiderations/` has unresolved items, update the methodology to resolve them and adjust related tasks
 
 **Task format:**
 ```markdown
-### Task N: [Short descriptive name]
-- **Status:** TODO
-- **Spiral pass:** [Current pass number]
-- **Methodology ref:** [Section in subsystems/[name]/methodology.md]
-- **Implementation:**
-  - [ ] [Specific code to write]
-  - [ ] [Specific code to write]
-- **Derivation:**
-  - [ ] Document discretization / mapping from continuous equations to code
-- **Verification:**
-  - [ ] [Specific L0 or L1 test from verification-cases.md]
-- **Plots:**
-  - [ ] [Specific plot for visual verification]
-- **Dependencies:** [Other tasks in THIS subsystem that must complete first]
+### Task N: [Short name]
+- **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
+- **Pass:** N
+- **Methodology:** [section ref]
+- **Checklist:**
+  - [ ] [Write test for X — must fail initially (red)]
+  - [ ] [Implement X — test must pass (green)]
+  - [ ] [Write test for Y — must fail initially (red)]
+  - [ ] [Implement Y — test must pass (green)]
+  - [ ] [Derivation doc for Z (only if non-trivial)]
+  - [ ] [Plot: description]
+- **Dependencies:** [task refs or "None"]
 ```
+
+Structure each task's checklist as alternating red/green pairs: write-test then implement,
+write-test then implement. Each test item references a specific verification case. Each
+implement item references the methodology section. Example:
+
+```
+- [ ] Test: V0-001 (ITTC-57 at Re=1e7, expected Cf=0.00293)
+- [ ] Implement: ITTC-57 friction line (methodology §2.1)
+- [ ] Test: V0-002 (ITTC-57 at Re=1e9, expected Cf=0.00146)
+- [ ] Implement: Reynolds number range guard (methodology §2.1, valid range)
+- [ ] Plot: Cf vs Re curve overlaid with reference data
+```
+
+The test items must come first in each pair. This enforces red-before-green ordering
+during the build phase.
 
 **Task rules:**
 - Order tasks bottom-up: Level 0 → Level 1
 - Each task completable in a single build iteration
-- No more than **5 implementation checkboxes** per task — split if larger
-- Every subsystem must have tasks for: implementation, derivation docs, verification tests, plots
+- No more than **5 checklist items** per task — split if larger
 - Infrastructure tasks come first
+- Verification cases must be written during refine so they're available as test specifications during build
 
 ### 6. Produce Refine Summary
 
 Create `spiral/pass-N/subsystems/[name]/refine-summary.md`:
 
+If nothing changed for this subsystem at this pass, the file should contain only:
 ```markdown
-# Spiral Pass N — [Subsystem Name] Refine Summary
+# Pass N — [Subsystem] Refine Summary
 
-## Focus of This Pass
-[What is being refined/added for this subsystem and why]
+No methodology changes this pass.
+```
 
-## Methodology Changes
-[For each change:]
-- **[Aspect]:** [What changed, from what to what]
-  - Justification: [Why this change]
-  - Source: [Citation]
-  - Impact: [What else is affected]
+Otherwise, use this terse diff-style format:
 
-## Previous Pass Findings Addressed
-[How convergence/validation issues from Pass N-1 were addressed]
-[How human redirect feedback was incorporated, if any]
-[How reconsiderations were resolved, if any]
+```markdown
+# Pass N — [Subsystem] Refine Summary
 
-## Updated Plan Summary
-- New tasks added: [count]
-- Existing tasks revised: [count]
-- Total TODO tasks for this pass: [count]
+## Changes
+- [What changed]: [From what → to what]. Source: [citation]. Why: [one sentence].
 
-## Risks and Open Questions
-[Anything that might cause problems during build]
+## Reconsiderations Addressed
+- [Issue]: [How resolved, one sentence]
+
+## Plan Delta
+- Added: [count] tasks. Revised: [count] tasks.
+
+## Risks
+- [Only if any exist]
 ```
 
 ## Rules
@@ -140,7 +151,7 @@ Create `spiral/pass-N/subsystems/[name]/refine-summary.md`:
 - **Every method choice must trace to a peer-reviewed source.** Cite author(s), year, title, and DOI/URL.
 - **Never fabricate equations from memory.** If you need an equation, find it in a paper in `references/` or search the web for it. If the full paper is not available, flag it with `[NEEDS_PAPER]`.
 - **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `references/retrieved/` with the citation and key equations.
-- **Document alternatives considered.** For each method choice, briefly state what other approaches exist and why you chose this one.
+- **Reference alternatives in the literature survey.** Do not repeat alternatives analysis — cite `spiral/pass-0/literature-survey.md §[subsystem]` for method candidates evaluated during scoping.
 
 ### Internal Consistency Checks
 

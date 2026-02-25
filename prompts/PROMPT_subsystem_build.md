@@ -20,7 +20,7 @@ You are a software engineer implementing an engineering software project. The me
 
 Select the first task in `subsystems/[name]/plan.md` with:
 - `**Status:** TODO`
-- `**Spiral pass:**` matching the current pass number (or an earlier pass if leftover)
+- `**Pass:**` matching the current pass number (or an earlier pass if leftover)
 - All tasks listed in `**Dependencies:**` have status `DONE`
 
 Mark it `IN_PROGRESS` before starting.
@@ -29,17 +29,41 @@ If the next available task is BLOCKED (due to a reconsideration or previous fail
 
 If **no TODO tasks remain** for the current pass (all are DONE or BLOCKED), state this clearly in your output and exit.
 
-## Sub-Item Tracking
+## Red/Green TDD Cycle
 
-Each task in the plan contains checkbox items (`- [ ]`) under its **Implementation**, **Verification**, **Plots**, and **Derivation** headings. These are your work items within the task.
+For each task, work through the checklist items in order. The checklist is structured as
+alternating test/implement pairs by the refine phase. Follow this cycle strictly:
+
+### Step 1: Red — Write the failing test
+- Read the verification case from `subsystems/[name]/verification-cases.md`
+- Write the test. It MUST assert the expected value from the verification case.
+- Run it. **It MUST fail.** If it passes without new code, investigate:
+  - Is the test actually testing the right thing?
+  - Is existing code already covering this? If so, check off both test and implementation items and move on.
+- Check off the test item in the plan.
+
+### Step 2: Green — Implement until the test passes
+- Write the minimum code to make the failing test pass.
+- The code MUST match the methodology specification exactly.
+- Run the test. It MUST pass.
+- If it doesn't pass after your implementation: debug once. If still failing, mark the task BLOCKED and move on.
+- Check off the implementation item in the plan.
+
+### Step 3: Repeat for next test/implement pair in the checklist
+
+### Step 4: After all pairs are green
+- Run the full L0 + L1 test suite for this subsystem (regression check).
+- Write derivation doc if the implementation involved non-trivial equation mapping.
+- Generate plots.
+- Check remaining items off.
+
+### What "red then green" buys us
+The verification cases come from peer-reviewed sources with known expected values. Writing
+the test first guarantees that every piece of physics code is tested against a literature
+value before it's considered done. If the test passes before implementation, something is
+wrong with the test. If the test never goes green, the methodology may need reconsideration.
 
 **As you complete each item, immediately check it off** by changing `- [ ]` to `- [x]` in `subsystems/[name]/plan.md`. Do this after each item — not in a batch at the end.
-
-Working order within a task:
-1. Work through **Implementation** items first.
-2. Write or update **Derivation** documentation.
-3. Run **Verification** tests and check off each passing test.
-4. Generate **Plots** and check off each completed plot.
 
 If you cannot complete an item:
 1. Do **not** check it off.
@@ -78,27 +102,16 @@ Your code **must** match the methodology specification exactly:
 
 ### Derivation Documentation
 
-For every function implementing a physical equation, create or update a document in `subsystems/[name]/derivations/`:
+Derivation documents are mandatory only when the mapping from equation to code is non-trivial: discretization of continuous equations, coordinate transforms, rearrangement for numerical stability, non-obvious unit conversions, or interpolation scheme choices. A direct algebraic transcription of a formula does not require a derivation doc. When in doubt, write one — but keep it concise.
+
+When a derivation doc is needed, create or update a document in `subsystems/[name]/derivations/`:
 
 ```markdown
 # [Function/Module Name]
 
-## Source
-[Reference to subsystems/[name]/methodology.md section]
-[Original paper citation]
+**Source:** [methodology section] → [paper citation, equation number]
 
-## Continuous Formulation
-[Equations as in methodology]
-
-## Discrete Implementation
-[How the continuous equations map to code]
-[Discretization choices and justification]
-[Coordinate transforms if any]
-[Unit conversions if any]
-
-## Numerical Considerations
-[Convergence, stability, accuracy]
-[Parameter sensitivity]
+**What's non-trivial:** [Only the parts that need explanation: discretization, transforms, numerical tricks, unit handling. Skip sections that would just restate the methodology.]
 ```
 
 ### Hierarchical Verification
@@ -173,15 +186,14 @@ When you encounter a problem that might block a task:
 
 Before marking a task as `DONE`, verify **all** of the following:
 
-1. **Every checkbox is checked.** Review the task in `subsystems/[name]/plan.md` and confirm that every `- [ ]` under Implementation, Verification, Plots, and Derivation has been changed to `- [x]`. If any item is still `- [ ]`, the task is **not done**.
-2. **All subsystem tests pass** — run the L0 and L1 test suite for this subsystem, not just new tests.
-3. **All affected plots** are regenerated and reviewed in `plots/REVIEW.md`.
-4. **Derivation documentation** is complete.
-5. **The code matches the methodology spec.**
+1. **Every test was written before its corresponding implementation (red/green order).** If any test was written after its implementation, that is a process violation — the test may be unconsciously tailored to match buggy code rather than the specification.
+2. **All checklist items are checked off.** Review the task in `subsystems/[name]/plan.md` and confirm that every `- [ ]` has been changed to `- [x]`. If any item is still `- [ ]`, the task is **not done**.
+3. **The full subsystem test suite passes** — run the L0 and L1 test suite for this subsystem, not just new tests.
+4. **Code matches the methodology spec.**
 
-Only after confirming all five criteria, mark the task as `DONE` in `subsystems/[name]/plan.md`.
+Only after confirming all four criteria, mark the task as `DONE` in `subsystems/[name]/plan.md`.
 
-**If any checkbox item cannot be completed**, do not mark the task as `DONE`. Instead:
+**If any checklist item cannot be completed**, do not mark the task as `DONE`. Instead:
 - Mark the task as `BLOCKED`.
 - Add a note under the task explaining which item(s) are blocked and why.
 - If the blockage is a methodology issue, follow the Reconsideration Protocol.

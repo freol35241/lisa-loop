@@ -184,8 +184,9 @@ The only non-repeating pass. Establishes what we're solving, how we'll know we'v
 - Produces `spiral/pass-N/subsystems/[name]/refine-summary.md`
 
 **Step B: Build + Verify (sonnet, Ralph loop)** — Multiple autonomous agent invocations, scoped to one subsystem.
-- Each iteration: read subsystem plan, find next TODO task, read methodology, implement, write derivation, run L0/L1 tests, generate plots, mark DONE
-- Same rules as build prompt: methodology adherence, derivation documentation, hierarchical verification (L0 + L1), reconsideration protocol
+- Each iteration uses a strict **red/green TDD cycle**: write a failing test from a verification case (red), implement code to make it pass (green), repeat for each pair in the task's checklist
+- Derivation docs are written only when the equation-to-code mapping is non-trivial (discretization, coordinate transforms, numerical tricks, non-obvious unit conversions)
+- Same rules as build prompt: methodology adherence, hierarchical verification (L0 + L1), reconsideration protocol
 - Exit when: all subsystem tasks DONE, or all remaining BLOCKED, or max iterations
 - If blocked: surface block gate to human (scoped to this subsystem)
 
@@ -211,111 +212,122 @@ Each `subsystems/[name]/plan.md`:
 
 ## Tasks
 
-### Task N: [Short descriptive name]
+### Task N: [Short name]
 - **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
-- **Spiral pass:** [Which pass introduced/last revised this task]
-- **Methodology ref:** [Section in subsystems/[name]/methodology.md]
-- **Implementation:**
-  - [ ] [Specific code to write]
-  - [ ] [Specific code to write]
-- **Derivation:**
-  - [ ] Document discretization / mapping from continuous equations to code
-- **Verification:**
-  - [ ] [Specific L0 or L1 test from verification-cases.md]
-- **Plots:**
-  - [ ] [Specific plot for visual verification]
-- **Dependencies:** [Other tasks in THIS subsystem that must complete first]
+- **Pass:** N
+- **Methodology:** [section ref]
+- **Checklist:**
+  - [ ] [Write test for X — must fail initially (red)]
+  - [ ] [Implement X — test must pass (green)]
+  - [ ] [Write test for Y — must fail initially (red)]
+  - [ ] [Implement Y — test must pass (green)]
+  - [ ] [Derivation doc for Z (only if non-trivial)]
+  - [ ] [Plot: description]
+- **Dependencies:** [task refs or "None"]
 ```
 
-Task sizing: completable in one Ralph iteration. Max 5 implementation checkboxes, split if larger.
+Task sizing: completable in one Ralph iteration. Max 5 checklist items, split if larger.
+
+The checklist is structured as alternating red/green pairs: write-test then implement. Each test item references a specific verification case with expected values from the literature. This enforces TDD ordering during the build phase.
+
+## Red/Green TDD in the Build Phase
+
+The half-V already implies TDD: verification cases are written during refine (before code exists), which serves as the "specification." The build phase enforces the red/green cycle explicitly:
+
+1. **Red — Write the failing test.** Read the verification case. Write the test asserting the expected value. Run it — it MUST fail. If it passes without new code, the test is wrong or existing code already covers it.
+2. **Green — Implement until the test passes.** Write minimum code to make the failing test pass, matching the methodology specification exactly.
+3. **Repeat** for each test/implement pair in the checklist.
+4. **After all pairs are green:** Run full L0 + L1 suite (regression check), write derivation doc if non-trivial, generate plots.
+
+This guarantees every piece of physics code is tested against a literature value before it's considered done. If a test was written after its implementation, that is a process violation — the test may be unconsciously tailored to match buggy code rather than the specification.
+
+### Derivation Documentation Policy
+
+Derivation documents are mandatory only when the mapping from equation to code is non-trivial: discretization of continuous equations, coordinate transforms, rearrangement for numerical stability, non-obvious unit conversions, or interpolation scheme choices. A direct algebraic transcription of a formula does not require a derivation doc.
 
 ## Human Interaction
 
 ### Review Gate: After System Validation (Mandatory)
+
+The review gate extracts key information from the review package and displays it directly in the terminal:
 
 ```
 ═══════════════════════════════════════════════════════
   SPIRAL PASS N COMPLETE — REVIEW REQUIRED
 ═══════════════════════════════════════════════════════
 
-  Review package: spiral/pass-N/review-package.md
-  Plots:          plots/REVIEW.md
+  Answer:      [current quantitative answer]
+  Convergence: [CONVERGED / NOT YET / DIVERGING]
+  Tests:       L0: X/Y | L1: X/Y | L2: X/Y | L3: X/Y
+  Agent recommends: [ACCEPT / CONTINUE / BLOCKED]
 
-  [A] ACCEPT — Answer has converged. Produce final report.
-  [C] CONTINUE — Proceed to Pass N+1.
-  [R] REDIRECT — Provide guidance for Pass N+1.
+  Files:
+    Review:  spiral/pass-N/review-package.md
+    Plots:   plots/REVIEW.md
+
+  [A] ACCEPT — converged, produce final report
+  [C] CONTINUE — next spiral pass
+  [R] REDIRECT — provide guidance (opens $EDITOR)
 
 ═══════════════════════════════════════════════════════
 ```
 
 ### Block Surfacing: During Subsystem Build (When Needed)
 
+The block gate shows blocked task names and reasons:
+
 ```
 ═══════════════════════════════════════════════════════
-  BUILD BLOCKED: [subsystem-name] — HUMAN INPUT NEEDED
+  BUILD BLOCKED: [subsystem-name]
 ═══════════════════════════════════════════════════════
 
-  Subsystem:  [name]
-  Completed:  X/Y tasks
-  Blocked:    Z tasks
+  Completed: X / Y tasks
+  Blocked:   Z tasks
 
-  See subsystems/[name]/plan.md for blocked items.
+  Blocked tasks:
+    • Task N: [name]
+      Reason: [why blocked]
 
-  [F] FIX — Resolve the blocks, then resume build.
-  [S] SKIP — Skip blocked items, continue to next subsystem.
-  [X] ABORT — Stop this spiral pass.
+  [F] FIX — resolve blocks, then resume build
+  [S] SKIP — continue to next subsystem
+  [X] ABORT — stop this spiral pass
 
 ═══════════════════════════════════════════════════════
 ```
 
 ## Review Package Format
 
+The review package is a dashboard with pointers — details are one click away in the full reports.
+
 ```markdown
 # Spiral Pass N — Review Package
 
-## Summary
-[One paragraph: what was done this pass, which subsystems were refined, why]
-
 ## Current Answer
-[The actual answer to the user's question, as of this pass. Specific and quantitative.]
+[The actual quantitative answer to BRIEF.md, as of this pass.]
 
-## Subsystem Status
-| Subsystem | Tasks Done | Tasks Blocked | Key Result |
-|-----------|-----------|---------------|------------|
-| [name]    | X/Y       | Z             | [value]    |
+## Convergence: [CONVERGED / NOT YET / DIVERGING]
+| Quantity | Δ from prev | Converged? |
+|----------|------------|------------|
+| [qty]    | [X.X%]     | [yes/no]   |
 
-## Convergence
-| Quantity          | Pass N-1   | Pass N     | Δ (%)  | Converged? |
-|-------------------|-----------|-----------|--------|------------|
-| [key output 1]   | [value]   | [value]   | [X.X]  | [yes/no]   |
+## Tests
+L0: [pass/total] | L1: [pass/total] | L2: [pass/total] | L3: [pass/total]
+Failures: [list any, or "None"]
 
-Overall assessment: [CONVERGED / NOT YET CONVERGED / DIVERGING]
+## Sanity Checks: [pass/total]
+Failures: [list any, or "None"]
 
-## Verification (per subsystem)
-| Subsystem | L0 Tests | L1 Tests | Issues |
-|-----------|----------|----------|--------|
-| [name]    | X/Y      | X/Y      | [any]  |
+## Engineering Judgment (HUMAN REVIEW)
+1. [Plot: path] → [what to look for]
+2. [Key result] → [is this reasonable?]
 
-## Validation — System Level
-- Integration tests (L2): X/Y passing
-- Full system tests (L3): X/Y passing
-- [ ] Order of magnitude: [result]
-- [ ] Trends: [result]
-- [ ] Conservation: [result]
-- [ ] Dimensional analysis: [result]
-- [ ] Limiting cases: [result]
-- [ ] Reference data comparison: [result]
+## Recommendation
+[ACCEPT / CONTINUE: reason / BLOCKED: reason]
 
-## Validation — Engineering Judgment (YOUR REVIEW)
-1. [Plot: path] → Does [quantity] vs [parameter] show expected shape?
-2. [Key result]: [quantity] = [value] [units] → Reasonable for [context]?
-3. [Trend]: When [parameter] increases, [quantity] [direction] → Expected?
-
-## Agent Recommendation
-[ACCEPT / CONTINUE: refine X because Y / BLOCKED: need Z]
-
-## If Continuing — Proposed Refinements for Pass N+1
-- [What to refine per subsystem and why, with literature pointers]
+## Details
+- Full validation: spiral/pass-N/system-validation.md
+- Convergence analysis: spiral/pass-N/convergence.md
+- Plots: plots/REVIEW.md
 ```
 
 ## Final Output
