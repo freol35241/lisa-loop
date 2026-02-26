@@ -40,6 +40,11 @@ NO_PAUSE="${NO_PAUSE:-false}"
 # Git
 NO_PUSH="${NO_PUSH:-false}"
 
+# Output collapsing
+COLLAPSE_OUTPUT="${COLLAPSE_OUTPUT:-true}"
+# Disable collapsing when stdout is not a terminal (e.g. redirected to a file)
+[[ -t 1 ]] || COLLAPSE_OUTPUT=false
+
 # --- Colors -------------------------------------------------------------------
 
 RED='\033[0;31m'
@@ -61,10 +66,61 @@ log_warn()    { echo -e "${YELLOW}[lisa $(_ts)]${NC} $*"; }
 log_error()   { echo -e "${RED}[lisa $(_ts)]${NC} $*"; }
 log_phase()   { echo -e "${CYAN}[lisa $(_ts)]${NC} ━━━ $* ━━━"; }
 
+_init_agent_stats() {
+    AGENT_STATS_FILE=$(mktemp)
+    AGENT_RESULT_FILE=$(mktemp)
+    echo "0 0 0" > "$AGENT_STATS_FILE"  # tool_count file_writes test_runs
+    > "$AGENT_RESULT_FILE"              # empty
+}
+
+_update_agent_stat() {
+    # Usage: _update_agent_stat <field_index> [increment]
+    # field_index: 1=tools, 2=file_writes, 3=test_runs
+    local idx="$1"
+    local inc="${2:-1}"
+    if [[ -f "$AGENT_STATS_FILE" ]]; then
+        local s1 s2 s3
+        read -r s1 s2 s3 < "$AGENT_STATS_FILE"
+        case "$idx" in
+            1) s1=$((s1 + inc)) ;;
+            2) s2=$((s2 + inc)) ;;
+            3) s3=$((s3 + inc)) ;;
+        esac
+        echo "$s1 $s2 $s3" > "$AGENT_STATS_FILE"
+    fi
+}
+
+_read_agent_stats() {
+    # Sets STAT_TOOLS, STAT_WRITES, STAT_TESTS
+    if [[ -f "$AGENT_STATS_FILE" ]]; then
+        read -r STAT_TOOLS STAT_WRITES STAT_TESTS < "$AGENT_STATS_FILE"
+    else
+        STAT_TOOLS=0 STAT_WRITES=0 STAT_TESTS=0
+    fi
+}
+
+_cleanup_agent_stats() {
+    [[ -f "${AGENT_STATS_FILE:-}" ]] && rm -f "$AGENT_STATS_FILE"
+    [[ -f "${AGENT_RESULT_FILE:-}" ]] && rm -f "$AGENT_RESULT_FILE"
+}
+
+_agent_cleanup() {
+    # Restore terminal state if interrupted during agent run
+    tput rc 2>/dev/null || true
+    tput ed 2>/dev/null || true
+    _cleanup_agent_stats
+    echo ""
+    log_warn "Agent interrupted."
+}
+
 _filter_agent_stream() {
     # Process NDJSON stream from `claude -p --output-format stream-json --verbose`
     # and emit human-readable progress lines showing agent tool calls, thinking,
     # and the final result text.
+    #
+    # When COLLAPSE_OUTPUT=true, stats are counted via temp file and the result
+    # text is written to AGENT_RESULT_FILE instead of stdout. The caller
+    # (run_agent) handles collapsing and printing the summary + result.
     #
     # Falls back to raw passthrough if jq is not available.
     if ! command -v jq &>/dev/null; then
@@ -100,18 +156,35 @@ _filter_agent_stream() {
             if [[ ${#thought} -gt 200 ]]; then
                 thought="${thought:0:200}..."
             fi
-            echo -e "${DIM}  [thinking $(_ts)] ${thought}${NC}"
+            echo -e "    ${DIM}[💭 $(_ts)] ${thought}${NC}"
         elif [[ "$line" == TOOL:\ * ]]; then
-            echo -e "${MAGENTA}  [agent $(_ts)]${NC} ${line#TOOL: }"
+            local tool_detail="${line#TOOL: }"
+            echo -e "    ${MAGENTA}[🔧 $(_ts)]${NC} ${tool_detail}"
+            # Count stats via temp file (works from subshell)
+            _update_agent_stat 1
+            # Count file writes (Write or Edit tools)
+            if [[ "$tool_detail" == Write\ * ]] || [[ "$tool_detail" == Edit\ * ]]; then
+                _update_agent_stat 2
+            fi
+            # Count test runs (Bash with pytest or test)
+            if [[ "$tool_detail" == Bash\ *pytest* ]] || [[ "$tool_detail" == Bash\ *test* ]]; then
+                _update_agent_stat 3
+            fi
         elif [[ "$line" == RESULT_B64:\ * ]]; then
             local result_b64="${line#RESULT_B64: }"
             local result_text
             result_text="$(echo "$result_b64" | base64 -d 2>/dev/null)" || result_text=""
             if [[ -n "$result_text" ]]; then
-                echo ""
-                echo -e "${MAGENTA}  [agent $(_ts)]${NC} ── Result ──"
-                echo "$result_text"
-                echo ""
+                if [[ "$COLLAPSE_OUTPUT" == "true" ]]; then
+                    # Write result to temp file; run_agent prints it after collapsing
+                    echo "$result_text" > "$AGENT_RESULT_FILE"
+                else
+                    echo ""
+                    echo -e "    ${MAGENTA}── Result ──${NC}"
+                    sed 's/^/    /' <<< "$result_text"
+                    echo -e "    ${MAGENTA}── End ──${NC}"
+                    echo ""
+                fi
             fi
         fi
     done
@@ -119,18 +192,32 @@ _filter_agent_stream() {
 }
 
 run_agent() {
-    # Usage: run_agent <prompt_file> <model> [context_string]
+    # Usage: run_agent <prompt_file> <model> [context_string] [label]
     local prompt_file="$1"
     local model="$2"
     local context="${3:-}"
+    local label="${4:-agent}"
 
     if [[ ! -f "$prompt_file" ]]; then
         log_error "Prompt file not found: $prompt_file"
         exit 1
     fi
-    log_info "Calling agent with prompt: $prompt_file (model: $model)"
-    local start_seconds=$SECONDS
 
+    local start_seconds=$SECONDS
+    _init_agent_stats
+
+    if [[ "$COLLAPSE_OUTPUT" == "true" ]]; then
+        # Print a "running" indicator and save cursor position
+        echo -ne "  ${CYAN}▸${NC} ${label} ..."
+        echo ""
+        tput sc  # save cursor position (start of streaming output area)
+
+        trap _agent_cleanup INT TERM
+    else
+        log_info "Calling agent with prompt: $prompt_file (model: $model)"
+    fi
+
+    # Run the agent, streaming through the filter
     {
         if [[ -n "$context" ]]; then
             echo "$context"
@@ -142,7 +229,39 @@ run_agent() {
         | _filter_agent_stream
 
     local elapsed=$(( SECONDS - start_seconds ))
-    log_info "Agent finished (${elapsed}s elapsed)"
+    _read_agent_stats
+
+    if [[ "$COLLAPSE_OUTPUT" == "true" ]]; then
+        trap - INT TERM
+
+        # Collapse streaming output: restore cursor and clear everything below
+        tput rc  # restore cursor to saved position
+        tput ed  # clear from cursor to end of screen
+
+        # Move up one line to overwrite the "▸ label ..." line
+        tput cuu1
+
+        # Build summary
+        local summary="${STAT_TOOLS} tools"
+        [[ "$STAT_WRITES" -gt 0 ]] && summary+=", ${STAT_WRITES} files written"
+        [[ "$STAT_TESTS" -gt 0 ]] && summary+=", ${STAT_TESTS} test runs"
+
+        local icon="✓" icon_color="$GREEN"
+
+        # Print collapsed summary line
+        echo -e "  ${icon_color}${icon}${NC} ${label} (${elapsed}s, ${summary})"
+
+        # Print the agent's final result text (this stays visible)
+        if [[ -s "$AGENT_RESULT_FILE" ]]; then
+            echo -e "    ${MAGENTA}── Result ──${NC}"
+            sed 's/^/    /' "$AGENT_RESULT_FILE"
+            echo -e "    ${MAGENTA}── End ──${NC}"
+        fi
+    else
+        log_info "Agent finished (${elapsed}s elapsed)"
+    fi
+
+    _cleanup_agent_stats
 }
 
 git_commit_all() {
@@ -601,7 +720,7 @@ environment_gate() {
                 # Simple approach: re-run common version checks and see if env file
                 # should be cleared
                 local recheck_context="Re-verify the local environment. Read spiral/pass-0/environment-resolution.md to see what was missing. Run the version/availability checks again for those specific tools. If everything is now available, clear the file (write an empty file to spiral/pass-0/environment-resolution.md). If tools are still missing, update the file with what remains missing."
-                run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$recheck_context"
+                run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$recheck_context" "Re-verify: environment"
 
                 if [[ -s "$env_file" ]]; then
                     log_warn "Some tooling is still missing. Returning to environment gate."
@@ -681,8 +800,7 @@ run_scope() {
     write_state 0 "scope" "in_progress"
     mkdir -p spiral/pass-0
 
-    log_info "Running scope agent..."
-    run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE"
+    run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "" "Scope"
 
     log_info "Committing scope artifacts..."
     git_commit_all "scope: pass 0 — scoping complete" || true
@@ -724,8 +842,7 @@ run_subsystem_refine() {
         context+=$'\n'"Human redirect file: spiral/pass-$prev_pass/human-redirect.md"
     fi
 
-    log_info "Running refine agent for subsystem: $subsystem..."
-    run_agent "prompts/PROMPT_subsystem_refine.md" "$CLAUDE_MODEL_REFINE" "$context"
+    run_agent "prompts/PROMPT_subsystem_refine.md" "$CLAUDE_MODEL_REFINE" "$context" "Refine: $subsystem"
 
     write_state "$pass" "subsystem_refine" "complete" "$subsystem"
 }
@@ -765,8 +882,7 @@ run_subsystem_build() {
 
         write_state "$pass" "subsystem_build" "in_progress" "$subsystem" "$iter"
 
-        log_info "Running build agent (subsystem: $subsystem, iteration $iter)..."
-        run_agent "prompts/PROMPT_subsystem_build.md" "$CLAUDE_MODEL_BUILD" "$context"
+        run_agent "prompts/PROMPT_subsystem_build.md" "$CLAUDE_MODEL_BUILD" "$context" "Build: $subsystem iter $iter"
 
         log_info "Committing build work..."
         git_commit_all "build: pass $pass $subsystem iteration $iter" || true
@@ -862,7 +978,7 @@ run_system_validate() {
     context_a+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
     context_a+=$'\n'"VALIDATION PHASE A: Run all L2 and L3 tests, execute sanity checks, limiting cases, and reference data comparisons. Collect raw results into spiral/pass-$pass/test-results.md. Do NOT produce the review package or convergence assessment yet — that happens in Phase B."
 
-    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_a"
+    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_a" "Validate: pass $pass (tests)"
     git_commit_all "validate: pass $pass phase A — test results collected" || true
 
     # Phase B: Audit, analyze, and produce reports
@@ -871,7 +987,7 @@ run_system_validate() {
     context_b+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
     context_b+=$'\n'"VALIDATION PHASE B: Test results have already been collected in spiral/pass-$pass/test-results.md. Now perform the methodology compliance spot-check, derivation completeness check, assumptions register check, traceability check, convergence assessment, and produce all report artifacts (system-validation.md, convergence.md, review-package.md, PASS_COMPLETE.md). Update validation/convergence-log.md and plots/REVIEW.md."
 
-    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_b"
+    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_b" "Validate: pass $pass (analysis)"
 
     write_state "$pass" "system_validate" "complete"
 }
@@ -893,7 +1009,7 @@ finalize_output() {
         context+=$'\n'"Read all spiral/pass-*/convergence.md files for the convergence history."
         context+=$'\n'"Read SUBSYSTEMS.md for the subsystem decomposition."
         context+=$'\n'"Follow the report format specified in the PROMPT_system_validate.md instructions."
-        run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context"
+        run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context" "Finalize: output"
         git_commit_all "final: generate output deliverables" || true
     fi
 
