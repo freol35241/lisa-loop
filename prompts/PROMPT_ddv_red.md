@@ -76,12 +76,23 @@ scope and does not yet have a corresponding executable test:
    - If it's a pre-existing test from a previous pass: fine, skip it
    - If it's a new test that passes: the test may not be testing what you think. Investigate and fix the test.
 
-### 5. Test Tagging
+### 5. Test Categorization
 
-Tag domain verification tests with a marker so they can be run separately from software tests:
-- `@pytest.mark.ddv` (or equivalent for your test framework) for all DDV tests
-- `@pytest.mark.level0` for individual function tests
-- `@pytest.mark.level1` for model-level tests
+DDV tests must be runnable independently of software and integration tests. Use whatever
+categorization mechanism is defined in `AGENTS.md` — this could be markers, directory
+conventions, test name prefixes, test sets, or framework-specific grouping.
+
+Read the "Run DDV Tests" command in `AGENTS.md` to understand how DDV tests are selected.
+Ensure every test you write is picked up by that command.
+
+Additionally, categorize tests by verification level so they can be filtered:
+- **Level 0:** Individual function tests (known input → known output)
+- **Level 1:** Model-level tests (behavior over valid range)
+
+Example mechanisms (the scope phase chooses one and documents it in AGENTS.md):
+- pytest: `@pytest.mark.ddv`, `@pytest.mark.level0` markers
+- cargo test: `tests/ddv/` directory + module-level grouping
+- Julia: `@testset "ddv"` / `@testset "level0"` grouping
 
 ### 6. Produce Test Manifest
 

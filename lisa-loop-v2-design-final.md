@@ -161,8 +161,8 @@ Each pass runs five phases in sequence:
 **Phase 2: DDV Red (opus)**
 - Writes failing domain verification tests from authoritative sources
 - Does NOT read implementation code — independence is the core guarantee
-- Tests scoped to current pass's scope subset (from spiral-plan.md)
-- Tags tests: `@pytest.mark.ddv`, `@pytest.mark.level0`, `@pytest.mark.level1`
+- Reads spiral-plan.md: tests scoped to current pass's scope subset only
+- Categorizes tests using the mechanism defined in AGENTS.md (e.g., markers, directories, naming)
 - Produces `spiral/pass-N/ddv-red-manifest.md`
 
 **Phase 3: Build (sonnet, Ralph loop)**
@@ -180,6 +180,7 @@ Each pass runs five phases in sequence:
 **Phase 5: Validate (opus)**
 - Runs all test suites, executes sanity checks, limiting cases, reference data comparisons
 - Checks acceptance criteria, methodology compliance
+- Reads spiral-plan.md for staged per-pass acceptance criteria (early passes have wider tolerances)
 - Convergence assessment: compares with previous pass
 - Produces: system-validation.md, convergence.md, review-package.md, PASS_COMPLETE.md
 
@@ -232,6 +233,15 @@ If methodology doesn't work in practice:
 4. The next refine phase (opus) adjudicates
 
 This is a feature, not a bug. Independent interpretation of papers will sometimes disagree.
+
+### Resolution in Refine Phase
+
+The refine phase at the start of the next pass is responsible for resolving all reconsiderations:
+- DDV disagreements: adjudicate by returning to the source paper, update verification cases or methodology
+- Methodology issues: evaluate and accept/reject the proposed alternative
+- In all cases: unblock affected tasks in plan.md (change BLOCKED → TODO or create replacement tasks)
+
+Reconsiderations must not accumulate across passes without resolution.
 
 ## Derivation Documentation Policy
 

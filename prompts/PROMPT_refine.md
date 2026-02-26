@@ -26,6 +26,7 @@ Read **all** of the following:
 
 If this is **Pass 1** (first refine):
 - Read `spiral/pass-0/literature-survey.md` for method candidates
+- Read `spiral/pass-0/spiral-plan.md` — determine what scope subset and fidelity this pass targets. Your methodology refinement and plan should address ONLY this pass's scope, not the full problem.
 
 If this is **Pass N > 1**:
 - Read `spiral/pass-{N-1}/convergence.md` — what converged, what didn't
@@ -64,6 +65,29 @@ what improved vs previous pass, what the agent recommended. Be concise."
 After subagents report back, synthesize their findings into your methodology and plan updates.
 Do not simply paste subagent output — integrate it with your own reasoning.
 
+### 2b. Resolve Reconsiderations and Unblock Tasks
+
+If `spiral/pass-{N-1}/reconsiderations/` contains unresolved issues, resolve each one:
+
+**For DDV disagreements** (`ddv-disagreement-*.md`):
+1. Go back to the authoritative source paper cited by both the test and the implementation
+2. Determine which interpretation is correct
+3. If the **test was wrong**: update `methodology/verification-cases.md` with the correct expected value. The DDV Red phase will rewrite the test this pass.
+4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
+5. Document your adjudication in the refine summary
+
+**For methodology issues** (other reconsideration files):
+1. Evaluate the proposed alternative
+2. Update methodology.md if the alternative is accepted
+3. Update verification cases if the methodology change affects expected values
+
+**After resolving**, update `methodology/plan.md`:
+- Change BLOCKED tasks back to TODO if they can now proceed
+- Or create replacement tasks if the approach has fundamentally changed
+- Remove stale dependencies that no longer apply
+
+Every reconsideration must be explicitly resolved — do not carry BLOCKED tasks forward without action.
+
 ### 3. Refine Methodology
 
 Based on what you've read, identify what methodology needs to be added, changed, or refined for this pass's fidelity level.
@@ -73,7 +97,7 @@ Based on what you've read, identify what methodology needs to be added, changed,
 - **Governing equations** — Written out completely. Every variable defined. Every constant specified.
 - **Assumptions** — Every assumption, explicit and implicit. What simplifications are made.
 - **Valid range** — Parameter ranges where this method applies. What happens outside.
-- **Implementation notes** — Practical considerations (memory, solver choice, numerical schemes, parallelization) that arise from the methodology choices. This is where physics and software engineering meet.
+- **Implementation notes** — Practical considerations (memory, solver choice, numerical schemes, parallelization) that arise from the methodology choices. This is where domain methodology and software engineering meet.
 - **Numerical considerations** — Known issues with discretization, convergence, stability.
 
 If this is **Pass 1**:
@@ -107,7 +131,7 @@ Update `methodology/plan.md`:
 - Add tasks for this pass that address ONLY the current pass's scope subset (not the full problem)
 - Keep completed tasks as history
 - Each task references a methodology section
-- Tasks are ordered bottom-up (utilities → core physics → integration → runner)
+- Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
 - Tasks do NOT include DDV test items — DDV tests are written separately in the next phase
 

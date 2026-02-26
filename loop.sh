@@ -705,6 +705,15 @@ scope_review_gate() {
             done
         fi
 
+        # Show methodology structure (section headings)
+        if [[ -f "methodology/methodology.md" ]]; then
+            echo ""
+            echo -e "  ${CYAN}Methodology sections:${NC}"
+            grep -E '^## ' methodology/methodology.md 2>/dev/null | grep -v '^## Phenomenon' | head -8 | while read -r line; do
+                echo -e "    ${line}"
+            done
+        fi
+
         echo ""
         echo -e "  ${GREEN}[A]${NC} APPROVE  — proceed to Pass 1"
         echo -e "  ${YELLOW}[R]${NC} REFINE   — provide feedback, re-run scope agent"
@@ -795,7 +804,20 @@ run_scope() {
     write_state 0 "scope" "in_progress"
     mkdir -p spiral/pass-0
 
-    run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "" "Scope"
+    # Detect if this is a resume with existing feedback (scope refinement was interrupted)
+    local scope_context=""
+    if [[ -f "spiral/pass-0/scope-feedback.md" ]]; then
+        local content
+        content=$(grep -v '^#' "spiral/pass-0/scope-feedback.md" | grep -v '^-[[:space:]]*$' | grep -v '^$' | wc -l)
+        if [[ "$content" -gt 0 ]]; then
+            scope_context="SCOPE REFINEMENT: The human has reviewed your scope artifacts and provided feedback."
+            scope_context+=$'\n'"Read spiral/pass-0/scope-feedback.md carefully and update all affected artifacts."
+            scope_context+=$'\n'"Do not discard previous work — refine it based on the feedback."
+            log_info "Detected existing scope feedback — running as refinement."
+        fi
+    fi
+
+    run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$scope_context" "Scope"
 
     log_info "Committing scope artifacts..."
     git_commit_all "scope: pass 0 — scoping complete" || true
@@ -850,6 +872,7 @@ run_ddv_red() {
     local pass="$1"
     log_phase "PASS $pass — DDV RED (domain verification tests)"
     write_state "$pass" "ddv_red" "in_progress"
+    mkdir -p "spiral/pass-$pass"
 
     local context="Current spiral pass: $pass"
     run_agent "prompts/PROMPT_ddv_red.md" "$CLAUDE_MODEL_DDV" "$context" "DDV Red: pass $pass"
@@ -956,6 +979,7 @@ run_execute() {
     local pass="$1"
     log_phase "PASS $pass — EXECUTE"
     write_state "$pass" "execute" "in_progress"
+    mkdir -p "spiral/pass-$pass"
 
     local context="Current spiral pass: $pass"
     run_agent "prompts/PROMPT_execute.md" "$CLAUDE_MODEL_EXECUTE" "$context" "Execute: pass $pass"
@@ -970,6 +994,7 @@ run_validate() {
     local pass="$1"
     log_phase "PASS $pass — VALIDATE"
     write_state "$pass" "validate" "in_progress"
+    mkdir -p "spiral/pass-$pass"
 
     local context="Current spiral pass: $pass"
     run_agent "prompts/PROMPT_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context" "Validate: pass $pass"
