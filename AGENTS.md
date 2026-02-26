@@ -1,7 +1,7 @@
 # Operational Guide
 
 <!-- This file tells the AI agent how to build, test, and run the project.
-     It is read by ALL four phase agents (scope, refine, build, validate).
+     It is read by ALL phase agents (scope, refine, ddv, build, execute, validate).
      Update it as your project evolves. -->
 
 ## Technology Preferences (Human-Provided, Optional)
@@ -73,28 +73,25 @@
 # e.g., pytest tests/ -v
 ```
 
-## Run Subsystem-Level Tests
+## Run DDV Tests
 
 ```bash
-# Level 0 — Unit tests (individual equations)
-# e.g., pytest tests/ -v -m "level0"
-
-# Level 1 — Subsystem tests
-# e.g., pytest tests/ -v -m "level1"
-
-# Per-subsystem filtering:
-# e.g., pytest tests/ -v -m "[subsystem_name]"
-# e.g., pytest tests/ -v -m "level0 and [subsystem_name]"
+# Domain-Driven Verification tests (written by DDV Red phase)
+# e.g., pytest tests/ddv/ -v -m "ddv"
 ```
 
-## Run Integration and System Tests
+## Run Software Tests
 
 ```bash
-# Level 2 — Coupled subsystem pair tests
-# e.g., pytest tests/ -v -m "level2"
+# Software quality tests (written by build phase)
+# e.g., pytest tests/software/ -v -m "software"
+```
 
-# Level 3 — Full system tests
-# e.g., pytest tests/ -v -m "level3"
+## Run Integration Tests
+
+```bash
+# End-to-end integration tests (written by execute phase)
+# e.g., pytest tests/integration/ -v
 ```
 
 ## Generate Plots

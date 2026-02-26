@@ -8,10 +8,10 @@ Lisa Loop is a methodology and toolbox for solving complex engineering and resea
 
 v2 fuses two established engineering paradigms:
 
-- **The V-Model** (systems engineering): every level of decomposition is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
-- **The Design Spiral** (Evans, 1959): the same aspects (sectors/subsystems) are revisited iteratively at increasing fidelity until the design converges.
+- **The V-Model** (systems engineering): every level of specification is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
+- **The Design Spiral** (Evans, 1959): the same problem is revisited iteratively at increasing fidelity and scope until the answer converges.
 
-The fusion: **each revolution of the spiral visits every subsystem in sequence, each doing a half-V (refine → build → verify), then the system is validated as a whole. The spiral terminates when the system-level answer has converged, not when tasks are complete.**
+The fusion: **each revolution of the spiral runs five phases (Refine → DDV Red → Build → Execute → Validate), then the human reviews. The spiral terminates when the system-level answer has converged, not when tasks are complete.**
 
 Three absolute rules:
 1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper. No method without a citation.
@@ -20,290 +20,294 @@ Three absolute rules:
 
 ## Key Distinction: Verification vs. Validation
 
-- **Verification** is local to each subsystem: "Did I implement my equations correctly?" Tests at Level 0 (individual functions) and Level 1 (subsystem models). Happens within each subsystem's half-V.
-- **Validation** is global, at the system level: "Does the assembled system answer the question with physically sensible numbers?" Tests at Level 2 (coupled subsystems) and Level 3 (full system), plus sanity checks, limiting cases, reference data. Happens once per spiral pass after all subsystems are updated.
+- **Verification** is per-function and per-model: "Did I implement my equations correctly?" Domain-Driven Verification (DDV) tests at Level 0 (individual functions) and Level 1 (model level). Software quality tests for edge cases and stability. Happens within each pass's DDV Red and Build phases.
+- **Validation** is global, at the system level: "Does the assembled system answer the question with physically sensible numbers?" Integration tests, sanity checks, limiting cases, reference data, engineering judgment audit. Happens in the Execute and Validate phases.
+
+## Domain-Driven Verification (DDV)
+
+DDV is the core verification mechanism. It uses a two-stage red/green pattern with agent separation:
+
+1. **DDV Red** (opus): Writes failing tests from authoritative domain sources (papers, standards, analytical solutions). Does NOT read implementation code. Tests encode what the domain knowledge SHOULD produce.
+2. **Build** (sonnet): Implements code to make those tests pass. CANNOT modify DDV tests. If a test seems wrong, the disagreement is documented as a reconsideration — the next refine phase adjudicates.
+
+This two-agent separation prevents correlated domain knowledge errors: the test writer and the implementer interpret the same papers independently. Disagreements are valuable signals, not bugs to suppress.
+
+**DDV is domain-agnostic.** The pattern works whenever there are authoritative sources and testable expected values: a physics paper → expected Cf at Re=1e7, an econometrics study → expected Gini coefficient, a regulatory standard → expected classification threshold. The domain doesn't matter — the verification mechanism does.
+
+**Engineering judgment** is a named concept preserved across all domains. It means: dimensional analysis, conservation law checks, order-of-magnitude estimation from first principles, and hard physical bounds. The DDV prompts require this standard of rigor — it anchors what "sanity checking" means in concrete, verifiable terms rather than vague "does this look right?" heuristics.
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
+│                    PASS 0: SCOPE (with human refinement loop)             │
+│                                                                          │
+│   ┌────────────────┐     ┌────────────────┐     ┌────────────────┐      │
+│   │  SCOPE AGENT    │────→│  HUMAN REVIEW   │────→│  APPROVED       │     │
+│   │  methodology,   │     │  [A]pprove      │     │  proceed to     │     │
+│   │  acceptance,    │  ┌──│  [R]efine       │     │  Pass 1         │     │
+│   │  spiral plan    │  │  │  [E]dit         │     └────────┬───────┘     │
+│   └────────────────┘  │  └────────────────┘               │             │
+│          ↑            │                                    │             │
+│          └── feedback ┘                                    │             │
+└────────────────────────────────────────────────────────────┼─────────────┘
+                                                             ↓
+┌──────────────────────────────────────────────────────────────────────────┐
 │                         OUTER LOOP: SPIRAL                               │
 │                   (convergence-driven, human-gated)                      │
 │                                                                          │
-│   ┌─ For each subsystem (in dependency order): ──────────────────────┐   │
-│   │                                                                  │   │
-│   │   ┌────────────────┐    ┌──────────────────────────────────┐     │   │
-│   │   │    REFINE      │    │         BUILD + VERIFY           │     │   │
-│   │   │                │    │                                  │     │   │
-│   │   │  methodology   │ →  │  ┌────────────────────────────┐  │     │   │
-│   │   │  + plan for    │    │  │ RALPH LOOP                 │  │     │   │
-│   │   │  THIS subsys   │    │  │                            │  │     │   │
-│   │   │                │    │  │ pick task → implement →    │  │     │   │
-│   │   │  [opus]        │    │  │ test (L0,L1) → next       │  │     │   │
-│   │   │                │    │  │                            │  │     │   │
-│   │   │                │    │  │ [sonnet]                   │  │     │   │
-│   │   │                │    │  └────────────────────────────┘  │     │   │
-│   │   └────────────────┘    └──────────────────────────────────┘     │   │
-│   │                                                                  │   │
-│   └──────────────────────────── repeat for each subsystem ───────────┘   │
-│                                                                          │
-│   ┌──────────────────────────────────────────────────────────────────┐   │
-│   │                    SYSTEM VALIDATION                              │   │
-│   │                                                                  │   │
-│   │  integration tests (L2, L3) · sanity checks · limiting cases     │   │
-│   │  reference data · convergence assessment                         │   │
-│   │                                                                  │   │
-│   │  [opus]                                                          │   │
-│   └──────────────────────────────────┬───────────────────────────────┘   │
-│                                      │                                   │
-│              ┌───────────────────────┴───────────────────────┐           │
-│              │           HUMAN REVIEW GATE                   │           │
-│              │                                               │           │
-│              │  • Accept (answer converged, exit spiral)     │           │
-│              │  • Continue (next revolution)                 │           │
-│              │  • Redirect (guidance for next revolution)    │           │
-│              └───────────────────────┬───────────────────────┘           │
-│                                      │                                   │
-│                     ┌────────────────┘                                   │
-│                     ↓                                                    │
-│              (next spiral pass)                                          │
+│   ┌────────────────┐                                                     │
+│   │    REFINE       │  opus + subagents                                  │
+│   │    methodology  │  (literature search, code audit, validation review)│
+│   │    + plan       │  reads spiral-plan.md for scope progression        │
+│   └───────┬────────┘                                                     │
+│           ↓                                                              │
+│   ┌────────────────┐                                                     │
+│   │   DDV RED       │  opus (independent of implementation)              │
+│   │   write failing │  tests only for current pass's scope subset        │
+│   │   domain tests  │                                                    │
+│   └───────┬────────┘                                                     │
+│           ↓                                                              │
+│   ┌────────────────┐                                                     │
+│   │   BUILD         │  sonnet (Ralph loop)                               │
+│   │   make tests    │  implement → DDV green → software tests            │
+│   │   green         │                                                    │
+│   └───────┬────────┘                                                     │
+│           ↓                                                              │
+│   ┌────────────────┐                                                     │
+│   │   EXECUTE       │  opus                                              │
+│   │   assemble +    │  integration code → run → engineering judgment     │
+│   │   run + audit   │                                                    │
+│   └───────┬────────┘                                                     │
+│           ↓                                                              │
+│   ┌────────────────┐                                                     │
+│   │   VALIDATE      │  opus                                              │
+│   │   V&V +         │  sanity checks → convergence → recommendation     │
+│   │   convergence   │                                                    │
+│   └───────┬────────┘                                                     │
+│           ↓                                                              │
+│   ┌───────────────────────────────────────────┐                          │
+│   │           HUMAN REVIEW GATE               │                          │
+│   │  Accept / Continue / Redirect             │                          │
+│   └───────────────────────┬───────────────────┘                          │
+│                           ↓                                              │
+│                    (next spiral pass)                                     │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-## How Subsystems Interact Across a Pass
+## Scope Progression
 
-Within a spiral pass, subsystems run in dependency order. When subsystem B runs after subsystem A:
-- B uses A's **newly updated** outputs from this pass
-- B uses outputs from subsystems that haven't run yet from the **previous pass**
+The spiral plan stages both fidelity AND scope per pass. Early passes test the methodology on a SUBSET of the full problem — not the full scope at low fidelity.
 
-This is the Gauss-Seidel pattern: use the latest available information, let the spiral converge. Circular dependencies are expected and handled by the iteration.
+| Pass | Scope subset | Fidelity | Acceptance | Key question |
+|------|-------------|----------|------------|--------------|
+| 1    | Narrow subset | Low | Wide tolerance | Does the approach work at all? |
+| 2    | Broader | Medium | Tighter | Does it generalize? |
+| 3    | Full scope | Medium | Tighter | Does coupling work? |
+| 4    | Full scope | High | Target | Converged? |
 
-For Pass 1, when no previous-pass values exist, the initial estimates from `SUBSYSTEMS.md` are used as the starting values. These estimates bootstrap the first coupled computation. By Pass 2, actual computed values replace the estimates, and convergence tracking begins.
-
-## Decomposition Heuristics
-
-The decomposition into subsystems is the highest-leverage decision in the process. The scope phase must follow these heuristics:
-
-**What makes a good subsystem:**
-- Models one distinct physical phenomenon or answers one clear sub-question
-- Can be verified in isolation with synthetic inputs — if you can't test it without the whole system, it's not separable enough
-- Has a narrow, well-defined interface — a handful of named quantities with units, not complex shared state
-- Fits in a single agent's working context — if the methodology exceeds ~15–20 pages of equations and assumptions, split it
-- Aligns with how the literature treats the problem — if separate papers cover separate aspects, those are natural boundaries
-
-**What makes a good interface:**
-- Physically meaningful quantities with units and expected ranges
-- Directional: subsystem A *provides* X to subsystem B
-- Stable across passes — the values change, the quantities exchanged don't
-- Circular dependencies are expected — that's what the spiral resolves
-
-**Anti-patterns:**
-- More than ~7 subsystems — interface overhead dominates
-- Fewer than 2 — you've collapsed to a monolith with no focused verification
-- Subsystems defined by code structure ("the solver," "the I/O layer") rather than by physical phenomenon
-- A subsystem that needs outputs from every other subsystem — sign of a missing abstraction
+The refine phase reads the spiral plan to scope tasks for the current pass. The DDV Red phase writes tests only for the current pass's scope subset. Acceptance criteria are staged — early passes have wider tolerances.
 
 ## Spiral Passes
 
-### Pass 0 — Scoping
+### Pass 0 — Scoping (with Human Refinement Loop)
 
-The only non-repeating pass. Establishes what we're solving, how we'll know we've succeeded, what subsystems exist, and how they connect. **No code is written.**
+The only non-repeating pass. Establishes what we're solving, how we'll know we've succeeded, what methods to use, and how to stage the work. **No code is written.**
+
+The scope phase includes an iterative human refinement loop: the human can approve, provide written feedback for the agent to incorporate, or edit scope artifacts directly. The R→re-run→review cycle can repeat as many times as needed. This is cheap — no code exists yet.
 
 **Agent produces:**
 
-1. **`SUBSYSTEMS.md`** — The subsystem manifest. This is the key artifact:
+1. **`methodology/methodology.md`** — Central methodology document: phenomenon, candidate methods, recommended approach, key equations, assumptions, valid range. Organized by topic/section if the problem has multiple aspects.
 
-```markdown
-# Subsystems
+2. **`methodology/plan.md`** — Implementation plan with tasks for Pass 1.
 
-## Iteration Order
-[Ordered list of subsystems. Approximately topological — exact ordering matters less than getting the general flow right, since the spiral converges regardless.]
+3. **`methodology/verification-cases.md`** — L0 and L1 test specifications with expected values and sources. These will be turned into executable tests by the DDV Red phase.
 
-1. [subsystem-a]
-2. [subsystem-b]
-3. [subsystem-c]
-
-## Subsystem Definitions
-
-### [subsystem-a]
-- **Models:** [What physical phenomenon or sub-question]
-- **Provides:** [Named outputs with units and expected ranges]
-- **Consumes:** [Named inputs with units, and which subsystem provides each]
-- **Key references:** [Primary papers for this subsystem]
-
-### [subsystem-b]
-...
-
-## Interface Map
-
-### [subsystem-a] → [subsystem-b]
-- **Quantities:** [What flows from A to B, with units]
-- **Expected range:** [Order of magnitude bounds]
-- **Initial estimate:** [Best-guess numerical value for Pass 1 bootstrapping — from literature, reference design, or engineering judgment. Must be a specific number with units, not a range.]
-- **Coupling strength:** [Weak / moderate / strong — how much does B's answer depend on A?]
-
-### [subsystem-b] → [subsystem-a]  (circular dependency)
-- **Quantities:** [What flows from B back to A]
-- **Initial estimate:** [Starting value for the first spiral pass]
-- **Resolution:** Previous pass values used; convergence tracked.
-
-## Dependency Notes
-[Any circular dependencies and how they're resolved by the spiral iteration. Which links use "latest from this pass" vs. "carry forward from last pass."]
-```
-
-2. **Per-subsystem initial files:**
-   - `subsystems/[name]/methodology.md` — Initial methodology stub: phenomenon, candidate methods from literature, recommended approach, key equations (from papers, not fabricated), assumptions
-   - `subsystems/[name]/plan.md` — Initial implementation plan for this subsystem. Tasks for Pass 1 detailed, later passes sketched.
-   - `subsystems/[name]/verification-cases.md` — L0 and L1 test specifications for this subsystem
-
-3. **System-level files:**
-   - `spiral/pass-0/acceptance-criteria.md` — What "correct" looks like, quantitatively
-   - `spiral/pass-0/validation-strategy.md` — How system-level results will be validated
+4. **System-level files:**
+   - `spiral/pass-0/acceptance-criteria.md` — Quantitative success targets
+   - `spiral/pass-0/validation-strategy.md` — Limiting cases, reference data, conservation laws, integration tests
    - `spiral/pass-0/sanity-checks.md` — Engineering judgment checks
-   - `spiral/pass-0/literature-survey.md` — Methods survey organized by subsystem
-   - `spiral/pass-0/spiral-plan.md` — Anticipated progression across passes
-   - `validation/sanity-checks.md` — Living copy of sanity checks
-   - `validation/limiting-cases.md` — Populated from validation strategy
-   - `validation/reference-data.md` — Populated from validation strategy
-   - `methodology/overview.md` — System description, subsystem decomposition, modeling approach
-   - `methodology/assumptions-register.md` — Cross-cutting assumptions that span subsystems
+   - `spiral/pass-0/literature-survey.md` — Methods survey organized by topic/phenomenon
+   - `spiral/pass-0/spiral-plan.md` — Scope + fidelity progression per pass
+   - `methodology/overview.md` — System description, modeling approach
+   - `methodology/assumptions-register.md` — Cross-cutting assumptions
+   - `validation/` living documents — sanity checks, limiting cases, reference data
 
-**Human review:** Mandatory after Pass 0. The decomposition and interfaces are the most critical review.
+5. **`AGENTS.md`** — Resolved technology stack with concrete, verified commands.
+
+**Human review:** Mandatory. Options: Approve, Refine (provide feedback → re-run), Edit (manual), Quit.
 
 **Exit marker:** `spiral/pass-0/PASS_COMPLETE.md`
 
-### Pass N (N >= 1)
+### Pass N (N >= 1) — Five-Phase Spiral
 
-**Phase 1: Subsystem Iteration** — For each subsystem in dependency order:
+Each pass runs five phases in sequence:
 
-**Step A: Refine (opus)** — Single agent invocation, scoped to one subsystem.
-- Reads: `SUBSYSTEMS.md` (for interfaces), own `subsystems/[name]/methodology.md`, own `subsystems/[name]/plan.md`, previous pass system validation results, human redirect if any
-- Refines methodology for this subsystem at this pass's fidelity: method with citation, equations, assumptions, valid range
-- Updates own `subsystems/[name]/methodology.md`, `subsystems/[name]/plan.md`, `subsystems/[name]/verification-cases.md`
-- Updates `methodology/assumptions-register.md` if cross-cutting assumptions change
-- Produces `spiral/pass-N/subsystems/[name]/refine-summary.md`
+| Phase | Agent | Writes code? | Key question |
+|-------|-------|-------------|--------------|
+| Refine | opus + subagents | No | What methodology, what plan, what tech decisions? |
+| DDV Red | opus | Tests only | What should correct results look like? |
+| Build | sonnet (Ralph loop) | Yes | Make the red tests green + software quality tests |
+| Execute | opus | Glue/runner code only | Does the assembled system produce an answer? |
+| Validate | opus | No | Does the answer converge? Pass V&V? |
 
-**Step B: Build + Verify (sonnet, Ralph loop)** — Multiple autonomous agent invocations, scoped to one subsystem.
-- Each iteration uses a strict **red/green TDD cycle**: write a failing test from a verification case (red), implement code to make it pass (green), repeat for each pair in the task's checklist
-- Derivation docs are written only when the equation-to-code mapping is non-trivial (discretization, coordinate transforms, numerical tricks, non-obvious unit conversions)
-- Same rules as build prompt: methodology adherence, hierarchical verification (L0 + L1), reconsideration protocol
-- Exit when: all subsystem tasks DONE, or all remaining BLOCKED, or max iterations
-- If blocked: surface block gate to human (scoped to this subsystem)
+**Phase 1: Refine (opus)**
+- Reads spiral-plan.md for scope progression and updates methodology/plan for this pass
+- Uses subagents for research delegation: literature search, code audit, validation review
+- Updates methodology, plan, verification cases, cross-cutting documents
+- Produces `spiral/pass-N/refine-summary.md`
 
-**Phase 2: System Validation (opus)** — Single agent invocation, system-level.
-- Runs L2 tests (coupled subsystem pairs) and L3 tests (full system)
-- Executes sanity checks from `validation/sanity-checks.md`
-- Checks limiting cases, reference data, acceptance criteria
-- Convergence: compares key system-level outputs with previous pass
-- Produces: `spiral/pass-N/system-validation.md`, `spiral/pass-N/convergence.md`, `spiral/pass-N/review-package.md`
-- Updates `validation/convergence-log.md`
+**Phase 2: DDV Red (opus)**
+- Writes failing domain verification tests from authoritative sources
+- Does NOT read implementation code — independence is the core guarantee
+- Tests scoped to current pass's scope subset (from spiral-plan.md)
+- Tags tests: `@pytest.mark.ddv`, `@pytest.mark.level0`, `@pytest.mark.level1`
+- Produces `spiral/pass-N/ddv-red-manifest.md`
 
-**Phase 3: Human Review Gate** — Mandatory.
-- Accept: answer converged, produce final output
+**Phase 3: Build (sonnet, Ralph loop)**
+- Autonomous iterative implementation: pick task → implement → make DDV tests green → software tests
+- CANNOT modify DDV tests. Disagreements → reconsideration file → next refine phase adjudicates
+- Writes software quality tests alongside implementation
+- Produces code in `src/`, tests in `tests/software/`
+
+**Phase 4: Execute (opus)**
+- Writes/updates integration code that chains modules together
+- Runs the system end-to-end, produces actual answer to BRIEF.md
+- Engineering judgment audit: dimensional consistency, order of magnitude, trends, conservation, bounds
+- Produces `spiral/pass-N/execution-report.md`
+
+**Phase 5: Validate (opus)**
+- Runs all test suites, executes sanity checks, limiting cases, reference data comparisons
+- Checks acceptance criteria, methodology compliance
+- Convergence assessment: compares with previous pass
+- Produces: system-validation.md, convergence.md, review-package.md, PASS_COMPLETE.md
+
+**Phase 6: Human Review Gate (mandatory)**
+- Accept: produce final output
 - Continue: next spiral pass
-- Redirect: guidance for next pass
+- Redirect: guidance for next pass (opens $EDITOR)
 
-## Per-Subsystem Plan Format
+## Subagent Usage in Refine Phase
 
-Each `subsystems/[name]/plan.md`:
+The refine phase uses Claude Code's Task tool to delegate focused research tasks, managing context without architectural complexity:
+
+- **Literature subagent:** Search for methods, evaluate alternatives, save to references/retrieved/
+- **Code audit subagent:** Audit src/ and tests/, report structure and interfaces
+- **Validation review subagent:** Summarize previous pass's execution, validation, convergence
+
+The Ralph loop (build phase) stays single-agent because it modifies shared state sequentially.
+
+## Implementation Plan Format
 
 ```markdown
-# [Subsystem Name] — Implementation Plan
-
-## Tasks
-
 ### Task N: [Short name]
 - **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
 - **Pass:** N
 - **Methodology:** [section ref]
 - **Checklist:**
-  - [ ] [Write test for X — must fail initially (red)]
-  - [ ] [Implement X — test must pass (green)]
-  - [ ] [Write test for Y — must fail initially (red)]
-  - [ ] [Implement Y — test must pass (green)]
+  - [ ] [Implement X]
+  - [ ] [Implement Y]
   - [ ] [Derivation doc for Z (only if non-trivial)]
+  - [ ] [Software tests for edge cases / error handling]
   - [ ] [Plot: description]
 - **Dependencies:** [task refs or "None"]
 ```
 
 Task sizing: completable in one Ralph iteration. Max 5 checklist items, split if larger.
 
-The checklist is structured as alternating red/green pairs: write-test then implement. Each test item references a specific verification case with expected values from the literature. This enforces TDD ordering during the build phase.
+Note: DDV test items are NOT in the plan. DDV tests are written by the DDV Red phase, independently.
 
-## Red/Green TDD in the Build Phase
+## Reconsideration Protocol
 
-The half-V already implies TDD: verification cases are written during refine (before code exists), which serves as the "specification." The build phase enforces the red/green cycle explicitly:
+If methodology doesn't work in practice:
+1. Create `spiral/pass-N/reconsiderations/[issue].md`
+2. Mark task BLOCKED
+3. Next refine phase addresses it
 
-1. **Red — Write the failing test.** Read the verification case. Write the test asserting the expected value. Run it — it MUST fail. If it passes without new code, the test is wrong or existing code already covers it.
-2. **Green — Implement until the test passes.** Write minimum code to make the failing test pass, matching the methodology specification exactly.
-3. **Repeat** for each test/implement pair in the checklist.
-4. **After all pairs are green:** Run full L0 + L1 suite (regression check), write derivation doc if non-trivial, generate plots.
+**DDV Disagreement** (special case): If the build agent believes a DDV test encodes wrong domain knowledge:
+1. Create `spiral/pass-N/reconsiderations/ddv-disagreement-[test-name].md`
+2. Include: test expects, implementation produces, analysis citing the same source paper
+3. Mark task BLOCKED
+4. The next refine phase (opus) adjudicates
 
-This guarantees every piece of physics code is tested against a literature value before it's considered done. If a test was written after its implementation, that is a process violation — the test may be unconsciously tailored to match buggy code rather than the specification.
+This is a feature, not a bug. Independent interpretation of papers will sometimes disagree.
 
-### Derivation Documentation Policy
+## Derivation Documentation Policy
 
 Derivation documents are mandatory only when the mapping from equation to code is non-trivial: discretization of continuous equations, coordinate transforms, rearrangement for numerical stability, non-obvious unit conversions, or interpolation scheme choices. A direct algebraic transcription of a formula does not require a derivation doc.
 
 ## Human Interaction
 
-### Review Gate: After System Validation (Mandatory)
+### Scope Review Gate (After Pass 0)
 
-The review gate extracts key information from the review package and displays it directly in the terminal:
+```
+═══════════════════════════════════════════════════════
+  PASS 0 (SCOPING) COMPLETE — REVIEW REQUIRED
+═══════════════════════════════════════════════════════
+
+  Methodology:       methodology/methodology.md
+  Plan:              methodology/plan.md
+  Acceptance:        spiral/pass-0/acceptance-criteria.md
+  Scope progression: spiral/pass-0/spiral-plan.md
+
+  Stack: Python 3.11.5
+
+  Scope progression:
+    | 1 | 12 kn, calm water | Low | ±50% | Does it work? |
+    | 2 | 5-25 kn, calm     | Med | ±20% | Generalize?   |
+
+  [A] APPROVE  — proceed to Pass 1
+  [R] REFINE   — provide feedback, re-run scope agent
+  [E] EDIT     — I'll edit the files directly, then approve
+  [Q] QUIT     — stop here
+```
+
+### Pass Review Gate (After Each Pass)
 
 ```
 ═══════════════════════════════════════════════════════
   SPIRAL PASS N COMPLETE — REVIEW REQUIRED
 ═══════════════════════════════════════════════════════
 
-  Answer:      [current quantitative answer]
-  Convergence: [CONVERGED / NOT YET / DIVERGING]
-  Tests:       L0: X/Y | L1: X/Y | L2: X/Y | L3: X/Y
-  Agent recommends: [ACCEPT / CONTINUE / BLOCKED]
-
-  Files:
-    Review:  spiral/pass-N/review-package.md
-    Plots:   plots/REVIEW.md
+  Answer:      142.3 kN total resistance
+  Convergence: NOT YET (Δ 12% from prev)
+  Tests:       DDV: 8/8 | Software: 15/15 | Integration: 2/2
+  Agent recommends: CONTINUE
 
   [A] ACCEPT — converged, produce final report
   [C] CONTINUE — next spiral pass
   [R] REDIRECT — provide guidance (opens $EDITOR)
-
-═══════════════════════════════════════════════════════
 ```
 
-### Block Surfacing: During Subsystem Build (When Needed)
-
-The block gate shows blocked task names and reasons:
+### Block Gate (During Build)
 
 ```
 ═══════════════════════════════════════════════════════
-  BUILD BLOCKED: [subsystem-name]
+  BUILD BLOCKED
 ═══════════════════════════════════════════════════════
 
-  Completed: X / Y tasks
-  Blocked:   Z tasks
+  Completed: 3 / 5 tasks
+  Blocked:   2 tasks
 
   Blocked tasks:
-    • Task N: [name]
-      Reason: [why blocked]
+    • Task 4: Wave resistance
+      Reason: DDV test disagrees with implementation
+    • Task 5: Form factor
+      Reason: Depends on Task 4
 
   [F] FIX — resolve blocks, then resume build
-  [S] SKIP — continue to next subsystem
+  [S] SKIP — continue to next phase
   [X] ABORT — stop this spiral pass
-
-═══════════════════════════════════════════════════════
 ```
 
 ## Review Package Format
-
-The review package is a dashboard with pointers — details are one click away in the full reports.
 
 ```markdown
 # Spiral Pass N — Review Package
 
 ## Current Answer
-[The actual quantitative answer to BRIEF.md, as of this pass.]
+[The quantitative answer to BRIEF.md]
 
 ## Convergence: [CONVERGED / NOT YET / DIVERGING]
 | Quantity | Δ from prev | Converged? |
@@ -311,11 +315,14 @@ The review package is a dashboard with pointers — details are one click away i
 | [qty]    | [X.X%]     | [yes/no]   |
 
 ## Tests
-L0: [pass/total] | L1: [pass/total] | L2: [pass/total] | L3: [pass/total]
+DDV: [pass/total] | Software: [pass/total] | Integration: [pass/total]
 Failures: [list any, or "None"]
 
 ## Sanity Checks: [pass/total]
 Failures: [list any, or "None"]
+
+## Engineering Judgment Issues (from Execution)
+[list any, or "None"]
 
 ## Engineering Judgment (HUMAN REVIEW)
 1. [Plot: path] → [what to look for]
@@ -324,9 +331,13 @@ Failures: [list any, or "None"]
 ## Recommendation
 [ACCEPT / CONTINUE: reason / BLOCKED: reason]
 
+## If Continuing — Proposed Refinements
+- [What to change and why]
+
 ## Details
+- Execution report: spiral/pass-N/execution-report.md
 - Full validation: spiral/pass-N/system-validation.md
-- Convergence analysis: spiral/pass-N/convergence.md
+- Convergence: spiral/pass-N/convergence.md
 - Plots: plots/REVIEW.md
 ```
 
@@ -335,23 +346,24 @@ Failures: [list any, or "None"]
 When the human accepts:
 
 1. **`output/answer.md`** — Direct response to the question in BRIEF.md.
-2. **`output/report.md`** — Full development report: problem statement, subsystem decomposition, per-subsystem methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability.
+2. **`output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability.
 
 ## Traceability Chain
 
 ```
 BRIEF.md → acceptance criteria
-  → subsystem decomposition (SUBSYSTEMS.md)
-    → per-subsystem methodology (subsystems/[name]/methodology.md)
-      → peer-reviewed source (references/)
+  → scope (spiral/pass-0/) — human-refined scope, fidelity progression, validation strategy
+    → methodology (methodology/methodology.md)
+      → authoritative domain source (references/)
         → governing equations
-          → discrete implementation (subsystems/[name]/derivations/)
-            → source code (src/)
-              → subsystem verification (L0, L1 tests)
-                → system validation (L2, L3, sanity checks)
-                  → convergence assessment
-                    → human acceptance
-                      → final answer + report
+          → DDV tests (tests/ddv/) — domain specification as executable tests
+            → implementation (src/)
+              → derivations (methodology/derivations/) — non-trivial mappings only
+                → software tests (tests/software/) — edge cases, stability
+                  → execution (src/runner) — end-to-end, engineering judgment audit
+                    → system validation — sanity checks, convergence
+                      → human acceptance
+                        → final answer + report
 ```
 
 ## Configuration
@@ -360,19 +372,24 @@ BRIEF.md → acceptance criteria
 ```bash
 # Claude Code model selection per phase
 CLAUDE_MODEL_SCOPE="opus"
-CLAUDE_MODEL_REFINE="opus"
-CLAUDE_MODEL_BUILD="sonnet"
-CLAUDE_MODEL_VALIDATE="opus"
+CLAUDE_MODEL_REFINE="opus"       # Methodology + plan refinement
+CLAUDE_MODEL_DDV="opus"          # Domain-Driven Verification (test writing)
+CLAUDE_MODEL_BUILD="sonnet"      # Implementation (Ralph loop)
+CLAUDE_MODEL_EXECUTE="opus"      # System assembly + execution
+CLAUDE_MODEL_VALIDATE="opus"     # System-level V&V and convergence
 
 # Loop limits
 MAX_SPIRAL_PASSES=5
-MAX_RALPH_ITERATIONS=50              # per subsystem per pass
+MAX_RALPH_ITERATIONS=50
 
 # Human review
 NO_PAUSE=false
 
 # Git
 NO_PUSH=false
+
+# Terminal
+COLLAPSE_OUTPUT=true
 ```
 
 ## CLI
@@ -390,22 +407,24 @@ NO_PUSH=false
 project-root/
 ├── loop.sh
 ├── lisa.conf
-├── BRIEF.md                            # Project description (user writes)
-├── AGENTS.md                           # Build/test/plot commands (user writes)
-├── SUBSYSTEMS.md                       # Subsystem manifest + interfaces (created Pass 0)
+├── BRIEF.md
+├── AGENTS.md
 │
 ├── prompts/
-│   ├── PROMPT_scope.md                 # Pass 0: decomposition + scoping
-│   ├── PROMPT_subsystem_refine.md      # Per-subsystem methodology + plan
-│   ├── PROMPT_subsystem_build.md       # Per-subsystem Ralph loop iteration
-│   └── PROMPT_system_validate.md       # System-level V&V + convergence
+│   ├── PROMPT_scope.md
+│   ├── PROMPT_refine.md
+│   ├── PROMPT_ddv_red.md
+│   ├── PROMPT_build.md
+│   ├── PROMPT_execute.md
+│   └── PROMPT_validate.md
 │
-├── subsystems/
-│   └── [name]/                         # One directory per subsystem
-│       ├── methodology.md              # Equations, assumptions, citations
-│       ├── plan.md                     # Implementation tasks
-│       ├── verification-cases.md       # L0 and L1 test specifications
-│       └── derivations/                # Code ↔ equations mapping
+├── methodology/
+│   ├── methodology.md              # Single methodology document
+│   ├── plan.md                     # Single implementation plan
+│   ├── verification-cases.md       # Verification case specifications
+│   ├── overview.md                 # System description
+│   ├── assumptions-register.md     # Cross-cutting assumptions
+│   └── derivations/                # Code ↔ equations mapping (non-trivial only)
 │
 ├── spiral/
 │   ├── current-state.md
@@ -414,23 +433,19 @@ project-root/
 │   │   ├── validation-strategy.md
 │   │   ├── sanity-checks.md
 │   │   ├── literature-survey.md
-│   │   ├── spiral-plan.md
+│   │   ├── spiral-plan.md          # Scope + fidelity progression per pass
+│   │   ├── scope-feedback.md       # Human feedback (created during scope refinement loop)
 │   │   └── PASS_COMPLETE.md
-│   ├── pass-N/
-│   │   ├── subsystems/
-│   │   │   └── [name]/
-│   │   │       ├── refine-summary.md
-│   │   │       └── reconsiderations/
-│   │   ├── system-validation.md
-│   │   ├── convergence.md
-│   │   ├── review-package.md
-│   │   ├── human-redirect.md          # (if redirected)
-│   │   └── PASS_COMPLETE.md
-│   └── SPIRAL_COMPLETE.md
-│
-├── methodology/
-│   ├── overview.md                     # System-level: description, decomposition
-│   └── assumptions-register.md         # Cross-cutting assumptions
+│   └── pass-N/
+│       ├── refine-summary.md
+│       ├── ddv-red-manifest.md
+│       ├── execution-report.md
+│       ├── system-validation.md
+│       ├── convergence.md
+│       ├── review-package.md
+│       ├── reconsiderations/
+│       ├── human-redirect.md
+│       └── PASS_COMPLETE.md
 │
 ├── validation/
 │   ├── sanity-checks.md
@@ -444,8 +459,12 @@ project-root/
 │
 ├── plots/
 │   └── REVIEW.md
+│
 ├── src/
 ├── tests/
+│   ├── ddv/
+│   ├── software/
+│   └── integration/
 │
 └── output/
     ├── answer.md
@@ -457,16 +476,16 @@ project-root/
 | v1 Concept | v2 Evolution |
 |-----------|-------------|
 | BRIEF.md | Unchanged |
-| Methodology phase | Distributed: Pass 0 (survey + decomposition) + per-subsystem Refine phases |
-| Planning phase | Per-subsystem plans in `subsystems/[name]/plan.md`, created Pass 0, updated each Refine |
-| Building phase | Per-subsystem Ralph loop within each pass's Build phase |
-| Review phase | System Validation phase of each pass |
+| Methodology phase | Distributed: Pass 0 (survey + scope) + per-pass Refine phases |
+| Planning phase | Single plan in `methodology/plan.md`, created Pass 0, updated each Refine |
+| Building phase | Ralph loop within each pass's Build phase |
+| Review phase | Execute + Validate phases of each pass |
 | Triage phase | Eliminated — validation/convergence failures drive next pass |
-| IMPLEMENTATION_PLAN.md | Replaced by per-subsystem `subsystems/[name]/plan.md` |
-| Reconsideration protocol | Per-subsystem: blocks surface during build, next refine adjusts methodology |
-| Hierarchical verification | Split: L0/L1 per-subsystem during build, L2/L3 during system validation |
-| methodology/coupling-strategy.md | Replaced by interface map in SUBSYSTEMS.md |
-| methodology/verification-cases.md | Replaced by per-subsystem verification-cases.md |
-| METHODOLOGY_COMPLETE.md | No equivalent — methodology grows continuously per subsystem |
+| IMPLEMENTATION_PLAN.md | Replaced by `methodology/plan.md` |
+| Reconsideration protocol | Preserved and extended with DDV disagreement handling |
+| Hierarchical verification | DDV tests (domain, red/green) + software tests + integration tests |
+| methodology/coupling-strategy.md | Replaced by scope progression in spiral-plan.md |
+| methodology/verification-cases.md | Preserved — DDV Red turns these into executable tests |
+| METHODOLOGY_COMPLETE.md | No equivalent — methodology grows continuously |
 | [BUILD_COMPLETE] | Replaced by SPIRAL_COMPLETE.md (human acceptance of convergence) |
 | Agent-agnostic | Claude Code only |

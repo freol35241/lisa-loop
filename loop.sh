@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Lisa Loop v2 — Spiral-V development loop for engineering and scientific software
+# Lisa Loop v2 — Spiral development loop for engineering and scientific software
 #
-# Architecture: Outer spiral (convergence-driven, human-gated) with inner
-# Ralph loop (autonomous task execution) per subsystem at each pass.
+# Architecture: Outer spiral (convergence-driven, human-gated) with five phases
+# per pass: Refine → DDV Red → Build (Ralph loop) → Execute → Validate
 #
-# Each spiral pass iterates over subsystems in dependency order:
-#   For each subsystem: refine methodology → build (Ralph loop) → next subsystem
-#   Then: system-level validation + convergence check → human review gate
+# Pass 0 (scoping) runs once with an iterative human refinement loop.
 #
 # Usage:
 #   ./loop.sh scope                  # Run Pass 0 (scoping) only
@@ -27,7 +25,9 @@ cd "$SCRIPT_DIR"
 # Claude Code model selection per phase (defaults)
 CLAUDE_MODEL_SCOPE="${CLAUDE_MODEL_SCOPE:-opus}"
 CLAUDE_MODEL_REFINE="${CLAUDE_MODEL_REFINE:-opus}"
+CLAUDE_MODEL_DDV="${CLAUDE_MODEL_DDV:-opus}"
 CLAUDE_MODEL_BUILD="${CLAUDE_MODEL_BUILD:-sonnet}"
+CLAUDE_MODEL_EXECUTE="${CLAUDE_MODEL_EXECUTE:-opus}"
 CLAUDE_MODEL_VALIDATE="${CLAUDE_MODEL_VALIDATE:-opus}"
 
 # Loop limits
@@ -289,32 +289,6 @@ git_push() {
     git push -u origin "$branch"
 }
 
-# --- Subsystem Parsing -------------------------------------------------------
-
-parse_subsystems() {
-    # Read the ordered subsystem list from SUBSYSTEMS.md
-    # Look for the numbered list under "## Iteration Order"
-    # Return subsystem names, one per line
-    # Uses POSIX awk only (no gawk extensions)
-    if [[ ! -f "SUBSYSTEMS.md" ]]; then
-        log_error "SUBSYSTEMS.md not found. Run scope first."
-        return 1
-    fi
-    awk '
-        /^## Iteration Order/ { in_section=1; next }
-        /^## / && in_section { exit }
-        in_section && /^[0-9]+\./ {
-            line = $0
-            sub(/^[0-9]+\.[[:space:]]*/, "", line)
-            # Strip markdown formatting like [] or backticks
-            gsub(/[\[\]`]/, "", line)
-            # Trim whitespace
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-            if (line != "") print line
-        }
-    ' SUBSYSTEMS.md
-}
-
 # --- State Management --------------------------------------------------------
 
 STATE_FILE="spiral/current-state.md"
@@ -323,91 +297,43 @@ write_state() {
     local pass="$1"
     local phase="$2"
     local status="$3"
-    local subsystem="${4:-}"
-    local ralph_iter="${5:-0}"
+    local ralph_iter="${4:-0}"
     mkdir -p spiral
     cat > "$STATE_FILE" <<EOF
 # Spiral State
 pass: $pass
 phase: $phase
 status: $status
-subsystem: $subsystem
 ralph_iteration: $ralph_iter
 EOF
 }
 
 read_state() {
-    # Sets global variables: STATE_PASS, STATE_PHASE, STATE_STATUS, STATE_SUBSYSTEM, STATE_RALPH_ITER
+    # Sets global variables: STATE_PASS, STATE_PHASE, STATE_STATUS, STATE_RALPH_ITER
     if [[ ! -f "$STATE_FILE" ]]; then
         STATE_PASS=0
         STATE_PHASE="not_started"
         STATE_STATUS="pending"
-        STATE_SUBSYSTEM=""
         STATE_RALPH_ITER=0
         return
     fi
     STATE_PASS=$(grep '^pass:' "$STATE_FILE" | awk '{print $2}')
     STATE_PHASE=$(grep '^phase:' "$STATE_FILE" | awk '{print $2}')
     STATE_STATUS=$(grep '^status:' "$STATE_FILE" | awk '{print $2}')
-    STATE_SUBSYSTEM=$(grep '^subsystem:' "$STATE_FILE" | awk '{$1=""; sub(/^[[:space:]]+/, ""); print}')
     STATE_RALPH_ITER=$(grep '^ralph_iteration:' "$STATE_FILE" | awk '{print $2}')
     STATE_PASS="${STATE_PASS:-0}"
     STATE_PHASE="${STATE_PHASE:-not_started}"
     STATE_STATUS="${STATE_STATUS:-pending}"
-    STATE_SUBSYSTEM="${STATE_SUBSYSTEM:-}"
     STATE_RALPH_ITER="${STATE_RALPH_ITER:-0}"
 }
 
-# --- Per-Subsystem Task Detection --------------------------------------------
+# --- Task Detection -----------------------------------------------------------
 
-count_tasks_for_subsystem_pass() {
-    # Count tasks for a given subsystem, pass, and status
-    # Usage: count_tasks_for_subsystem_pass <subsystem> <pass> <status>
-    local subsystem="$1"
-    local pass="$2"
-    local status="$3"
-    local plan_file="subsystems/$subsystem/plan.md"
-
-    if [[ ! -f "$plan_file" ]]; then
-        echo 0
-        return
-    fi
-
-    # Use POSIX-compatible awk to parse task blocks.
-    # A task block starts with "### Task" and ends at the next "### Task" or EOF.
-    # Within a block, check for "**Pass:** N" or "**Spiral pass:** N" and "**Status:** STATUS".
-    awk -v pass="$pass" -v status="$status" '
-        /^### Task/ {
-            if (in_task && found_pass && found_status) count++
-            in_task=1; found_pass=0; found_status=0
-            next
-        }
-        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
-            line = $0
-            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
-            sub(/[^0-9].*/, "", line)
-            if (line == pass) found_pass=1
-        }
-        in_task && /\*\*Status:\*\*/ {
-            if (index($0, status)) found_status=1
-        }
-        END {
-            if (in_task && found_pass && found_status) count++
-            print count+0
-        }
-    ' "$plan_file"
-}
-
-count_uncompleted_tasks_up_to_pass() {
-    # Count TODO or IN_PROGRESS tasks for a subsystem where spiral pass <= given pass
-    local subsystem="$1"
-    local max_pass="$2"
-    local plan_file="subsystems/$subsystem/plan.md"
-
-    if [[ ! -f "$plan_file" ]]; then
-        echo 0
-        return
-    fi
+_count_uncompleted_tasks() {
+    # Count TODO or IN_PROGRESS tasks where pass <= given pass
+    local max_pass="$1"
+    local plan_file="methodology/plan.md"
+    [[ ! -f "$plan_file" ]] && { echo 0; return; }
 
     awk -v max_pass="$max_pass" '
         /^### Task/ {
@@ -415,9 +341,9 @@ count_uncompleted_tasks_up_to_pass() {
             in_task=1; task_pass=9999; found_todo=0; found_inprog=0
             next
         }
-        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
+        in_task && /\*\*Pass:\*\*/ {
             line = $0
-            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
+            sub(/.*\*\*Pass:\*\*[[:space:]]*/, "", line)
             sub(/[^0-9].*/, "", line)
             task_pass = line + 0
         }
@@ -432,16 +358,11 @@ count_uncompleted_tasks_up_to_pass() {
     ' "$plan_file"
 }
 
-count_blocked_tasks_up_to_pass() {
-    # Count BLOCKED tasks for a subsystem where spiral pass <= given pass
-    local subsystem="$1"
-    local max_pass="$2"
-    local plan_file="subsystems/$subsystem/plan.md"
-
-    if [[ ! -f "$plan_file" ]]; then
-        echo 0
-        return
-    fi
+_count_blocked_tasks() {
+    # Count BLOCKED tasks where pass <= given pass
+    local max_pass="$1"
+    local plan_file="methodology/plan.md"
+    [[ ! -f "$plan_file" ]] && { echo 0; return; }
 
     awk -v max_pass="$max_pass" '
         /^### Task/ {
@@ -449,9 +370,9 @@ count_blocked_tasks_up_to_pass() {
             in_task=1; task_pass=9999; found_blocked=0
             next
         }
-        in_task && /\*\*(Spiral pass|Pass):\*\*/ {
+        in_task && /\*\*Pass:\*\*/ {
             line = $0
-            sub(/.*\*\*(Spiral pass|Pass):\*\*[[:space:]]*/, "", line)
+            sub(/.*\*\*Pass:\*\*[[:space:]]*/, "", line)
             sub(/[^0-9].*/, "", line)
             task_pass = line + 0
         }
@@ -465,23 +386,19 @@ count_blocked_tasks_up_to_pass() {
     ' "$plan_file"
 }
 
-all_subsystem_pass_tasks_done() {
-    # Returns 0 (true) if no TODO or IN_PROGRESS tasks remain for the given
-    # subsystem at or below the given pass (catches leftover tasks from earlier passes)
-    local subsystem="$1"
-    local pass="$2"
+_all_tasks_done() {
+    # Returns 0 (true) if no TODO or IN_PROGRESS tasks remain at or below given pass
+    local pass="$1"
     local remaining
-    remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
+    remaining=$(_count_uncompleted_tasks "$pass")
     [[ "$remaining" -eq 0 ]]
 }
 
-has_subsystem_blocked_tasks() {
-    # Returns 0 (true) if any tasks for the given subsystem at or below the
-    # given pass are BLOCKED
-    local subsystem="$1"
-    local pass="$2"
+_has_blocked_tasks() {
+    # Returns 0 (true) if any BLOCKED tasks exist at or below given pass
+    local pass="$1"
     local blocked_count
-    blocked_count=$(count_blocked_tasks_up_to_pass "$subsystem" "$pass")
+    blocked_count=$(_count_blocked_tasks "$pass")
     [[ "$blocked_count" -gt 0 ]]
 }
 
@@ -513,7 +430,7 @@ review_gate() {
 
         # Convergence status
         local convergence
-        convergence=$(grep -i 'overall assessment\|CONVERGED\|NOT YET\|DIVERGING' "$review_file" | head -1 | sed 's/.*: *//')
+        convergence=$(grep -E '## Convergence:' "$review_file" | head -1 | sed 's/.*Convergence:[[:space:]]*//')
         if [[ -n "$convergence" ]]; then
             local conv_color="$YELLOW"
             [[ "$convergence" == *CONVERGED* && "$convergence" != *NOT* ]] && conv_color="$GREEN"
@@ -523,27 +440,38 @@ review_gate() {
 
         # Test summary
         local tests
-        tests=$(grep -E '^L[0-3]:' "$review_file" | head -1)
+        tests=$(grep -E '^DDV:' "$review_file" | head -1)
         if [[ -n "$tests" ]]; then
             echo -e "  ${BOLD}Tests:${NC} $tests"
         fi
 
         # Sanity checks
         local sanity
-        sanity=$(grep -i 'sanity checks' "$review_file" | head -1 | sed 's/.*: *//')
+        sanity=$(grep -i 'Sanity Checks:' "$review_file" | head -1 | sed 's/.*: *//')
         if [[ -n "$sanity" ]]; then
             echo -e "  ${BOLD}Sanity:${NC} $sanity"
         fi
 
         # Failures (if any)
         local failures
-        failures=$(grep -i 'failure\|FAIL' "$review_file" | grep -v '^#' | head -3)
+        failures=$(grep -i 'failure\|FAIL' "$review_file" | grep -v '^#' | grep -v 'None' | head -3)
         if [[ -n "$failures" ]]; then
             echo ""
             echo -e "  ${RED}Failures:${NC}"
             while IFS= read -r f; do
                 echo -e "    ${RED}•${NC} $f"
             done <<< "$failures"
+        fi
+
+        # Engineering judgment issues from execution
+        local ej_issues
+        ej_issues=$(awk '/^## Engineering Judgment Issues/{found=1; next} found && /^##/{found=0} found && /\S/ && !/None/' "$review_file" | head -3)
+        if [[ -n "$ej_issues" ]]; then
+            echo ""
+            echo -e "  ${YELLOW}Engineering Judgment Issues:${NC}"
+            while IFS= read -r issue; do
+                echo -e "    ${YELLOW}•${NC} $issue"
+            done <<< "$ej_issues"
         fi
 
         # Agent recommendation
@@ -559,12 +487,13 @@ review_gate() {
 
     echo ""
     echo -e "  ${CYAN}Files:${NC}"
-    echo "    Review:  $review_file"
-    echo "    Plots:   plots/REVIEW.md"
+    echo "    Review:     spiral/pass-$pass/review-package.md"
+    echo "    Execution:  spiral/pass-$pass/execution-report.md"
+    echo "    Plots:      plots/REVIEW.md"
     echo ""
-    echo -e "  ${BOLD}[A]${NC} ACCEPT — converged, produce final report"
-    echo -e "  ${BOLD}[C]${NC} CONTINUE — next spiral pass"
-    echo -e "  ${BOLD}[R]${NC} REDIRECT — provide guidance (opens \$EDITOR)"
+    echo -e "  ${GREEN}[A]${NC} ACCEPT — converged, produce final report"
+    echo -e "  ${YELLOW}[C]${NC} CONTINUE — next spiral pass"
+    echo -e "  ${CYAN}[R]${NC} REDIRECT — provide guidance (opens \$EDITOR)"
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
@@ -610,27 +539,29 @@ REDIRECT_EOF
 
 block_gate() {
     local pass="$1"
-    local subsystem="$2"
-    local completed="$3"
-    local total="$4"
-    local blocked="$5"
+    local plan_file="methodology/plan.md"
 
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
         log_warn "Block gate skipped (NO_PAUSE=$NO_PAUSE) — defaulting to SKIP"
         return 1
     fi
 
+    # Gather task counts
+    local total_tasks done_tasks blocked_tasks
+    total_tasks=$(grep -c '^### Task' "$plan_file" 2>/dev/null || echo 0)
+    done_tasks=$(grep -c '\*\*Status:\*\* DONE' "$plan_file" 2>/dev/null || echo 0)
+    blocked_tasks=$(grep -c '\*\*Status:\*\* BLOCKED' "$plan_file" 2>/dev/null || echo 0)
+
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-    echo -e "${RED}${BOLD}  BUILD BLOCKED: $subsystem${NC}"
+    echo -e "${RED}${BOLD}  BUILD BLOCKED${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "  Completed: ${GREEN}$completed${NC} / $total tasks"
-    echo -e "  Blocked:   ${RED}$blocked${NC} tasks"
+    echo -e "  Completed: ${GREEN}$done_tasks${NC} / $total_tasks tasks"
+    echo -e "  Blocked:   ${RED}$blocked_tasks${NC} tasks"
     echo ""
 
     # Show blocked task names and reasons
-    local plan_file="subsystems/$subsystem/plan.md"
     if [[ -f "$plan_file" ]]; then
         echo -e "  ${BOLD}Blocked tasks:${NC}"
         awk '
@@ -644,9 +575,9 @@ block_gate() {
         echo ""
     fi
 
-    echo -e "  ${BOLD}[F]${NC} FIX — resolve blocks, then resume build"
-    echo -e "  ${BOLD}[S]${NC} SKIP — continue to next subsystem"
-    echo -e "  ${BOLD}[X]${NC} ABORT — stop this spiral pass"
+    echo -e "  ${GREEN}[F]${NC} FIX — resolve blocks, then resume build"
+    echo -e "  ${YELLOW}[S]${NC} SKIP — continue to next phase"
+    echo -e "  ${RED}[X]${NC} ABORT — stop this spiral pass"
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
     echo ""
@@ -655,11 +586,11 @@ block_gate() {
         read -rp "  Your choice [F/S/X]: " choice
         case "${choice^^}" in
             F)
-                log_info "FIX — resolve blocks in subsystems/$subsystem/plan.md, then build resumes."
+                log_info "FIX — resolve blocks in methodology/plan.md, then build resumes."
                 return 0
                 ;;
             S)
-                log_info "SKIP — continuing to next subsystem."
+                log_info "SKIP — continuing to next phase."
                 return 1
                 ;;
             X)
@@ -714,11 +645,7 @@ environment_gate() {
 
                 # Re-verify: run version checks for items listed in the env file
                 log_info "Re-verifying environment..."
-                local verify_failed=false
 
-                # Extract tool check commands from the env file and re-run them
-                # Simple approach: re-run common version checks and see if env file
-                # should be cleared
                 local recheck_context="Re-verify the local environment. Read spiral/pass-0/environment-resolution.md to see what was missing. Run the version/availability checks again for those specific tools. If everything is now available, clear the file (write an empty file to spiral/pass-0/environment-resolution.md). If tools are still missing, update the file with what remains missing."
                 run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$recheck_context" "Re-verify: environment"
 
@@ -744,46 +671,114 @@ environment_gate() {
 scope_review_gate() {
     if [[ "$NO_PAUSE" == "true" || "$NO_PAUSE" == "1" ]]; then
         log_warn "Scope review skipped (NO_PAUSE=$NO_PAUSE)"
-        return
+        return 0
     fi
 
-    echo ""
-    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}  PASS 0 (SCOPING) COMPLETE — REVIEW REQUIRED${NC}"
-    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-    echo ""
-
-    # Show discovered subsystems
-    if [[ -f "SUBSYSTEMS.md" ]]; then
-        echo -e "  ${BOLD}Subsystems discovered:${NC}"
-        parse_subsystems | while IFS= read -r s; do
-            echo -e "    ${CYAN}•${NC} $s"
-        done
+    while true; do
         echo ""
-    fi
+        echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+        echo -e "${BOLD}  PASS 0 (SCOPING) COMPLETE — REVIEW REQUIRED${NC}"
+        echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "  Methodology:       ${CYAN}methodology/methodology.md${NC}"
+        echo -e "  Plan:              ${CYAN}methodology/plan.md${NC}"
+        echo -e "  Acceptance:        ${CYAN}spiral/pass-0/acceptance-criteria.md${NC}"
+        echo -e "  Scope progression: ${CYAN}spiral/pass-0/spiral-plan.md${NC}"
+        echo -e "  Validation:        ${CYAN}spiral/pass-0/validation-strategy.md${NC}"
 
-    # Show technology stack
-    if grep -q 'Language & Runtime' AGENTS.md 2>/dev/null; then
-        local stack
-        stack=$(awk '/^### Language & Runtime/{found=1; next} found && /\S/ && !/^#/{print; found=0}' AGENTS.md)
-        if [[ -n "$stack" ]]; then
-            echo -e "  ${BOLD}Stack:${NC} $stack"
-            echo ""
+        # Show technology stack if AGENTS.md has been updated
+        if grep -q 'Technology Stack\|Language & Runtime' AGENTS.md 2>/dev/null; then
+            local stack
+            stack=$(awk '/^### Language & Runtime/{found=1; next} found && /\S/ && !/^#/{print; found=0}' AGENTS.md)
+            if [[ -n "$stack" && "$stack" != *"To be resolved"* ]]; then
+                echo ""
+                echo -e "  ${CYAN}Stack:${NC} $stack"
+            fi
         fi
-    fi
 
-    echo -e "  ${CYAN}Review these artifacts:${NC}"
-    echo "    SUBSYSTEMS.md                          subsystem decomposition"
-    echo "    AGENTS.md                              resolved technology stack"
-    echo "    subsystems/*/methodology.md            per-subsystem methods"
-    echo "    subsystems/*/plan.md                   per-subsystem plans"
-    echo "    spiral/pass-0/acceptance-criteria.md   success criteria"
-    echo "    spiral/pass-0/spiral-plan.md           anticipated progression"
-    echo ""
-    echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-    echo ""
-    read -rp "  Press ENTER to approve, or Ctrl+C to stop and edit... "
-    echo ""
+        # Show scope progression summary
+        if [[ -f "spiral/pass-0/spiral-plan.md" ]]; then
+            echo ""
+            echo -e "  ${CYAN}Scope progression:${NC}"
+            grep -E '^\|.*Pass [0-9]|^\| [0-9]' spiral/pass-0/spiral-plan.md 2>/dev/null | head -5 | while read -r line; do
+                echo -e "    $line"
+            done
+        fi
+
+        echo ""
+        echo -e "  ${GREEN}[A]${NC} APPROVE  — proceed to Pass 1"
+        echo -e "  ${YELLOW}[R]${NC} REFINE   — provide feedback, re-run scope agent"
+        echo -e "  ${CYAN}[E]${NC} EDIT     — I'll edit the files directly, then approve"
+        echo -e "  ${RED}[Q]${NC} QUIT     — stop here"
+        echo ""
+        echo -n "  Choice: "
+        read -r choice
+
+        case "${choice,,}" in
+            a)
+                log_success "Scope approved. Proceeding to Pass 1."
+                return 0
+                ;;
+            r)
+                # Open editor with feedback template
+                local feedback_file="spiral/pass-0/scope-feedback.md"
+                if [[ ! -f "$feedback_file" ]]; then
+                    cat > "$feedback_file" << 'FEEDBACK_TEMPLATE'
+# Scope Feedback
+
+## Acceptance Criteria Issues
+-
+
+## Methodology Issues
+-
+
+## Scope Progression Issues
+-
+
+## Validation Issues
+-
+
+## Other
+-
+FEEDBACK_TEMPLATE
+                fi
+                ${EDITOR:-vim} "$feedback_file"
+
+                # Check if feedback is non-empty (beyond template)
+                local content
+                content=$(grep -v '^#' "$feedback_file" | grep -v '^-[[:space:]]*$' | grep -v '^$' | wc -l)
+                if [[ "$content" -eq 0 ]]; then
+                    log_warn "Feedback file is empty. Returning to review."
+                    continue
+                fi
+
+                log_info "Re-running scope agent with feedback..."
+                local context="SCOPE REFINEMENT: The human has reviewed your scope artifacts and provided feedback."
+                context+=$'\n'"Read spiral/pass-0/scope-feedback.md carefully and update all affected artifacts."
+                context+=$'\n'"Do not discard previous work — refine it based on the feedback."
+
+                run_agent "prompts/PROMPT_scope.md" "$CLAUDE_MODEL_SCOPE" "$context" "Scope: refinement"
+                git_commit_all "scope: refined after human feedback" || true
+
+                # Loop back to review
+                log_info "Scope refined. Reviewing again..."
+                ;;
+            e)
+                log_info "Edit scope files directly, then press Enter to approve."
+                echo -n "  Press Enter when done editing..."
+                read -r
+                log_success "Scope approved (manually edited). Proceeding to Pass 1."
+                return 0
+                ;;
+            q)
+                log_warn "Stopping after scope."
+                return 1
+                ;;
+            *)
+                echo "  Invalid choice. Enter A, R, E, or Q."
+                ;;
+        esac
+    done
 }
 
 # --- Phase: Scope (Pass 0) ---------------------------------------------------
@@ -808,6 +803,11 @@ run_scope() {
     environment_gate
 
     scope_review_gate
+    local gate_result=$?
+    if [[ $gate_result -ne 0 ]]; then
+        log_warn "Scope not approved. Stopping."
+        return 1
+    fi
 
     write_state 0 "scope" "complete"
     log_success "Pass 0 (scoping) complete."
@@ -822,174 +822,160 @@ ensure_scope_complete() {
     fi
 }
 
-# --- Phase: Subsystem Refine -------------------------------------------------
+# --- Phase: Refine ------------------------------------------------------------
 
-run_subsystem_refine() {
+run_refine() {
     local pass="$1"
-    local subsystem="$2"
-    log_phase "PASS $pass — REFINE: $subsystem"
+    log_phase "PASS $pass — REFINE"
+    write_state "$pass" "refine" "in_progress"
 
-    write_state "$pass" "subsystem_refine" "in_progress" "$subsystem"
-    mkdir -p "spiral/pass-$pass/subsystems/$subsystem"
+    mkdir -p "spiral/pass-$pass"
 
-    # Build context string for the agent
     local prev_pass=$((pass - 1))
     local context="Current spiral pass: $pass"
-    context+=$'\n'"Subsystem: $subsystem"
-    context+=$'\n'"Subsystem directory: subsystems/$subsystem/"
     context+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
     if [[ -f "spiral/pass-$prev_pass/human-redirect.md" ]]; then
         context+=$'\n'"Human redirect file: spiral/pass-$prev_pass/human-redirect.md"
     fi
 
-    run_agent "prompts/PROMPT_subsystem_refine.md" "$CLAUDE_MODEL_REFINE" "$context" "Refine: $subsystem"
+    run_agent "prompts/PROMPT_refine.md" "$CLAUDE_MODEL_REFINE" "$context" "Refine: pass $pass"
+    git_commit_all "refine: pass $pass" || true
 
-    write_state "$pass" "subsystem_refine" "complete" "$subsystem"
+    write_state "$pass" "refine" "complete"
 }
 
-# --- Phase: Subsystem Build (Ralph Loop) -------------------------------------
+# --- Phase: DDV Red -----------------------------------------------------------
 
-run_subsystem_build() {
+run_ddv_red() {
     local pass="$1"
-    local subsystem="$2"
-    local start_iter="${3:-1}"
-    log_phase "PASS $pass — BUILD: $subsystem (Ralph loop)"
-
-    write_state "$pass" "subsystem_build" "in_progress" "$subsystem" 0
+    log_phase "PASS $pass — DDV RED (domain verification tests)"
+    write_state "$pass" "ddv_red" "in_progress"
 
     local context="Current spiral pass: $pass"
-    context+=$'\n'"Subsystem: $subsystem"
-    context+=$'\n'"Subsystem directory: subsystems/$subsystem/"
+    run_agent "prompts/PROMPT_ddv_red.md" "$CLAUDE_MODEL_DDV" "$context" "DDV Red: pass $pass"
+    git_commit_all "ddv-red: pass $pass — domain verification tests written" || true
 
-    # Stall detection: track remaining task count across iterations
-    # Uses cross-pass counting to detect progress on leftover tasks from earlier passes
+    write_state "$pass" "ddv_red" "complete"
+}
+
+# --- Phase: Build (Ralph Loop) -----------------------------------------------
+
+run_build() {
+    local pass="$1"
+    local start_iter="${2:-1}"
+    log_phase "PASS $pass — BUILD (Ralph loop)"
+    write_state "$pass" "build" "in_progress" 0
+
+    local context="Current spiral pass: $pass"
+
     local prev_remaining stall_count
-    prev_remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
+    prev_remaining=$(_count_uncompleted_tasks "$pass")
     stall_count=0
 
     local build_complete=false
     for ((iter = start_iter; iter <= MAX_RALPH_ITERATIONS; iter++)); do
         echo ""
-        log_phase "Build — Pass $pass, $subsystem, Iteration $iter / $MAX_RALPH_ITERATIONS"
+        log_phase "Build iteration $iter / $MAX_RALPH_ITERATIONS"
 
-        # Show task progress
+        # Display progress
         local total_tasks done_tasks todo_tasks blocked_tasks
-        total_tasks=$(grep -c '^### Task' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
-        done_tasks=$(grep -c '\*\*Status:\*\* DONE' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
-        blocked_tasks=$(grep -c '\*\*Status:\*\* BLOCKED' "subsystems/$subsystem/plan.md" 2>/dev/null || echo 0)
+        total_tasks=$(grep -c '^### Task' "methodology/plan.md" 2>/dev/null || echo 0)
+        done_tasks=$(grep -c '\*\*Status:\*\* DONE' "methodology/plan.md" 2>/dev/null || echo 0)
+        blocked_tasks=$(grep -c '\*\*Status:\*\* BLOCKED' "methodology/plan.md" 2>/dev/null || echo 0)
         todo_tasks=$(( total_tasks - done_tasks - blocked_tasks ))
         echo -e "  ${CYAN}Progress:${NC} ${GREEN}${done_tasks} done${NC} / ${YELLOW}${todo_tasks} remaining${NC} / ${RED}${blocked_tasks} blocked${NC} (of ${total_tasks} total)"
 
-        write_state "$pass" "subsystem_build" "in_progress" "$subsystem" "$iter"
+        write_state "$pass" "build" "in_progress" "$iter"
 
-        run_agent "prompts/PROMPT_subsystem_build.md" "$CLAUDE_MODEL_BUILD" "$context" "Build: $subsystem iter $iter"
+        run_agent "prompts/PROMPT_build.md" "$CLAUDE_MODEL_BUILD" "$context" "Build: iter $iter"
+        git_commit_all "build: pass $pass iteration $iter" || true
 
-        log_info "Committing build work..."
-        git_commit_all "build: pass $pass $subsystem iteration $iter" || true
-
-        # Check if all tasks for this subsystem/pass are done
-        if all_subsystem_pass_tasks_done "$subsystem" "$pass"; then
-            if has_subsystem_blocked_tasks "$subsystem" "$pass"; then
-                log_warn "All non-blocked tasks complete for $subsystem. Some tasks are BLOCKED."
-                local done_count blocked_count total_count
-                done_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "DONE")
-                blocked_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
-                total_count=$((done_count + blocked_count))
-
-                block_gate "$pass" "$subsystem" "$done_count" "$total_count" "$blocked_count"
+        # Check completion
+        if _all_tasks_done "$pass"; then
+            if _has_blocked_tasks "$pass"; then
+                log_warn "All non-blocked tasks complete. Some tasks are BLOCKED."
+                block_gate "$pass"
                 local gate_result=$?
                 if [[ $gate_result -eq 0 ]]; then
-                    # Fix — continue build loop (human resolved blocks)
                     stall_count=0
                     continue
                 elif [[ $gate_result -eq 2 ]]; then
-                    # Abort
-                    log_error "Build aborted by user."
                     return 1
                 fi
-                # Skip — fall through to exit build loop for this subsystem
+                # Skip — fall through to exit build loop
             fi
-            log_success "All tasks for $subsystem pass $pass complete."
+            log_success "All tasks for pass $pass complete."
             build_complete=true
             break
         fi
 
-        # Stall detection: check if remaining task count decreased
+        # Stall detection
         local cur_remaining
-        cur_remaining=$(count_uncompleted_tasks_up_to_pass "$subsystem" "$pass")
+        cur_remaining=$(_count_uncompleted_tasks "$pass")
 
         if [[ "$cur_remaining" -eq "$prev_remaining" ]]; then
             stall_count=$((stall_count + 1))
-            log_warn "No task progress for $subsystem (stall count: $stall_count/2, remaining: $cur_remaining)."
+            log_warn "No task progress (stall count: $stall_count/2, remaining: $cur_remaining)."
         else
             stall_count=0
             prev_remaining=$cur_remaining
         fi
 
         if [[ $stall_count -ge 2 ]]; then
-            log_warn "Build stalled for $subsystem — no progress for 2 consecutive iterations."
-            if has_subsystem_blocked_tasks "$subsystem" "$pass"; then
-                local done_count blocked_count total_count
-                done_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "DONE")
-                blocked_count=$(count_tasks_for_subsystem_pass "$subsystem" "$pass" "BLOCKED")
-                total_count=$((done_count + blocked_count + cur_remaining))
-
-                block_gate "$pass" "$subsystem" "$done_count" "$total_count" "$blocked_count"
+            log_warn "Build stalled — no progress for 2 consecutive iterations."
+            if _has_blocked_tasks "$pass"; then
+                block_gate "$pass"
                 local gate_result=$?
                 if [[ $gate_result -eq 0 ]]; then
                     stall_count=0
                     continue
                 elif [[ $gate_result -eq 2 ]]; then
-                    log_error "Build aborted by user."
                     return 1
                 fi
                 # Skip — fall through to exit build loop
             else
-                log_warn "No blocked tasks found for $subsystem — nothing left to do."
+                log_warn "No blocked tasks found — nothing left to do."
             fi
             break
         fi
 
-        log_info "Tasks remain for $subsystem — continuing Ralph loop."
+        log_info "Tasks remain — continuing Ralph loop."
     done
 
     if [[ "$build_complete" != "true" ]] && [[ $iter -gt $MAX_RALPH_ITERATIONS ]]; then
-        log_warn "Reached max Ralph iterations ($MAX_RALPH_ITERATIONS) for $subsystem. Some tasks may remain."
+        log_warn "Reached max Ralph iterations ($MAX_RALPH_ITERATIONS). Some tasks may remain."
     fi
 
-    write_state "$pass" "subsystem_build" "complete" "$subsystem"
+    write_state "$pass" "build" "complete"
     return 0
 }
 
-# --- Phase: System Validation -------------------------------------------------
+# --- Phase: Execute -----------------------------------------------------------
 
-run_system_validate() {
+run_execute() {
     local pass="$1"
-    log_phase "PASS $pass — SYSTEM VALIDATION (V&V + convergence)"
+    log_phase "PASS $pass — EXECUTE"
+    write_state "$pass" "execute" "in_progress"
 
-    write_state "$pass" "system_validate" "in_progress"
+    local context="Current spiral pass: $pass"
+    run_agent "prompts/PROMPT_execute.md" "$CLAUDE_MODEL_EXECUTE" "$context" "Execute: pass $pass"
+    git_commit_all "execute: pass $pass" || true
 
-    # Build context string
-    local prev_pass=$((pass - 1))
+    write_state "$pass" "execute" "complete"
+}
 
-    # Phase A: Run tests and collect results
-    log_info "System validation phase A: running tests and collecting results..."
-    local context_a="Current spiral pass: $pass"
-    context_a+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
-    context_a+=$'\n'"VALIDATION PHASE A: Run all L2 and L3 tests, execute sanity checks, limiting cases, and reference data comparisons. Collect raw results into spiral/pass-$pass/test-results.md. Do NOT produce the review package or convergence assessment yet — that happens in Phase B."
+# --- Phase: Validate ----------------------------------------------------------
 
-    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_a" "Validate: pass $pass (tests)"
-    git_commit_all "validate: pass $pass phase A — test results collected" || true
+run_validate() {
+    local pass="$1"
+    log_phase "PASS $pass — VALIDATE"
+    write_state "$pass" "validate" "in_progress"
 
-    # Phase B: Audit, analyze, and produce reports
-    log_info "System validation phase B: analysis, convergence, and reporting..."
-    local context_b="Current spiral pass: $pass"
-    context_b+=$'\n'"Previous pass results: spiral/pass-$prev_pass/"
-    context_b+=$'\n'"VALIDATION PHASE B: Test results have already been collected in spiral/pass-$pass/test-results.md. Now perform the methodology compliance spot-check, derivation completeness check, assumptions register check, traceability check, convergence assessment, and produce all report artifacts (system-validation.md, convergence.md, review-package.md, PASS_COMPLETE.md). Update validation/convergence-log.md and plots/REVIEW.md."
+    local context="Current spiral pass: $pass"
+    run_agent "prompts/PROMPT_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context" "Validate: pass $pass"
+    git_commit_all "validate: pass $pass" || true
 
-    run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context_b" "Validate: pass $pass (analysis)"
-
-    write_state "$pass" "system_validate" "complete"
+    write_state "$pass" "validate" "complete"
 }
 
 # --- Finalize -----------------------------------------------------------------
@@ -1007,9 +993,9 @@ finalize_output() {
         context+=$'\n'"You MUST produce output/answer.md and output/report.md now."
         context+=$'\n'"Read the review package at spiral/pass-$pass/review-package.md for the current answer."
         context+=$'\n'"Read all spiral/pass-*/convergence.md files for the convergence history."
-        context+=$'\n'"Read SUBSYSTEMS.md for the subsystem decomposition."
-        context+=$'\n'"Follow the report format specified in the PROMPT_system_validate.md instructions."
-        run_agent "prompts/PROMPT_system_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context" "Finalize: output"
+        context+=$'\n'"Read methodology/methodology.md for the methodology."
+        context+=$'\n'"Follow the report format specified in the PROMPT_validate.md instructions."
+        run_agent "prompts/PROMPT_validate.md" "$CLAUDE_MODEL_VALIDATE" "$context" "Finalize: output"
         git_commit_all "final: generate output deliverables" || true
     fi
 
@@ -1068,19 +1054,6 @@ cmd_run() {
     # Ensure scoping is done first
     ensure_scope_complete
 
-    # Parse subsystem list
-    local subsystems=()
-    while IFS= read -r s; do
-        [[ -n "$s" ]] && subsystems+=("$s")
-    done < <(parse_subsystems)
-
-    if [[ ${#subsystems[@]} -eq 0 ]]; then
-        log_error "No subsystems found in SUBSYSTEMS.md. Check the Iteration Order section."
-        exit 1
-    fi
-
-    log_info "Subsystems (${#subsystems[@]}): ${subsystems[*]}"
-
     # Spiral passes
     for ((pass = 1; pass <= max_passes; pass++)); do
         echo ""
@@ -1092,28 +1065,26 @@ cmd_run() {
             continue
         fi
 
-        # Phase 1: Iterate subsystems (refine + build each)
-        for subsystem in "${subsystems[@]}"; do
-            echo ""
-            log_phase "── Subsystem: $subsystem ──"
+        # Phase 1: Refine
+        run_refine "$pass"
 
-            # 1a. Refine
-            run_subsystem_refine "$pass" "$subsystem"
-            git_commit_all "refine: pass $pass subsystem $subsystem" || true
+        # Phase 2: DDV Red
+        run_ddv_red "$pass"
 
-            # 1b. Build (Ralph loop)
-            if ! run_subsystem_build "$pass" "$subsystem"; then
-                log_error "Build phase aborted for $subsystem at pass $pass."
-                return 1
-            fi
-        done
+        # Phase 3: Build (Ralph loop)
+        if ! run_build "$pass"; then
+            log_error "Build aborted at pass $pass."
+            return 1
+        fi
 
-        # Phase 2: System validation
-        run_system_validate "$pass"
-        git_commit_all "validate: pass $pass system validation" || true
+        # Phase 4: Execute
+        run_execute "$pass"
+
+        # Phase 5: Validate
+        run_validate "$pass"
         git_push
 
-        # Phase 3: Human review gate
+        # Phase 6: Human review
         write_state "$pass" "review" "in_progress"
         review_gate "$pass"
         local gate_result=$?
@@ -1134,7 +1105,7 @@ cmd_resume() {
 
     read_state
 
-    log_info "Current state: pass=$STATE_PASS phase=$STATE_PHASE status=$STATE_STATUS subsystem=$STATE_SUBSYSTEM ralph_iter=$STATE_RALPH_ITER"
+    log_info "Current state: pass=$STATE_PASS phase=$STATE_PHASE status=$STATE_STATUS ralph_iter=$STATE_RALPH_ITER"
 
     if [[ "$STATE_PHASE" == "not_started" ]]; then
         log_info "No previous run found. Starting fresh."
@@ -1154,17 +1125,6 @@ cmd_resume() {
 
     local pass="$STATE_PASS"
 
-    # Parse subsystem list
-    local subsystems=()
-    while IFS= read -r s; do
-        [[ -n "$s" ]] && subsystems+=("$s")
-    done < <(parse_subsystems)
-
-    if [[ ${#subsystems[@]} -eq 0 ]]; then
-        log_error "No subsystems found in SUBSYSTEMS.md."
-        exit 1
-    fi
-
     # Helper: run remaining passes after completing the current one
     run_remaining_passes() {
         local start_pass="$1"
@@ -1177,19 +1137,14 @@ cmd_resume() {
                 continue
             fi
 
-            for subsystem in "${subsystems[@]}"; do
-                echo ""
-                log_phase "── Subsystem: $subsystem ──"
-                run_subsystem_refine "$p" "$subsystem"
-                git_commit_all "refine: pass $p subsystem $subsystem" || true
-                if ! run_subsystem_build "$p" "$subsystem"; then
-                    log_error "Build phase aborted for $subsystem at pass $p."
-                    return 1
-                fi
-            done
-
-            run_system_validate "$p"
-            git_commit_all "validate: pass $p system validation" || true
+            run_refine "$p"
+            run_ddv_red "$p"
+            if ! run_build "$p"; then
+                log_error "Build aborted at pass $p."
+                return 1
+            fi
+            run_execute "$p"
+            run_validate "$p"
             git_push
 
             write_state "$p" "review" "in_progress"
@@ -1204,38 +1159,18 @@ cmd_resume() {
     }
 
     case "$STATE_PHASE" in
-        subsystem_refine)
-            # Find which subsystem we're at and resume from there
+        refine)
             if [[ "$STATE_STATUS" != "complete" ]]; then
-                log_info "Resuming: refine phase for $STATE_SUBSYSTEM at pass $pass."
-                run_subsystem_refine "$pass" "$STATE_SUBSYSTEM"
-                git_commit_all "refine: pass $pass subsystem $STATE_SUBSYSTEM" || true
+                log_info "Resuming: refine phase at pass $pass."
+                run_refine "$pass"
             fi
-            # Build the current subsystem
-            if ! run_subsystem_build "$pass" "$STATE_SUBSYSTEM"; then
+            run_ddv_red "$pass"
+            if ! run_build "$pass"; then
                 log_error "Build aborted."
                 return 1
             fi
-            # Continue with remaining subsystems
-            local found=false
-            for subsystem in "${subsystems[@]}"; do
-                if [[ "$found" == "true" ]]; then
-                    echo ""
-                    log_phase "── Subsystem: $subsystem ──"
-                    run_subsystem_refine "$pass" "$subsystem"
-                    git_commit_all "refine: pass $pass subsystem $subsystem" || true
-                    if ! run_subsystem_build "$pass" "$subsystem"; then
-                        log_error "Build aborted."
-                        return 1
-                    fi
-                fi
-                if [[ "$subsystem" == "$STATE_SUBSYSTEM" ]]; then
-                    found=true
-                fi
-            done
-            # System validation + review + remaining passes
-            run_system_validate "$pass"
-            git_commit_all "validate: pass $pass system validation" || true
+            run_execute "$pass"
+            run_validate "$pass"
             git_push
             write_state "$pass" "review" "in_progress"
             review_gate "$pass"
@@ -1246,32 +1181,17 @@ cmd_resume() {
             fi
             run_remaining_passes "$((pass + 1))"
             ;;
-        subsystem_build)
-            log_info "Resuming: build phase for $STATE_SUBSYSTEM at pass $pass (iteration $STATE_RALPH_ITER)."
-            if ! run_subsystem_build "$pass" "$STATE_SUBSYSTEM" "$STATE_RALPH_ITER"; then
+        ddv_red)
+            if [[ "$STATE_STATUS" != "complete" ]]; then
+                log_info "Resuming: DDV Red phase at pass $pass."
+                run_ddv_red "$pass"
+            fi
+            if ! run_build "$pass"; then
                 log_error "Build aborted."
                 return 1
             fi
-            # Continue with remaining subsystems
-            local found=false
-            for subsystem in "${subsystems[@]}"; do
-                if [[ "$found" == "true" ]]; then
-                    echo ""
-                    log_phase "── Subsystem: $subsystem ──"
-                    run_subsystem_refine "$pass" "$subsystem"
-                    git_commit_all "refine: pass $pass subsystem $subsystem" || true
-                    if ! run_subsystem_build "$pass" "$subsystem"; then
-                        log_error "Build aborted."
-                        return 1
-                    fi
-                fi
-                if [[ "$subsystem" == "$STATE_SUBSYSTEM" ]]; then
-                    found=true
-                fi
-            done
-            # System validation + review + remaining passes
-            run_system_validate "$pass"
-            git_commit_all "validate: pass $pass system validation" || true
+            run_execute "$pass"
+            run_validate "$pass"
             git_push
             write_state "$pass" "review" "in_progress"
             review_gate "$pass"
@@ -1282,11 +1202,44 @@ cmd_resume() {
             fi
             run_remaining_passes "$((pass + 1))"
             ;;
-        system_validate)
+        build)
+            log_info "Resuming: build phase at pass $pass (iteration $STATE_RALPH_ITER)."
+            if ! run_build "$pass" "$STATE_RALPH_ITER"; then
+                log_error "Build aborted."
+                return 1
+            fi
+            run_execute "$pass"
+            run_validate "$pass"
+            git_push
+            write_state "$pass" "review" "in_progress"
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            run_remaining_passes "$((pass + 1))"
+            ;;
+        execute)
             if [[ "$STATE_STATUS" != "complete" ]]; then
-                log_info "Resuming: system validation phase of pass $pass."
-                run_system_validate "$pass"
-                git_commit_all "validate: pass $pass system validation" || true
+                log_info "Resuming: execute phase at pass $pass."
+                run_execute "$pass"
+            fi
+            run_validate "$pass"
+            git_push
+            write_state "$pass" "review" "in_progress"
+            review_gate "$pass"
+            local gate_result=$?
+            if [[ $gate_result -eq 1 ]]; then
+                finalize_output "$pass"
+                return 0
+            fi
+            run_remaining_passes "$((pass + 1))"
+            ;;
+        validate)
+            if [[ "$STATE_STATUS" != "complete" ]]; then
+                log_info "Resuming: validate phase at pass $pass."
+                run_validate "$pass"
                 git_push
             fi
             write_state "$pass" "review" "in_progress"
@@ -1329,10 +1282,7 @@ cmd_status() {
         echo "  Spiral pass:     $STATE_PASS"
         echo "  Phase:           $STATE_PHASE"
         echo "  Status:          $STATE_STATUS"
-        if [[ -n "$STATE_SUBSYSTEM" ]]; then
-            echo "  Subsystem:       $STATE_SUBSYSTEM"
-        fi
-        if [[ "$STATE_PHASE" == "subsystem_build" ]]; then
+        if [[ "$STATE_PHASE" == "build" ]]; then
             echo "  Ralph iteration: $STATE_RALPH_ITER"
         fi
 
@@ -1354,26 +1304,15 @@ cmd_status() {
             echo "    pass-$pnum$status_marker"
         done
 
-        # Show per-subsystem task status if subsystems exist
-        if [[ -f "SUBSYSTEMS.md" ]]; then
-            local subs=()
-            while IFS= read -r s; do
-                [[ -n "$s" ]] && subs+=("$s")
-            done < <(parse_subsystems 2>/dev/null)
-            if [[ ${#subs[@]} -gt 0 ]]; then
-                echo ""
-                echo "  Subsystem task status:"
-                for sub in "${subs[@]}"; do
-                    if [[ -f "subsystems/$sub/plan.md" ]]; then
-                        local todo done blocked inprog
-                        todo=$(grep -c '\*\*Status:\*\* TODO' "subsystems/$sub/plan.md" 2>/dev/null || echo 0)
-                        done=$(grep -c '\*\*Status:\*\* DONE' "subsystems/$sub/plan.md" 2>/dev/null || echo 0)
-                        blocked=$(grep -c '\*\*Status:\*\* BLOCKED' "subsystems/$sub/plan.md" 2>/dev/null || echo 0)
-                        inprog=$(grep -c '\*\*Status:\*\* IN_PROGRESS' "subsystems/$sub/plan.md" 2>/dev/null || echo 0)
-                        echo "    $sub: TODO=$todo IN_PROGRESS=$inprog DONE=$done BLOCKED=$blocked"
-                    fi
-                done
-            fi
+        # Show task status from methodology/plan.md
+        if [[ -f "methodology/plan.md" ]]; then
+            local todo done blocked inprog
+            todo=$(grep -c '\*\*Status:\*\* TODO' "methodology/plan.md" 2>/dev/null || echo 0)
+            done=$(grep -c '\*\*Status:\*\* DONE' "methodology/plan.md" 2>/dev/null || echo 0)
+            blocked=$(grep -c '\*\*Status:\*\* BLOCKED' "methodology/plan.md" 2>/dev/null || echo 0)
+            inprog=$(grep -c '\*\*Status:\*\* IN_PROGRESS' "methodology/plan.md" 2>/dev/null || echo 0)
+            echo ""
+            echo "  Task status: TODO=$todo IN_PROGRESS=$inprog DONE=$done BLOCKED=$blocked"
         fi
     fi
     echo ""
@@ -1382,7 +1321,7 @@ cmd_status() {
 # --- Main ---------------------------------------------------------------------
 
 usage() {
-    echo "Lisa Loop v2 — Spiral-V development loop"
+    echo "Lisa Loop v2 — Spiral development loop"
     echo ""
     echo "Usage: ./loop.sh <command> [options]"
     echo ""
