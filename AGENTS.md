@@ -76,22 +76,22 @@
 ## Run DDV Tests
 
 ```bash
-# Domain-Driven Verification tests (written by DDV Red phase)
-# e.g., pytest tests/ddv/ -v -m "ddv"
+# Run domain verification tests independently
+# Populated by scope agent with framework-specific command
 ```
 
 ## Run Software Tests
 
 ```bash
-# Software quality tests (written by build phase)
-# e.g., pytest tests/software/ -v -m "software"
+# Run software quality tests independently
+# Populated by scope agent with framework-specific command
 ```
 
 ## Run Integration Tests
 
 ```bash
-# End-to-end integration tests (written by execute phase)
-# e.g., pytest tests/integration/ -v
+# Run end-to-end integration tests independently
+# Populated by scope agent with framework-specific command
 ```
 
 ## Generate Plots

@@ -433,7 +433,42 @@ one DDV phase, one build loop. The modularity is in the content, not the process
 
 ---
 
-### 8. Code Organization
+### 8. Test Categorization Mechanism
+
+The project uses three test categories that must be runnable independently:
+- **DDV tests** (`tests/ddv/`) — Domain-Driven Verification tests written by the DDV Red phase
+- **Software tests** (`tests/software/`) — Software quality tests written by the build phase
+- **Integration tests** (`tests/integration/`) — End-to-end tests written by the execute phase
+
+Additionally, DDV tests have verification levels (Level 0: individual functions, Level 1: model level) that should be filterable.
+
+When resolving the test framework, also define and document the categorization mechanism:
+- How are tests tagged/grouped by category? (markers, directories, naming conventions, test sets)
+- How are DDV tests filtered by verification level?
+- Does the framework need any configuration to support this? (e.g., marker registration, custom test runners)
+
+Document the chosen mechanism in `AGENTS.md` by filling in the test command sections with
+concrete commands that select each category. Examples:
+
+For Python/pytest:
+  Run DDV Tests: `pytest tests/ddv/ -v -m "ddv" --strict-markers`
+  Run Software Tests: `pytest tests/software/ -v -m "software"`
+  (with markers registered in conftest.py)
+
+For Rust/cargo:
+  Run DDV Tests: `cargo test --test ddv`
+  Run Software Tests: `cargo test --test software`
+
+For Julia:
+  Run DDV Tests: `julia --project test/run_ddv.jl`
+  Run Software Tests: `julia --project test/run_software.jl`
+
+Include any framework configuration needed to make the categorization work as the first
+infrastructure task in `methodology/plan.md`.
+
+---
+
+### 9. Code Organization
 
 Establish the code layout in `AGENTS.md` (append to the existing file, do not overwrite):
 
@@ -452,7 +487,7 @@ If during scoping you identify shared infrastructure needs (e.g., common physica
 
 ---
 
-### 9. `spiral/pass-0/PASS_COMPLETE.md`
+### 10. `spiral/pass-0/PASS_COMPLETE.md`
 
 Create this file **last**, after all other artifacts are complete.
 

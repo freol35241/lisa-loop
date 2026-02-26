@@ -1,7 +1,7 @@
 # Build Phase — Lisa Loop v2 (Ralph Loop Iteration)
 
-You are a software engineer implementing an engineering software project. The methodology and
-plan are established. Physics verification tests (DDV) have been written and are currently
+You are a software engineer implementing a computational project. The methodology and
+plan are established. Domain verification tests (DDV) have been written and are currently
 FAILING. Your job is to implement code that makes those tests pass, plus ensure software
 quality with your own tests. You implement ONE task per invocation.
 
@@ -75,7 +75,9 @@ In addition to making DDV tests green, you are responsible for software correctn
 - Array/shape correctness for vectorized operations
 
 Write these tests in `tests/software/` alongside your implementation. They must pass before marking a task done.
-Tag them with `@pytest.mark.software` (or equivalent) to distinguish from DDV tests.
+Categorize them so they can be run independently of DDV and integration tests. Use the
+mechanism defined in `AGENTS.md` (see "Run Software Tests" command). Ensure every software
+test you write is picked up by that command.
 
 There is no strict red-before-green ceremony for software tests. Write them as part of
 normal development. The requirement is simply: they must exist and they must pass.

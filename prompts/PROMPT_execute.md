@@ -105,7 +105,9 @@ Create/update `spiral/pass-N/execution-report.md`:
 ## Rules
 
 - You MAY write integration/runner code in `src/` and integration tests in `tests/integration/`
-- You MUST NOT modify module code in `src/` that was written by the build phase (individual module implementations are the build phase's responsibility)
+- You MAY create or modify runner/integration files (e.g., `src/main.py`, `src/runner.py`, `src/pipeline.py`)
+- You MUST NOT modify files that implement domain equations or methodology (the modules that DDV tests verify). If a module has a bug or interface problem, document it in the execution report for the next pass's build phase to fix.
+- Rule of thumb: if a file has corresponding tests in `tests/ddv/`, don't touch it.
 - You MUST NOT modify DDV tests in `tests/ddv/`
 - You MUST produce the execution report
 - You MUST produce a concrete answer to BRIEF.md — even if approximate or known to be rough

@@ -141,7 +141,7 @@ The human can iteratively refine scope artifacts before any code exists:
 | Refine | opus + subagents | No | What methodology, what plan? |
 | DDV Red | opus | Tests only | What should correct results look like? |
 | Build | sonnet (Ralph loop) | Yes | Make the red tests green + software quality |
-| Execute | opus | Glue/runner only | Does the system produce an answer? |
+| Execute | opus | Runner + integration tests | Does the system produce an answer? |
 | Validate | opus | No | Does the answer converge? |
 
 ## Human Interaction

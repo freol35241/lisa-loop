@@ -20,6 +20,7 @@ Read **all** of the following:
 - `spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `spiral/pass-0/sanity-checks.md` — engineering judgment checks
 - `spiral/pass-0/validation-strategy.md` — validation approach
+- `spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
 - `spiral/pass-N/execution-report.md` — this pass's execution results and engineering judgment audit
 - `spiral/pass-N/ddv-red-manifest.md` — DDV test manifest for this pass
 - `validation/sanity-checks.md` — living sanity check document
@@ -31,6 +32,21 @@ Read **all** of the following:
 If this is **Pass N > 1**:
 - Read `spiral/pass-{N-1}/convergence.md` — previous convergence assessment
 - Read `spiral/pass-{N-1}/system-validation.md` — previous validation report
+
+### 1b. Determine This Pass's Acceptance Targets
+
+Read `spiral/pass-0/spiral-plan.md` to find the staged acceptance criteria for this pass.
+Early passes have wider tolerances — do NOT apply final acceptance targets to intermediate
+passes. When checking acceptance criteria in section 3d, use this pass's staged tolerances,
+not the final targets from acceptance-criteria.md.
+
+For example, if the spiral plan says Pass 1 acceptance is ±50% and the final target is ±5%,
+a Pass 1 result within ±50% should be marked as PASS for this pass's criteria, even though
+it wouldn't meet final targets.
+
+In the review package, report BOTH:
+- Whether this pass's staged criteria are met
+- How far the result is from the final acceptance target (for convergence tracking)
 
 ### 2. Test Results Summary
 
@@ -66,8 +82,12 @@ Compare against reference data from `validation/reference-data.md`:
 
 #### 3d. Acceptance Criteria
 
-Check each criterion from `spiral/pass-0/acceptance-criteria.md`:
-- Is the criterion met? If not, how far off?
+Check against THIS PASS's staged acceptance criteria from `spiral/pass-0/spiral-plan.md`.
+Do not apply final targets to early passes.
+
+For each criterion:
+- **Staged target (this pass):** [from spiral-plan.md] → Met? [YES/NO]
+- **Final target:** [from acceptance-criteria.md] → Distance: [X%]
 
 ### 4. Review Execution Report
 
@@ -146,9 +166,9 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 | [data] | [cite] | [value] | [value] | [X.X] | PASS/FAIL |
 
 ### Acceptance Criteria
-| Criterion | Target | Current | Met? |
-|-----------|--------|---------|------|
-| [criterion] | [target] | [value] | YES/NO |
+| Criterion | Staged target (this pass) | Final target | Current | Staged met? | Final met? |
+|-----------|--------------------------|-------------|---------|------------|-----------|
+| [criterion] | [from spiral-plan] | [from acceptance-criteria] | [value] | YES/NO | YES/NO |
 ```
 
 #### `spiral/pass-N/convergence.md`
@@ -180,6 +200,10 @@ This is the primary artifact for human review. Use this **exact format**:
 
 ## Current Answer
 [The quantitative answer to BRIEF.md]
+
+## Pass Scope (from spiral-plan.md)
+[What scope subset and fidelity level this pass covers]
+[Staged acceptance for this pass: ±X%]
 
 ## Convergence: [CONVERGED / NOT YET / DIVERGING]
 | Quantity | Δ from prev | Converged? |
