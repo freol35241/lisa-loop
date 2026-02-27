@@ -1,3 +1,0 @@
-# Limiting Cases
-
-## Limiting Cases
