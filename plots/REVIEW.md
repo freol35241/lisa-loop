@@ -1,5 +1,0 @@
-# Plot Review
-
-## Plots
-
-## Anomalies

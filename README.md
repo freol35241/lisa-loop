@@ -1,8 +1,8 @@
-# Lisa Loop v2
+# Lisa Loop
 
 A methodology and toolbox for solving complex engineering and research problems with AI agents, grounded in peer-reviewed literature, with explicit verification, validation, and convergence tracking.
 
-Lisa Loop v2 fuses two established engineering paradigms:
+Lisa Loop fuses two established engineering paradigms:
 
 - **The V-Model** (systems engineering): every level of specification is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
 - **The Design Spiral** (Evans, 1959): the same problem is revisited iteratively at increasing fidelity and scope until the answer converges.
@@ -15,23 +15,34 @@ Lisa Loop v2 fuses two established engineering paradigms:
 
 ## Quick Start
 
-1. Click **"Use this template"** on GitHub to create your repo
-2. Edit `BRIEF.md` with your project description
-3. Add reference papers to `references/core/`
-4. Edit `AGENTS.md` with your build/test commands
+1. Install the `lisa` CLI:
+
+```bash
+cargo install --path .
+```
+
+2. Initialize a new project:
+
+```bash
+lisa init resolve-assignment
+```
+
+3. Edit `.lisa/BRIEF.md` with your project description
+4. Add reference papers to `.lisa/references/core/`
 5. Run:
 
 ```bash
-chmod +x loop.sh
-
 # Run the full spiral — scoping through convergence
-./loop.sh run
+lisa run
 
 # Or step by step:
-./loop.sh scope                  # Pass 0: scoping only
-./loop.sh run --max-passes 3     # Limit spiral passes
-./loop.sh resume                 # Resume from where you left off
-./loop.sh status                 # Check current state
+lisa scope                   # Pass 0: scoping only
+lisa run --max-passes 3      # Limit spiral passes
+lisa resume                  # Resume from where you left off
+lisa status                  # Check current state
+lisa doctor                  # Check environment and prerequisites
+lisa finalize                # Produce final deliverables
+lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
 ```
 
 ## Architecture
@@ -171,20 +182,20 @@ When tasks are blocked (methodology issues, DDV disagreements), the block gate s
 
 When the human accepts:
 
-1. **`output/answer.md`** — Direct response to the question in BRIEF.md
-2. **`output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
+1. **`.lisa/output/answer.md`** — Direct response to the question in BRIEF.md
+2. **`.lisa/output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
 
 ## Traceability Chain
 
 ```
-BRIEF.md → acceptance criteria
-  → scope (spiral/pass-0/) — human-refined scope, fidelity progression, validation strategy
-    → methodology (methodology/methodology.md)
-      → authoritative domain source (references/)
+.lisa/BRIEF.md → acceptance criteria
+  → scope (.lisa/spiral/pass-0/) — human-refined scope, fidelity progression, validation strategy
+    → methodology (.lisa/methodology/methodology.md)
+      → authoritative domain source (.lisa/references/)
         → governing equations
           → DDV tests (tests/ddv/) — domain specification as executable tests
             → implementation (src/)
-              → derivations (methodology/derivations/) — non-trivial mappings only
+              → derivations (.lisa/methodology/derivations/) — non-trivial mappings only
                 → software tests (tests/software/) — edge cases, stability
                   → execution (src/runner) — end-to-end, engineering judgment audit
                     → system validation — sanity checks, convergence
@@ -194,97 +205,133 @@ BRIEF.md → acceptance criteria
 
 ## Configuration
 
-All configuration is in `lisa.conf`:
+All configuration is in `.lisa/lisa.toml`:
+
+```toml
+[project]
+name = "my-project"
+
+[models]
+scope = "opus"
+refine = "opus"
+ddv = "opus"
+build = "sonnet"
+execute = "opus"
+validate = "opus"
+
+[limits]
+max_spiral_passes = 5
+max_ralph_iterations = 50
+
+[review]
+# Human review gates. When false, loop runs fully autonomously.
+pause = true
+
+[git]
+auto_commit = true
+auto_push = false
+
+[terminal]
+# Collapse agent streaming output to summary lines after completion
+collapse_output = true
+
+[paths]
+# Where process artifacts live (relative to project root)
+lisa_root = ".lisa"
+
+# Where deliverable code goes (relative to project root)
+source = ["src"]
+
+# Test directories (relative to project root)
+tests_ddv = "tests/ddv"
+tests_software = "tests/software"
+tests_integration = "tests/integration"
+
+[commands]
+# These get populated by the scope agent, but can be pre-filled
+setup = ""
+build = ""
+test_all = ""
+test_ddv = ""
+test_software = ""
+test_integration = ""
+lint = ""
+```
+
+## Prompt Customization
+
+Prompts are compiled into the binary by default. To customize them:
 
 ```bash
-# Model selection per phase
-CLAUDE_MODEL_SCOPE="opus"        # Pass 0 scoping
-CLAUDE_MODEL_REFINE="opus"       # Methodology + plan refinement
-CLAUDE_MODEL_DDV="opus"          # Domain-Driven Verification (test writing)
-CLAUDE_MODEL_BUILD="sonnet"      # Implementation (Ralph loop)
-CLAUDE_MODEL_EXECUTE="opus"      # System assembly + execution
-CLAUDE_MODEL_VALIDATE="opus"     # System-level V&V and convergence
-
-# Loop limits
-MAX_SPIRAL_PASSES=5              # Max spiral passes
-MAX_RALPH_ITERATIONS=50          # Max build iterations per pass
-
-# Human review
-NO_PAUSE=false                   # Skip all human review?
-
-# Git
-NO_PUSH=false                    # Skip git push?
-
-# Terminal
-COLLAPSE_OUTPUT=true             # Collapse agent output after completion?
+lisa eject-prompts
 ```
+
+This copies all prompts to `.lisa/prompts/`. Edit them freely — the CLI uses local prompts when present, falling back to the compiled-in defaults.
 
 ## Directory Structure
 
 ```
 project-root/
-├── loop.sh
-├── lisa.conf
-├── BRIEF.md                            # Project description (user writes)
-├── AGENTS.md                           # Build/test/plot commands (user writes)
+├── Cargo.toml                          # Rust project configuration
+├── src/                                # Lisa Loop CLI source code
 │
-├── prompts/
-│   ├── PROMPT_scope.md                 # Pass 0: scoping + methodology
-│   ├── PROMPT_refine.md                # Per-pass methodology + plan refinement
-│   ├── PROMPT_ddv_red.md               # Domain-Driven Verification (test writing)
-│   ├── PROMPT_build.md                 # Ralph loop implementation
-│   ├── PROMPT_execute.md               # System assembly + execution
-│   └── PROMPT_validate.md              # System-level V&V + convergence
-│
-├── methodology/
-│   ├── methodology.md                  # Single methodology document
-│   ├── plan.md                         # Single implementation plan
-│   ├── verification-cases.md           # L0/L1 test specifications
-│   ├── overview.md                     # System description
-│   ├── assumptions-register.md         # Cross-cutting assumptions
-│   └── derivations/                    # Code ↔ equations mapping
-│
-├── spiral/
-│   ├── current-state.md
-│   ├── pass-0/
-│   │   ├── acceptance-criteria.md
-│   │   ├── validation-strategy.md
+├── .lisa/                              # Process artifacts root
+│   ├── lisa.toml                       # Configuration
+│   ├── BRIEF.md                        # Project description (user writes)
+│   ├── AGENTS.md                       # Build/test/plot commands
+│   │
+│   ├── methodology/
+│   │   ├── methodology.md              # Single methodology document
+│   │   ├── plan.md                     # Single implementation plan
+│   │   ├── verification-cases.md       # L0/L1 test specifications
+│   │   ├── overview.md                 # System description
+│   │   ├── assumptions-register.md     # Cross-cutting assumptions
+│   │   └── derivations/               # Code ↔ equations mapping
+│   │
+│   ├── spiral/
+│   │   ├── state.toml                  # Machine-readable spiral state
+│   │   ├── pass-0/
+│   │   │   ├── acceptance-criteria.md
+│   │   │   ├── validation-strategy.md
+│   │   │   ├── sanity-checks.md
+│   │   │   ├── literature-survey.md
+│   │   │   ├── spiral-plan.md          # Scope + fidelity progression
+│   │   │   └── PASS_COMPLETE.md
+│   │   └── pass-N/
+│   │       ├── refine-summary.md
+│   │       ├── ddv-red-manifest.md
+│   │       ├── execution-report.md
+│   │       ├── system-validation.md
+│   │       ├── convergence.md
+│   │       ├── review-package.md
+│   │       ├── reconsiderations/
+│   │       └── PASS_COMPLETE.md
+│   │
+│   ├── validation/
 │   │   ├── sanity-checks.md
-│   │   ├── literature-survey.md
-│   │   ├── spiral-plan.md              # Scope + fidelity progression
-│   │   └── PASS_COMPLETE.md
-│   └── pass-N/
-│       ├── refine-summary.md
-│       ├── ddv-red-manifest.md
-│       ├── execution-report.md
-│       ├── system-validation.md
-│       ├── convergence.md
-│       ├── review-package.md
-│       ├── reconsiderations/
-│       └── PASS_COMPLETE.md
+│   │   ├── limiting-cases.md
+│   │   ├── reference-data.md
+│   │   └── convergence-log.md
+│   │
+│   ├── references/
+│   │   ├── core/
+│   │   └── retrieved/
+│   │
+│   ├── plots/
+│   │   └── REVIEW.md
+│   │
+│   └── output/
+│       ├── answer.md
+│       └── report.md
 │
-├── validation/
-│   ├── sanity-checks.md
-│   ├── limiting-cases.md
-│   ├── reference-data.md
-│   └── convergence-log.md
-│
-├── references/
-│   ├── core/
-│   └── retrieved/
-│
-├── plots/
-│   └── REVIEW.md
-│
-├── src/
+├── src/                                # Deliverable implementation code
 ├── tests/
 │   ├── ddv/                            # Domain-Driven Verification tests
 │   ├── software/                       # Software quality tests
 │   └── integration/                    # End-to-end tests
 │
-└── output/
-    ├── answer.md
-    └── report.md
+├── prompts/                            # Compiled-in prompt templates
+└── templates/                          # Compiled-in init templates
 ```
 
 ## Lineage
@@ -293,6 +340,8 @@ Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) crea
 
 **Lisa Loop v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
 
-**Lisa Loop v2** restructures the process into a five-phase spiral architecture with Domain-Driven Verification (DDV): the scoping phase establishes methodology and scope progression with a human refinement loop, and each spiral pass runs Refine → DDV Red → Build → Execute → Validate with staged acceptance criteria. DDV provides a domain-agnostic verification pattern where two independent agents interpret the same authoritative sources, preventing correlated misinterpretation. The spiral history — not just the final answer — is the deliverable.
+**Lisa Loop v2** restructured the process into a five-phase spiral architecture with Domain-Driven Verification (DDV).
+
+**Lisa Loop v3** (current) reimplements the orchestrator as a Rust CLI (`lisa`), replacing the bash script with a compiled binary that embeds prompts and templates, uses TOML configuration, and provides enum-based state management with structured serialization.
 
 Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
