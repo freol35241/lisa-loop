@@ -423,7 +423,7 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     )?;
 
     // Verify DDV isolation
-    enforcement::verify_ddv_isolation(&result.tool_log, config, project_root);
+    enforcement::verify_ddv_isolation(&result.tool_log, config, project_root)?;
 
     git::commit_all(
         &format!("ddv-red: pass {} — domain verification tests written", pass),

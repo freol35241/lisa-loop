@@ -85,15 +85,33 @@ pub fn is_git_repo() -> bool {
         .unwrap_or(false)
 }
 
-/// Check if files in a path have been modified (unstaged changes)
-pub fn has_modifications(path: &str) -> Result<bool> {
-    let output = Command::new("git")
+/// Check if files in a path have been modified (unstaged or staged changes)
+pub fn has_any_modifications(path: &str) -> Result<bool> {
+    // Check unstaged
+    let unstaged = Command::new("git")
         .args(["diff", "--name-only", path])
         .output()
         .context("Failed to run git diff")?;
+    let unstaged_files = String::from_utf8_lossy(&unstaged.stdout);
+    if !unstaged_files.trim().is_empty() {
+        return Ok(true);
+    }
+    // Check staged
+    let staged = Command::new("git")
+        .args(["diff", "--cached", "--name-only", path])
+        .output()
+        .context("Failed to run git diff --cached")?;
+    let staged_files = String::from_utf8_lossy(&staged.stdout);
+    Ok(!staged_files.trim().is_empty())
+}
 
-    let changed = String::from_utf8_lossy(&output.stdout);
-    Ok(!changed.trim().is_empty())
+/// Unstage changes to a specific path
+pub fn reset_path(path: &str) -> Result<()> {
+    Command::new("git")
+        .args(["reset", "HEAD", "--", path])
+        .status()
+        .context("Failed to run git reset")?;
+    Ok(())
 }
 
 /// Revert changes to a specific path
