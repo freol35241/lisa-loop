@@ -18,8 +18,7 @@ pub fn commit_all(msg: &str, config: &Config) -> Result<bool> {
         .context("Failed to run git add")?;
 
     if !status.success() {
-        terminal::log_warn("git add failed");
-        return Ok(false);
+        anyhow::bail!("git add failed");
     }
 
     // Check if there are staged changes
@@ -44,8 +43,7 @@ pub fn commit_all(msg: &str, config: &Config) -> Result<bool> {
         terminal::log_success("Commit created.");
         Ok(true)
     } else {
-        terminal::log_warn("git commit failed");
-        Ok(false)
+        anyhow::bail!("git commit failed")
     }
 }
 
@@ -70,11 +68,13 @@ pub fn push(config: &Config) -> Result<()> {
 
     if status.success() {
         terminal::log_success("Push complete.");
+        Ok(())
     } else {
-        terminal::log_warn("git push failed");
+        anyhow::bail!(
+            "git push to origin/{} failed. Check remote access and try `lisa resume`.",
+            branch
+        )
     }
-
-    Ok(())
 }
 
 pub fn is_git_repo() -> bool {

@@ -259,15 +259,10 @@ pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<Block
     }
 
     // Gather counts
-    let (total, done, blocked) = if plan_path.exists() {
-        let content = std::fs::read_to_string(plan_path)?;
-        let total = content.matches("### Task").count();
-        let done = content.matches("**Status:** DONE").count();
-        let blocked = content.matches("**Status:** BLOCKED").count();
-        (total, done, blocked)
-    } else {
-        (0, 0, 0)
-    };
+    let counts = crate::tasks::count_tasks_by_status(plan_path)?;
+    let total = counts.total;
+    let done = counts.done;
+    let blocked = counts.blocked;
 
     println!();
     terminal::print_separator();
