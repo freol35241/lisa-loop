@@ -232,15 +232,27 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                     .arg(&redirect_path)
                     .status();
 
-                if redirect_path.exists()
-                    && std::fs::metadata(&redirect_path)
-                        .map(|m| m.len() > 0)
-                        .unwrap_or(false)
-                {
-                    terminal::log_info(&format!(
-                        "REDIRECT — guidance saved to {}",
-                        redirect_path.display()
-                    ));
+                if redirect_path.exists() {
+                    let content = std::fs::read_to_string(&redirect_path).unwrap_or_default();
+                    let has_real_content = content
+                        .lines()
+                        .any(|l| {
+                            let trimmed = l.trim();
+                            !trimmed.is_empty()
+                                && !trimmed.starts_with('#')
+                                && !trimmed.starts_with("<!--")
+                                && !trimmed.starts_with("-->")
+                                && !trimmed.contains("<!--")
+                        });
+                    if has_real_content {
+                        terminal::log_info(&format!(
+                            "REDIRECT — guidance saved to {}",
+                            redirect_path.display()
+                        ));
+                        return Ok(ReviewDecision::Redirect);
+                    } else {
+                        terminal::log_warn("Redirect file contains only template comments. Treating as CONTINUE.");
+                    }
                 } else {
                     terminal::log_warn("Redirect file is empty. Treating as CONTINUE.");
                 }
