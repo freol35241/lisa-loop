@@ -40,11 +40,7 @@
   Pass 1, Refine is essentially re-reading what Scope just wrote and making minor tweaks. This burns an Opus invocation for marginal value. Consider either: skipping Refine for Pass 1, or merging Scope and Pass-1 Refine
    into a single coherent step.
 
-  4. The Execute phase breaks the separation principle that DDV enforces.
-
-  DDV Red writes tests without seeing source. Build implements without modifying tests. But then Execute both writes integration code and runs/validates results in the same invocation. The agent implementing the
-  integration glue is also the one judging whether the system works. Consider separating the integration-writing step from the execution-and-audit step, or at least running the engineering judgment audit in the Validate
-   phase rather than Execute.
+  4. ~~The Execute phase breaks the separation principle that DDV enforces.~~ **DONE** — Engineering judgment audit moved from Execute to Validate. Execute now only integrates and runs; Validate performs the independent audit.
 
   5. Convergence assessment across scope-expanding passes is undefined.
 

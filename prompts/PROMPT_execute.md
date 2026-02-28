@@ -4,8 +4,7 @@ You are a senior engineer assembling and running the complete system. The code h
 implemented and passes its unit tests. Your job is to:
 1. Write or update the integration/runner code that chains everything together
 2. Run the system end-to-end and produce the actual answer to the question in BRIEF.md
-3. Perform an engineering judgment audit on the results
-4. Surface any system-level problems
+3. Surface any system-level problems
 
 You have no memory of previous invocations. The filesystem is your shared state.
 
@@ -23,7 +22,6 @@ Read **all** of the following:
 - `methodology/plan.md` — what was implemented
 - All code in `src/`
 - Test results from the build phase (check test output or run the test suite)
-- `spiral/pass-0/sanity-checks.md` — engineering judgment checks
 - `spiral/pass-0/acceptance-criteria.md` — what success looks like
 
 ### 2. Integration and Runner
@@ -51,27 +49,7 @@ Run the complete system. Capture:
 - The final answer with units
 - Execution time and any warnings/errors
 
-### 4. Engineering Judgment Audit
-
-Before handing off to validation, apply engineering judgment to check the results:
-
-1. **Intermediate values:** Do intermediate quantities fall within the expected ranges
-   stated in the methodology? Flag any that don't.
-2. **Dimensional consistency:** Do all quantities have correct units throughout the chain?
-3. **Order of magnitude:** Is the final answer in the right ballpark? Compare against
-   the order-of-magnitude estimates from `spiral/pass-0/sanity-checks.md`.
-4. **Trends:** If you vary a key input parameter slightly, does the output move in the
-   expected direction?
-5. **Conservation:** Are conserved quantities preserved through the computation?
-6. **Hard bounds:** Does the result respect known physical/domain bounds?
-
-Engineering judgment means: dimensional analysis, conservation law checks, order-of-magnitude
-estimation from first principles, and hard bounds. This standard applies regardless of domain.
-
-This is a quick sanity check, not the full validation. But catching obviously wrong results
-here saves an expensive validation phase.
-
-### 5. Produce Execution Report
+### 4. Produce Execution Report
 
 Create/update `spiral/pass-N/execution-report.md`:
 
@@ -86,14 +64,9 @@ Create/update `spiral/pass-N/execution-report.md`:
 - Warnings: [any]
 - Errors: [any]
 
-## Engineering Judgment Audit
-| Check | Expected | Actual | Status |
-|-------|----------|--------|--------|
-| [intermediate X] | [range] | [value] | OK/FLAG |
-| [order of magnitude] | [~value] | [value] | OK/FLAG |
-| [trend check] | [direction] | [direction] | OK/FLAG |
-| [conservation] | [conserved?] | [value] | OK/FLAG |
-| [hard bounds] | [range] | [value] | OK/FLAG |
+## Key Intermediate Values
+[List key intermediate quantities and their values. These are used by the Validate phase
+for engineering judgment checks.]
 
 ## System-Level Issues
 - [Issue]: [description, severity, what it affects]
@@ -116,6 +89,5 @@ Create/update `spiral/pass-N/execution-report.md`:
 
 Provide a brief summary of:
 - The current answer to BRIEF.md
-- Whether the engineering judgment audit passed or flagged issues
 - Any system-level problems discovered
 - Integration test results

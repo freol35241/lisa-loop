@@ -21,7 +21,7 @@ Read **all** of the following:
 - `spiral/pass-0/sanity-checks.md` — engineering judgment checks
 - `spiral/pass-0/validation-strategy.md` — validation approach
 - `spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
-- `spiral/pass-N/execution-report.md` — this pass's execution results and engineering judgment audit
+- `spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
 - `spiral/pass-N/ddv-red-manifest.md` — DDV test manifest for this pass
 - `validation/sanity-checks.md` — living sanity check document
 - `validation/limiting-cases.md` — limiting cases to check
@@ -89,11 +89,22 @@ For each criterion:
 - **Staged target (this pass):** [from spiral-plan.md] → Met? [YES/NO]
 - **Final target:** [from acceptance-criteria.md] → Distance: [X%]
 
-### 4. Review Execution Report
+### 4. Engineering Judgment Audit
 
-Review the engineering judgment audit results from `spiral/pass-N/execution-report.md`:
-- Are all checks OK?
-- Any flagged items require deeper investigation?
+Using the intermediate values and final answer from `spiral/pass-N/execution-report.md`,
+and the engineering judgment checks from `spiral/pass-0/sanity-checks.md`, perform an
+independent engineering judgment audit:
+
+1. **Intermediate values:** Do intermediate quantities fall within the expected ranges
+   stated in the methodology? Flag any that don't.
+2. **Dimensional consistency:** Do all quantities have correct units throughout the chain?
+3. **Order of magnitude:** Is the final answer in the right ballpark? Compare against
+   the order-of-magnitude estimates from `spiral/pass-0/sanity-checks.md`.
+4. **Conservation:** Are conserved quantities preserved through the computation?
+5. **Hard bounds:** Does the result respect known physical/domain bounds?
+
+This audit is performed here — separately from the agent that wrote the integration code —
+to maintain independence between implementation and judgment.
 
 ### 5. Methodology Compliance Spot-Check
 
@@ -159,6 +170,14 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 |---------|--------|-----------|-----------|-------|--------|
 | [data] | [cite] | [value] | [value] | [X.X] | PASS/FAIL |
 
+### Engineering Judgment Audit
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| [intermediate X] | [range] | [value] | OK/FLAG |
+| [order of magnitude] | [~value] | [value] | OK/FLAG |
+| [conservation] | [conserved?] | [value] | OK/FLAG |
+| [hard bounds] | [range] | [value] | OK/FLAG |
+
 ### Acceptance Criteria
 | Criterion | Staged target (this pass) | Final target | Current | Staged met? | Final met? |
 |-----------|--------------------------|-------------|---------|------------|-----------|
@@ -205,8 +224,8 @@ Failures: [list any, or "None"]
 ## Sanity Checks: [pass/total]
 Failures: [list any, or "None"]
 
-## Engineering Judgment Issues (from Execution)
-[list any, or "None"]
+## Engineering Judgment Audit
+[Summary of audit results. List any flagged items, or "All checks OK"]
 
 ## Engineering Judgment (HUMAN REVIEW)
 These checks require domain expertise and first-principles reasoning:
