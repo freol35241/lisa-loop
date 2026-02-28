@@ -10,6 +10,7 @@ mod review;
 mod state;
 mod tasks;
 mod terminal;
+mod usage;
 
 use anyhow::Result;
 use clap::Parser;
@@ -74,6 +75,10 @@ fn main() -> Result<()> {
         }
         cli::Commands::EjectPrompts => cmd_eject_prompts(),
         cli::Commands::History => cmd_history(),
+        cli::Commands::Rollback { pass, force } => {
+            let config = load_config()?;
+            orchestrator::rollback(&config, &project_root(), pass, force)
+        }
     }
 }
 
@@ -142,6 +147,26 @@ fn cmd_status() -> Result<()> {
                     "  Task status: TODO={} IN_PROGRESS={} DONE={} BLOCKED={}",
                     counts.todo, counts.in_progress, counts.done, counts.blocked
                 );
+            }
+
+            // Show usage summary
+            let ledger = usage::load_usage(&lisa_root)?;
+            if ledger.invocation_count() > 0 {
+                println!();
+                println!(
+                    "  Cost: ${:.4} ({} invocations, {} input + {} output tokens)",
+                    ledger.total_cost(),
+                    ledger.invocation_count(),
+                    ledger.total_input_tokens(),
+                    ledger.total_output_tokens(),
+                );
+            }
+
+            // Show rollback points
+            let tags = git::list_pass_tags();
+            if !tags.is_empty() {
+                let tag_strs: Vec<String> = tags.iter().map(|t| t.to_string()).collect();
+                println!("  Rollback points: pass {}", tag_strs.join(", "));
             }
         }
     }
@@ -300,18 +325,20 @@ fn cmd_history() -> Result<()> {
         return Ok(());
     }
 
+    let ledger = usage::load_usage(&lisa_root).unwrap_or_default();
+
     println!();
     terminal::println_bold("Lisa Loop — Pass History");
     println!();
 
     // Header
     println!(
-        "  {:>4}  {:<30}  {:<8}  {:<7}  Recommendation",
-        "Pass", "Answer", "DDV", "Sanity"
+        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Recommendation",
+        "Pass", "Answer", "DDV", "Sanity", "Cost"
     );
     println!(
-        "  {:>4}  {:<30}  {:<8}  {:<7}  --------------",
-        "----", "------------------------------", "--------", "-------"
+        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  --------------",
+        "----", "------------------------------", "--------", "-------", "--------"
     );
 
     for pass in &passes {
@@ -337,9 +364,17 @@ fn cmd_history() -> Result<()> {
         let rec = review::extract_section_first_line(&content, "## Recommendation")
             .unwrap_or_else(|| "-".to_string());
 
+        let cost = ledger.pass_cost(*pass);
+        let cost_str = if cost > 0.0 {
+            format!("${:.4}", cost)
+        } else {
+            "-".to_string()
+        };
+        let cost_trunc = truncate_str(&cost_str, 8);
+
         println!(
-            "  {:>4}  {:<30}  {:<8}  {:<7}  {}",
-            pass, answer_trunc, ddv_trunc, sanity_trunc, rec
+            "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  {}",
+            pass, answer_trunc, ddv_trunc, sanity_trunc, cost_trunc, rec
         );
     }
 

@@ -48,4 +48,12 @@ pub enum Commands {
     EjectPrompts,
     /// Show pass-by-pass history (answer, tests, recommendation)
     History,
+    /// Roll back to a previous pass boundary
+    Rollback {
+        /// Pass number to roll back to (e.g., 1 for end of pass 1)
+        pass: u32,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
 }

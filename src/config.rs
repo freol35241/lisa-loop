@@ -70,6 +70,10 @@ pub struct LimitsConfig {
     pub max_ralph_iterations: u32,
     #[serde(default = "default_stall_threshold")]
     pub stall_threshold: u32,
+    #[serde(default)]
+    pub budget_usd: f64,
+    #[serde(default = "default_budget_warn_pct")]
+    pub budget_warn_pct: u32,
 }
 
 impl Default for LimitsConfig {
@@ -78,6 +82,8 @@ impl Default for LimitsConfig {
             max_spiral_passes: default_max_spiral_passes(),
             max_ralph_iterations: default_max_ralph_iterations(),
             stall_threshold: default_stall_threshold(),
+            budget_usd: 0.0,
+            budget_warn_pct: default_budget_warn_pct(),
         }
     }
 }
@@ -90,6 +96,9 @@ fn default_max_ralph_iterations() -> u32 {
 }
 fn default_stall_threshold() -> u32 {
     2
+}
+fn default_budget_warn_pct() -> u32 {
+    80
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -282,6 +291,8 @@ validate = "opus"
 max_spiral_passes = 5
 max_ralph_iterations = 50
 stall_threshold = 2
+# budget_usd = 0.0       # 0 = unlimited
+# budget_warn_pct = 80   # warn at this % of budget
 
 [review]
 # Human review gates. When false, loop runs fully autonomously.

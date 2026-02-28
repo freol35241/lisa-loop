@@ -2,7 +2,7 @@ use anyhow::Result;
 use crossterm::style::Color;
 use std::path::Path;
 
-use crate::agent;
+use crate::agent::{self, AgentResult};
 use crate::config::Config;
 use crate::enforcement;
 use crate::git;
@@ -11,6 +11,7 @@ use crate::review::{self, BlockDecision, ReviewDecision, ScopeDecision};
 use crate::state::{self, PassPhase, SpiralState};
 use crate::tasks;
 use crate::terminal;
+use crate::usage;
 
 /// Run the full spiral: scope if needed, then iterate passes
 pub fn run(
@@ -159,6 +160,7 @@ fn resume_from_phase(
         }
     }
 
+    git::create_tag(&format!("lisa/pass-{}", pass))?;
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
     match review::review_gate(config, pass, &lisa_root)? {
         ReviewDecision::Accept => finalize(config, project_root, pass),
@@ -204,6 +206,7 @@ fn run_pass_range(
         run_execute(config, project_root, pass)?;
         run_validate(config, project_root, pass)?;
         git::push(config)?;
+        git::create_tag(&format!("lisa/pass-{}", pass))?;
 
         state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
         match review::review_gate(config, pass, &lisa_root)? {
@@ -223,6 +226,50 @@ fn run_pass_range(
 /// Return the path to the error log file for a given lisa root.
 fn error_log(lisa_root: &Path) -> std::path::PathBuf {
     lisa_root.join("last-error.md")
+}
+
+/// Wrapper: run agent, record usage, check budget.
+fn run_agent_with_tracking(
+    config: &Config,
+    lisa_root: &Path,
+    input: &str,
+    model: &str,
+    label: &str,
+    phase: &str,
+    pass: u32,
+) -> Result<AgentResult> {
+    let err_log = error_log(lisa_root);
+    let result = agent::run_agent(
+        input,
+        model,
+        label,
+        config.terminal.collapse_output,
+        Some(&err_log),
+    )?;
+
+    let cumulative = usage::record_invocation(
+        lisa_root,
+        phase,
+        pass,
+        model,
+        &result.usage,
+        result.elapsed_secs,
+    )?;
+
+    if result.usage.cost_usd > 0.0 {
+        terminal::log_info(&format!(
+            "Cost: ${:.4} (cumulative: ${:.4})",
+            result.usage.cost_usd, cumulative
+        ));
+    }
+
+    usage::check_budget(
+        cumulative,
+        config.limits.budget_usd,
+        config.limits.budget_warn_pct,
+    )?;
+
+    Ok(result)
 }
 
 // --- Individual phase runners ---
@@ -282,14 +329,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     );
     let model = Phase::Scope.model_key(config);
 
-    let err_log = error_log(&lisa_root);
-    agent::run_agent(
-        &input,
-        &model,
-        "Scope",
-        config.terminal.collapse_output,
-        Some(&err_log),
-    )?;
+    run_agent_with_tracking(config, &lisa_root, &input, &model, "Scope", "scope", 0)?;
     git::commit_all("scope: pass 0 — scoping complete", config)?;
 
     // Environment gate
@@ -332,12 +372,14 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                     Some(refine_ctx),
                 );
 
-                agent::run_agent(
+                run_agent_with_tracking(
+                    config,
+                    &lisa_root,
                     &input,
                     &model,
                     "Scope: refinement",
-                    config.terminal.collapse_output,
-                    Some(&err_log),
+                    "scope",
+                    0,
                 )?;
                 git::commit_all("scope: refined after human feedback", config)?;
                 terminal::log_info("Scope refined. Reviewing again...");
@@ -359,6 +401,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     }
 
     state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
+    git::create_tag("lisa/pass-0")?;
     terminal::log_success("Pass 0 (scoping) complete.");
     Ok(())
 }
@@ -392,13 +435,14 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     let input = prompt::build_agent_input(Phase::Refine, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Refine.model_key(config);
-    let err_log = error_log(&lisa_root);
-    agent::run_agent(
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
         &input,
         &model,
         &format!("Refine: pass {}", pass),
-        config.terminal.collapse_output,
-        Some(&err_log),
+        "refine",
+        pass,
     )?;
     git::commit_all(&format!("refine: pass {}", pass), config)?;
     Ok(())
@@ -423,13 +467,14 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
     let model = Phase::DdvRed.model_key(config);
-    let err_log = error_log(&lisa_root);
-    let result = agent::run_agent(
+    let result = run_agent_with_tracking(
+        config,
+        &lisa_root,
         &input,
         &model,
         &format!("DDV Red: pass {}", pass),
-        config.terminal.collapse_output,
-        Some(&err_log),
+        "ddv_red",
+        pass,
     )?;
 
     // Verify DDV isolation
@@ -482,13 +527,14 @@ fn run_build_loop(
 
         let input = prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&extra));
         let model = Phase::Build.model_key(config);
-        let err_log = error_log(&lisa_root);
-        agent::run_agent(
+        run_agent_with_tracking(
+            config,
+            &lisa_root,
             &input,
             &model,
             &format!("Build: iter {}", iter),
-            config.terminal.collapse_output,
-            Some(&err_log),
+            "build",
+            pass,
         )?;
 
         // Verify DDV tests weren't modified
@@ -585,13 +631,14 @@ fn run_execute(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::Execute, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Execute.model_key(config);
-    let err_log = error_log(&lisa_root);
-    agent::run_agent(
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
         &input,
         &model,
         &format!("Execute: pass {}", pass),
-        config.terminal.collapse_output,
-        Some(&err_log),
+        "execute",
+        pass,
     )?;
     git::commit_all(&format!("execute: pass {}", pass), config)?;
     Ok(())
@@ -613,13 +660,14 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::Validate, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Validate.model_key(config);
-    let err_log = error_log(&lisa_root);
-    agent::run_agent(
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
         &input,
         &model,
         &format!("Validate: pass {}", pass),
-        config.terminal.collapse_output,
-        Some(&err_log),
+        "validate",
+        pass,
     )?;
     git::commit_all(&format!("validate: pass {}", pass), config)?;
     Ok(())
@@ -649,13 +697,14 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     let input = prompt::build_agent_input(Phase::Finalize, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Finalize.model_key(config);
-    let err_log = error_log(&lisa_root);
-    agent::run_agent(
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
         &input,
         &model,
         "Finalize: output",
-        config.terminal.collapse_output,
-        Some(&err_log),
+        "finalize",
+        pass,
     )?;
     git::commit_all("final: generate output deliverables", config)?;
 
@@ -689,5 +738,77 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         terminal::log_info(&format!("Audit summary: {}", audit_path.display()));
     }
 
+    Ok(())
+}
+
+/// Roll back to a previous pass boundary.
+pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: bool) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    let tag = format!("lisa/pass-{}", target_pass);
+
+    // Verify tag exists
+    let available = git::list_pass_tags();
+    if !available.contains(&target_pass) {
+        let tag_list = if available.is_empty() {
+            "none".to_string()
+        } else {
+            available
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        anyhow::bail!(
+            "Tag '{}' not found. Available rollback points: {}",
+            tag,
+            tag_list
+        );
+    }
+
+    // Check for uncommitted changes
+    if git::has_uncommitted_changes()? {
+        anyhow::bail!("Uncommitted changes detected. Commit or stash them before rolling back.");
+    }
+
+    // Confirmation prompt
+    if !force {
+        terminal::log_warn(&format!(
+            "This will reset the repository to the state at pass {}.",
+            target_pass
+        ));
+        terminal::log_warn("A backup branch will be created at current HEAD.");
+        print!("  Proceed? [y/N] ");
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            terminal::log_info("Rollback cancelled.");
+            return Ok(());
+        }
+    }
+
+    // Create backup branch
+    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let backup_branch = format!("lisa/backup/rollback-{}", timestamp);
+    git::create_branch(&backup_branch)?;
+    terminal::log_info(&format!("Backup branch created: {}", backup_branch));
+
+    // Reset to tag
+    git::reset_hard(&tag)?;
+    terminal::log_success(&format!("Reset to {}", tag));
+
+    // Restore usage.toml from backup branch (cost history should never be lost)
+    let usage_rel = format!("{}/usage.toml", config.paths.lisa_root);
+    if let Ok(Some(content)) = git::show_file_from_ref(&backup_branch, &usage_rel) {
+        let usage_path = lisa_root.join("usage.toml");
+        std::fs::write(&usage_path, &content)?;
+        git::commit_all("rollback: restore usage ledger", config)?;
+        terminal::log_info("Usage ledger preserved from before rollback.");
+    }
+
+    terminal::log_success(&format!(
+        "Rolled back to pass {}. Run `lisa resume` to continue.",
+        target_pass
+    ));
     Ok(())
 }

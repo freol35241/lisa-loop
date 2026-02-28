@@ -10,6 +10,15 @@ use std::time::{Duration, Instant};
 
 use crate::terminal;
 
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UsageInfo {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_creation_input_tokens: u64,
+    pub cache_read_input_tokens: u64,
+    pub cost_usd: f64,
+}
+
 #[derive(Debug, Default)]
 pub struct AgentStats {
     pub tool_count: u32,
@@ -24,6 +33,7 @@ pub struct AgentResult {
     pub stats: AgentStats,
     pub elapsed_secs: u64,
     pub tool_log: Vec<ToolCall>,
+    pub usage: UsageInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +67,7 @@ pub fn run_agent(
     let mut stats = AgentStats::default();
     let mut tool_log = Vec::new();
     let mut result_text = String::new();
+    let mut usage = UsageInfo::default();
 
     terminal::log_info(&format!("Calling agent: {} (model: {})", label, model));
 
@@ -229,6 +240,28 @@ pub fn run_agent(
                     if let Some(text) = parsed.get("result").and_then(|r| r.as_str()) {
                         result_text = text.to_string();
                     }
+                    // Extract cost
+                    if let Some(cost) = parsed.get("total_cost_usd").and_then(|c| c.as_f64()) {
+                        usage.cost_usd = cost;
+                    }
+                    // Extract token usage
+                    if let Some(u) = parsed.get("usage") {
+                        if let Some(v) = u.get("input_tokens").and_then(|t| t.as_u64()) {
+                            usage.input_tokens = v;
+                        }
+                        if let Some(v) = u.get("output_tokens").and_then(|t| t.as_u64()) {
+                            usage.output_tokens = v;
+                        }
+                        if let Some(v) = u
+                            .get("cache_creation_input_tokens")
+                            .and_then(|t| t.as_u64())
+                        {
+                            usage.cache_creation_input_tokens = v;
+                        }
+                        if let Some(v) = u.get("cache_read_input_tokens").and_then(|t| t.as_u64()) {
+                            usage.cache_read_input_tokens = v;
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -302,6 +335,9 @@ pub fn run_agent(
     if stats.test_runs > 0 {
         summary.push_str(&format!(", {} test runs", stats.test_runs));
     }
+    if usage.cost_usd > 0.0 {
+        summary.push_str(&format!(", ${:.4}", usage.cost_usd));
+    }
 
     if collapsed {
         // Move up and overwrite the "▸ label ..." line
@@ -329,6 +365,7 @@ pub fn run_agent(
         stats,
         elapsed_secs: elapsed,
         tool_log,
+        usage,
     })
 }
 
