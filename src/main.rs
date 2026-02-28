@@ -79,6 +79,18 @@ fn main() -> Result<()> {
             let config = load_config()?;
             orchestrator::rollback(&config, &project_root(), pass, force)
         }
+        cli::Commands::Continue {
+            question,
+            max_passes,
+            no_pause,
+            verbose,
+        } => {
+            let mut config = load_config()?;
+            if verbose {
+                config.terminal.collapse_output = false;
+            }
+            orchestrator::continue_spiral(&config, &project_root(), &question, max_passes, no_pause)
+        }
     }
 }
 
@@ -112,6 +124,18 @@ fn cmd_status() -> Result<()> {
             if lisa_root.join("spiral/SPIRAL_COMPLETE.md").exists() {
                 println!();
                 terminal::println_colored("  Spiral COMPLETE — answer accepted.", Color::Green);
+
+                // Show follow-up count
+                let brief_path = lisa_root.join("BRIEF.md");
+                if let Ok(brief_content) = std::fs::read_to_string(&brief_path) {
+                    let follow_ups = brief_content
+                        .lines()
+                        .filter(|l| l.starts_with("## Follow-up "))
+                        .count();
+                    if follow_ups > 0 {
+                        println!("  Follow-ups: {}", follow_ups);
+                    }
+                }
             }
 
             // Show pass artifacts

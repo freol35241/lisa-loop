@@ -56,4 +56,18 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
+    /// Continue with a follow-up question after a completed spiral
+    Continue {
+        /// The follow-up question or task
+        question: String,
+        /// Maximum number of additional spiral passes
+        #[arg(long)]
+        max_passes: Option<u32>,
+        /// Skip all human review gates
+        #[arg(long)]
+        no_pause: bool,
+        /// Show full agent output (overrides collapse_output config)
+        #[arg(long, short)]
+        verbose: bool,
+    },
 }

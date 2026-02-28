@@ -99,7 +99,10 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
             }
         }
         SpiralState::Complete { final_pass } => {
-            terminal::log_success(&format!("Spiral already complete at pass {}.", final_pass));
+            terminal::log_success(&format!(
+                "Spiral already complete at pass {}. Use `lisa continue \"<question>\"` to start a follow-up.",
+                final_pass
+            ));
             Ok(())
         }
     }
@@ -811,4 +814,126 @@ pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: b
         target_pass
     ));
     Ok(())
+}
+
+/// Continue with a follow-up question after a completed spiral.
+pub fn continue_spiral(
+    config: &Config,
+    project_root: &Path,
+    question: &str,
+    max_passes: Option<u32>,
+    no_pause: bool,
+) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    let state = state::load_state(&lisa_root)?;
+
+    let final_pass = match state {
+        SpiralState::Complete { final_pass } => final_pass,
+        _ => {
+            anyhow::bail!(
+                "Cannot continue: spiral is not complete (current state: {}). \
+                 Use `lisa run` or `lisa resume` instead.",
+                state
+            );
+        }
+    };
+
+    // Determine follow-up number
+    let brief_path = lisa_root.join("BRIEF.md");
+    let brief_content = std::fs::read_to_string(&brief_path).unwrap_or_default();
+    let follow_up_num = count_follow_ups(&brief_content) + 1;
+
+    terminal::log_phase(&format!(
+        "CONTINUE — Follow-up {} (after pass {})",
+        follow_up_num, final_pass
+    ));
+
+    // Append follow-up to BRIEF.md
+    let appendix = format!("\n\n## Follow-up {}\n\n{}\n", follow_up_num, question);
+    let updated_brief = format!("{}{}", brief_content, appendix);
+    std::fs::write(&brief_path, &updated_brief)?;
+    terminal::log_success(&format!(
+        "Appended follow-up {} to BRIEF.md.",
+        follow_up_num
+    ));
+
+    // Remove SPIRAL_COMPLETE.md
+    let complete_marker = lisa_root.join("spiral/SPIRAL_COMPLETE.md");
+    if complete_marker.exists() {
+        std::fs::remove_file(&complete_marker)?;
+    }
+
+    // Reset state to ScopeComplete (scope artifacts are still valid)
+    state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
+
+    git::commit_all(
+        &format!(
+            "continue: follow-up {} after pass {}",
+            follow_up_num, final_pass
+        ),
+        config,
+    )?;
+
+    // Calculate effective max: prior passes + new allowance
+    let mut config = config.clone();
+    if no_pause {
+        config.review.pause = false;
+    }
+    let effective_max = final_pass + max_passes.unwrap_or(config.limits.max_spiral_passes);
+
+    terminal::log_info(&format!(
+        "Starting new passes {}-{} (prior passes 1-{} will be skipped).",
+        final_pass + 1,
+        effective_max,
+        final_pass
+    ));
+
+    run(&config, project_root, Some(effective_max), no_pause)
+}
+
+/// Count the number of `## Follow-up` sections in BRIEF.md content.
+fn count_follow_ups(brief_content: &str) -> u32 {
+    brief_content
+        .lines()
+        .filter(|line| line.starts_with("## Follow-up "))
+        .count() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_count_follow_ups_none() {
+        let content = "# Assignment Brief\n\n## Assignment\nSolve X.\n";
+        assert_eq!(count_follow_ups(content), 0);
+    }
+
+    #[test]
+    fn test_count_follow_ups_multiple() {
+        let content = "# Assignment Brief\n\n## Assignment\nSolve X.\n\n\
+                        ## Follow-up 1\n\nWhat about Y?\n\n\
+                        ## Follow-up 2\n\nAlso Z?\n";
+        assert_eq!(count_follow_ups(content), 2);
+    }
+
+    #[test]
+    fn test_count_follow_ups_ignores_other_headings() {
+        let content = "## Assignment\nFoo\n\n## Deliverables\nBar\n\n## Follow-up 1\nBaz\n";
+        assert_eq!(count_follow_ups(content), 1);
+    }
+
+    #[test]
+    fn test_append_follow_up_format() {
+        let original = "# Assignment Brief\n\n## Assignment\nSolve X.\n";
+        let follow_up_num = 1u32;
+        let question = "What about edge case Y?";
+        let appendix = format!("\n\n## Follow-up {}\n\n{}\n", follow_up_num, question);
+        let result = format!("{}{}", original, appendix);
+
+        assert!(result.starts_with("# Assignment Brief"));
+        assert!(result.contains("## Follow-up 1"));
+        assert!(result.contains("What about edge case Y?"));
+        assert!(result.contains("## Assignment\nSolve X."));
+    }
 }
