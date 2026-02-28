@@ -12,17 +12,24 @@ pub struct Cli {
 pub enum Commands {
     /// Initialize a new Lisa Loop project
     Init {
-        #[command(subcommand)]
-        mode: InitMode,
+        /// Assignment name (defaults to directory name)
+        #[arg(long)]
+        name: Option<String>,
+        /// Technology preference (e.g., "Python 3.11+ with NumPy/SciPy")
+        #[arg(long)]
+        tech: Option<String>,
     },
     /// Run the full spiral (scope if needed, then iterate)
     Run {
         /// Maximum number of spiral passes
-        #[arg(long, default_value_t = 0)]
-        max_passes: u32,
+        #[arg(long)]
+        max_passes: Option<u32>,
         /// Skip all human review gates
         #[arg(long)]
         no_pause: bool,
+        /// Show full agent output (overrides collapse_output config)
+        #[arg(long, short)]
+        verbose: bool,
     },
     /// Resume from saved state
     Resume,
@@ -36,17 +43,4 @@ pub enum Commands {
     Finalize,
     /// Copy compiled-in prompts to .lisa/prompts/ for customization
     EjectPrompts,
-}
-
-#[derive(Subcommand)]
-pub enum InitMode {
-    /// Set up a project for resolving an assignment
-    ResolveAssignment {
-        /// Assignment name (defaults to directory name)
-        #[arg(long)]
-        name: Option<String>,
-        /// Technology preference (e.g., "Python 3.11+ with NumPy/SciPy")
-        #[arg(long)]
-        tech: Option<String>,
-    },
 }

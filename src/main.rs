@@ -29,16 +29,18 @@ fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
     match cli.command {
-        cli::Commands::Init { mode } => match mode {
-            cli::InitMode::ResolveAssignment { name, tech } => {
-                init::resolve_assignment::run(&project_root(), name, tech)
-            }
-        },
+        cli::Commands::Init { name, tech } => {
+            init::resolve_assignment::run(&project_root(), name, tech)
+        }
         cli::Commands::Run {
             max_passes,
             no_pause,
+            verbose,
         } => {
-            let config = load_config()?;
+            let mut config = load_config()?;
+            if verbose {
+                config.terminal.collapse_output = false;
+            }
             orchestrator::run(&config, &project_root(), max_passes, no_pause)
         }
         cli::Commands::Resume => {
@@ -81,14 +83,16 @@ fn main() -> Result<()> {
 
 fn cmd_status() -> Result<()> {
     let root = project_root();
-    let lisa_root = root.join(".lisa");
+    let lisa_root = match load_config() {
+        Ok(config) => config.lisa_root(&root),
+        Err(_) => root.join(".lisa"),
+    };
 
     if !lisa_root.exists() {
         terminal::log_error("No .lisa/ directory found. Run `lisa init resolve-assignment` first.");
         return Ok(());
     }
 
-    let _config = load_config()?;
     let state = state::load_state(&lisa_root)?;
 
     println!();
@@ -182,31 +186,36 @@ fn cmd_doctor() -> Result<()> {
     }
 
     // Check .lisa directory
-    let lisa_exists = project_root().join(".lisa").exists();
+    let root = project_root();
+    let lisa_root = match load_config() {
+        Ok(ref config) => config.lisa_root(&root),
+        Err(_) => root.join(".lisa"),
+    };
+    let lisa_exists = lisa_root.exists();
     if lisa_exists {
         terminal::print_colored("  ✓", Color::Green);
-        println!(" .lisa/ directory exists");
+        println!(" {} directory exists", lisa_root.display());
 
         // Check config
         match load_config() {
             Ok(_) => {
                 terminal::print_colored("  ✓", Color::Green);
-                println!(" .lisa/lisa.toml is valid");
+                println!(" lisa.toml is valid");
             }
             Err(e) => {
                 terminal::print_colored("  ✗", Color::Red);
-                println!(" .lisa/lisa.toml error: {}", e);
+                println!(" lisa.toml error: {}", e);
             }
         }
 
         // Check BRIEF.md
-        let brief = project_root().join(".lisa/BRIEF.md");
+        let brief = lisa_root.join("BRIEF.md");
         if brief.exists() {
             terminal::print_colored("  ✓", Color::Green);
-            println!(" .lisa/BRIEF.md exists");
+            println!(" BRIEF.md exists");
         } else {
             terminal::print_colored("  ✗", Color::Red);
-            println!(" .lisa/BRIEF.md missing");
+            println!(" BRIEF.md missing");
         }
     } else {
         terminal::print_colored("  ○", Color::Yellow);

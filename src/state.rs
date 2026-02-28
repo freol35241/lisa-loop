@@ -8,6 +8,7 @@ pub enum SpiralState {
     NotStarted,
     Scoping { attempt: u32 },
     ScopeReview,
+    ScopeComplete,
     InPass { pass: u32, phase: PassPhase },
     PassReview { pass: u32 },
     Complete { final_pass: u32 },
@@ -29,6 +30,7 @@ impl std::fmt::Display for SpiralState {
             SpiralState::NotStarted => write!(f, "Not started"),
             SpiralState::Scoping { attempt } => write!(f, "Scoping (attempt {})", attempt),
             SpiralState::ScopeReview => write!(f, "Scope review"),
+            SpiralState::ScopeComplete => write!(f, "Scope complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
@@ -111,6 +113,17 @@ mod tests {
             pass: 3,
             phase: PassPhase::Build { iteration: 7 },
         };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_scope_complete() {
+        let state = SpiralState::ScopeComplete;
         let file = StateFile {
             state: state.clone(),
         };

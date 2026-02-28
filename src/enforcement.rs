@@ -7,7 +7,7 @@ use crate::git;
 use crate::terminal;
 
 /// Check that the DDV Red agent didn't access source files (isolation violation)
-pub fn verify_ddv_isolation(tool_log: &[ToolCall], config: &Config, project_root: &Path) {
+pub fn verify_ddv_isolation(tool_log: &[ToolCall], config: &Config, project_root: &Path) -> Result<()> {
     let source_dirs = &config.paths.source;
 
     let violations: Vec<&ToolCall> = tool_log
@@ -20,19 +20,25 @@ pub fn verify_ddv_isolation(tool_log: &[ToolCall], config: &Config, project_root
         .collect();
 
     if !violations.is_empty() {
-        terminal::log_warn("DDV Red agent accessed source files — isolation violation!");
         for v in &violations {
-            terminal::log_warn(&format!("  Violation: {:?}", v));
+            terminal::log_error(&format!("  DDV isolation violation: {:?}", v));
         }
+        anyhow::bail!(
+            "{} source file access violations detected during DDV Red phase. \
+             The DDV agent must not read implementation source code.",
+            violations.len()
+        );
     }
+    Ok(())
 }
 
 /// Check that build agent didn't modify DDV tests, revert if so
 pub fn verify_ddv_tests_unmodified(config: &Config) -> Result<()> {
     let tests_ddv = &config.paths.tests_ddv;
 
-    if git::has_modifications(tests_ddv)? {
+    if git::has_any_modifications(tests_ddv)? {
         terminal::log_warn("Build agent modified DDV tests — reverting!");
+        git::reset_path(tests_ddv)?;
         git::checkout_path(tests_ddv)?;
     }
 

@@ -232,15 +232,27 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                     .arg(&redirect_path)
                     .status();
 
-                if redirect_path.exists()
-                    && std::fs::metadata(&redirect_path)
-                        .map(|m| m.len() > 0)
-                        .unwrap_or(false)
-                {
-                    terminal::log_info(&format!(
-                        "REDIRECT — guidance saved to {}",
-                        redirect_path.display()
-                    ));
+                if redirect_path.exists() {
+                    let content = std::fs::read_to_string(&redirect_path).unwrap_or_default();
+                    let has_real_content = content
+                        .lines()
+                        .any(|l| {
+                            let trimmed = l.trim();
+                            !trimmed.is_empty()
+                                && !trimmed.starts_with('#')
+                                && !trimmed.starts_with("<!--")
+                                && !trimmed.starts_with("-->")
+                                && !trimmed.contains("<!--")
+                        });
+                    if has_real_content {
+                        terminal::log_info(&format!(
+                            "REDIRECT — guidance saved to {}",
+                            redirect_path.display()
+                        ));
+                        return Ok(ReviewDecision::Redirect);
+                    } else {
+                        terminal::log_warn("Redirect file contains only template comments. Treating as CONTINUE.");
+                    }
                 } else {
                     terminal::log_warn("Redirect file is empty. Treating as CONTINUE.");
                 }
@@ -259,15 +271,10 @@ pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<Block
     }
 
     // Gather counts
-    let (total, done, blocked) = if plan_path.exists() {
-        let content = std::fs::read_to_string(plan_path)?;
-        let total = content.matches("### Task").count();
-        let done = content.matches("**Status:** DONE").count();
-        let blocked = content.matches("**Status:** BLOCKED").count();
-        (total, done, blocked)
-    } else {
-        (0, 0, 0)
-    };
+    let counts = crate::tasks::count_tasks_by_status(plan_path)?;
+    let total = counts.total;
+    let done = counts.done;
+    let blocked = counts.blocked;
 
     println!();
     terminal::print_separator();

@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
-use base64::Engine;
 use crossterm::style::Color;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::process::{Command, Stdio};
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::terminal;
 
@@ -53,11 +54,38 @@ pub fn run_agent(
         label, model
     ));
 
-    if collapse_output && std::io::stdout().is_terminal() {
+    let is_tty = std::io::stdout().is_terminal();
+    if collapse_output && is_tty {
         print!("  ");
         terminal::print_colored(&format!("▸ {} ...", label), Color::Cyan);
         println!();
     }
+
+    // Elapsed time ticker thread (updates the line in collapse mode)
+    let ticker_running = Arc::new(AtomicBool::new(collapse_output && is_tty));
+    let ticker_handle = {
+        let running = ticker_running.clone();
+        let label = label.to_string();
+        let start = start;
+        std::thread::spawn(move || {
+            while running.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_secs(30));
+                if !running.load(Ordering::Relaxed) {
+                    break;
+                }
+                let elapsed = start.elapsed().as_secs();
+                let mins = elapsed / 60;
+                let secs = elapsed % 60;
+                // Overwrite the "▸ label ..." line with elapsed time
+                print!("\x1b[1A\x1b[2K  ");
+                terminal::print_colored(
+                    &format!("▸ {} ... {}m{:02}s", label, mins, secs),
+                    Color::Cyan,
+                );
+                println!();
+            }
+        })
+    };
 
     let mut child = Command::new("claude")
         .args([
@@ -173,13 +201,20 @@ pub fn run_agent(
         }
     }
 
-    let _ = child.wait();
-    let elapsed = start.elapsed().as_secs();
+    let status = child.wait().context("Failed to wait for claude process")?;
 
-    // If collapse mode, try to decode base64 result_text if needed
-    if result_text.is_empty() {
-        // Try to extract from the tool log as fallback
+    // Stop ticker thread
+    ticker_running.store(false, Ordering::Relaxed);
+    let _ = ticker_handle.join();
+
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
+        anyhow::bail!(
+            "Agent '{}' exited with code {}. Check the output above for errors. Run `lisa resume` to retry this phase.",
+            label, code
+        );
     }
+    let elapsed = start.elapsed().as_secs();
 
     // Print summary
     let mut summary = format!("{} tools", stats.tool_count);
@@ -190,7 +225,7 @@ pub fn run_agent(
         summary.push_str(&format!(", {} test runs", stats.test_runs));
     }
 
-    if collapse_output && std::io::stdout().is_terminal() {
+    if collapse_output && is_tty {
         // Move up and overwrite the "▸ label ..." line
         print!("\x1b[1A\x1b[2K");
         print!("  ");
@@ -335,14 +370,4 @@ fn parse_tool_call(name: &str, input: &Value) -> ToolCall {
             name: name.to_string(),
         },
     }
-}
-
-/// Decode base64 result text (used in NDJSON parsing)
-#[allow(dead_code)]
-fn decode_b64_result(encoded: &str) -> String {
-    base64::engine::general_purpose::STANDARD
-        .decode(encoded)
-        .ok()
-        .and_then(|bytes| String::from_utf8(bytes).ok())
-        .unwrap_or_default()
 }

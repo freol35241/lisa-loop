@@ -259,55 +259,15 @@ Convergence: [CONVERGED / NOT YET CONVERGED / DIVERGING]
 Agent recommendation: [ACCEPT / CONTINUE / BLOCKED]
 ```
 
-#### Final Output (if convergence achieved)
+#### Note on Final Output
 
-If convergence is achieved and you recommend ACCEPT, also draft:
-
-- `output/answer.md` — Direct response to the question in `BRIEF.md`. Brief, specific, quantitative.
-- `output/report.md` — Full development report:
-
-```markdown
-# Development Report
-
-## Problem Statement
-[From BRIEF.md]
-
-## Acceptance Criteria
-[From spiral/pass-0/acceptance-criteria.md]
-
-## Methodology
-[Method, citation, equations, assumptions, valid range]
-
-## Spiral History
-### Pass 1
-- Methods, key results
-### Pass N (final)
-- Final convergence assessment
-
-## Verification Summary
-[DDV, software, and integration test results]
-
-## Validation Summary
-[Sanity checks, limiting cases, reference data, acceptance criteria]
-
-## Convergence Summary
-[Table showing key quantities across all passes]
-
-## Assumptions and Limitations
-[From methodology/assumptions-register.md]
-
-## References
-[All cited papers]
-
-## Traceability
-[Chain from acceptance criterion → methodology → code → V&V → final value]
-```
-
-The loop will finalize these upon human acceptance.
+If you recommend ACCEPT, do NOT draft deliverables. The finalize phase handles
+deliverable production after human acceptance. Your job is to provide the
+recommendation and evidence — not the deliverables themselves.
 
 ## Rules
 
-- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/convergence-log.md`, `plots/REVIEW.md`, and optionally `output/` drafts.
+- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/convergence-log.md`, and `plots/REVIEW.md`.
 - **Do NOT skip any sanity check.** Execute every check in `validation/sanity-checks.md`.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 

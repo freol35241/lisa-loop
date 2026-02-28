@@ -66,8 +66,8 @@ struct Task {
 }
 
 fn parse_tasks(content: &str) -> Vec<Task> {
-    let task_re = Regex::new(r"^### Task").unwrap();
-    let status_re = Regex::new(r"\*\*Status:\*\*\s*(\w+)").unwrap();
+    let task_re = Regex::new(r"(?i)^#{2,4}\s+Task\s+\d").unwrap();
+    let status_re = Regex::new(r"\*\*Status:\*\*\s+(\w+)").unwrap();
     let pass_re = Regex::new(r"\*\*Pass:\*\*\s*(\d+)").unwrap();
 
     let mut tasks = Vec::new();
@@ -80,7 +80,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
             // Save previous task if any
             if in_task {
                 tasks.push(Task {
-                    pass: current_pass.unwrap_or(9999),
+                    pass: current_pass.unwrap_or(1),
                     status: current_status.unwrap_or_default(),
                 });
             }
@@ -102,7 +102,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
     // Don't forget the last task
     if in_task {
         tasks.push(Task {
-            pass: current_pass.unwrap_or(9999),
+            pass: current_pass.unwrap_or(1),
             status: current_status.unwrap_or_default(),
         });
     }
@@ -155,5 +155,30 @@ mod tests {
         let content = "# Implementation Plan\n\n## Tasks\n";
         let tasks = parse_tasks(content);
         assert_eq!(tasks.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_tasks_heading_variations() {
+        let content = r#"# Plan
+
+## Task 1: Two hashes
+- **Status:** TODO
+- **Pass:** 1
+
+#### Task 2: Four hashes
+- **Status:**  DONE
+- **Pass:** 2
+
+### task 3: lowercase
+- **Status:** IN_PROGRESS
+"#;
+        let tasks = parse_tasks(content);
+        assert_eq!(tasks.len(), 3);
+        assert_eq!(tasks[0].status, "TODO");
+        assert_eq!(tasks[0].pass, 1);
+        assert_eq!(tasks[1].status, "DONE");
+        assert_eq!(tasks[1].pass, 2);
+        assert_eq!(tasks[2].status, "IN_PROGRESS");
+        assert_eq!(tasks[2].pass, 1); // default when missing
     }
 }

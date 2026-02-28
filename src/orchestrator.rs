@@ -1,4 +1,6 @@
 use anyhow::Result;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use crate::agent;
@@ -15,7 +17,7 @@ use crate::terminal;
 pub fn run(
     config: &Config,
     project_root: &Path,
-    max_passes: u32,
+    max_passes: Option<u32>,
     no_pause: bool,
 ) -> Result<()> {
     let mut config = config.clone();
@@ -23,66 +25,21 @@ pub fn run(
         config.review.pause = false;
     }
 
-    let max = if max_passes > 0 {
-        max_passes
-    } else {
-        config.limits.max_spiral_passes
-    };
+    let max = max_passes.unwrap_or(config.limits.max_spiral_passes);
 
-    let lisa_root = config.lisa_root(project_root);
+    if no_pause {
+        terminal::log_warn("Running with --no-pause: all human review gates will be skipped.");
+        terminal::log_warn(&format!(
+            "This will run up to {} spiral passes autonomously.",
+            max
+        ));
+    }
 
     terminal::log_phase(&format!("LISA LOOP — SPIRAL RUN (max {} passes)", max));
 
     ensure_scope_complete(&config, project_root)?;
 
-    for pass in 1..=max {
-        println!();
-        terminal::log_phase(&format!("═══ SPIRAL PASS {} / {} ═══", pass, max));
-
-        // Skip completed passes
-        if lisa_root
-            .join(format!("spiral/pass-{}/PASS_COMPLETE.md", pass))
-            .exists()
-        {
-            terminal::log_info(&format!("Pass {} already complete — skipping.", pass));
-            continue;
-        }
-
-        // Phase 1: Refine
-        run_refine(&config, project_root, pass)?;
-
-        // Phase 2: DDV Red
-        run_ddv_red(&config, project_root, pass)?;
-
-        // Phase 3: Build (Ralph loop)
-        if !run_build_loop(&config, project_root, pass, 1)? {
-            terminal::log_error(&format!("Build aborted at pass {}.", pass));
-            return Ok(());
-        }
-
-        // Phase 4: Execute
-        run_execute(&config, project_root, pass)?;
-
-        // Phase 5: Validate
-        run_validate(&config, project_root, pass)?;
-        git::push(&config)?;
-
-        // Phase 6: Human review
-        state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-        match review::review_gate(&config, pass, &lisa_root)? {
-            ReviewDecision::Accept => {
-                finalize(&config, project_root, pass)?;
-                return Ok(());
-            }
-            ReviewDecision::Continue | ReviewDecision::Redirect => continue,
-        }
-    }
-
-    terminal::log_warn(&format!(
-        "Reached max spiral passes ({}) without convergence.",
-        max
-    ));
-    Ok(())
+    run_pass_range(&config, project_root, 1, max)
 }
 
 /// Run only the scope phase
@@ -101,12 +58,16 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
     match state {
         SpiralState::NotStarted => {
             terminal::log_info("No previous run found. Starting fresh.");
-            run(config, project_root, 0, false)
+            run(config, project_root, None, false)
         }
         SpiralState::Scoping { .. } | SpiralState::ScopeReview => {
             terminal::log_info("Resuming: scope was incomplete.");
             run_scope(config, project_root)?;
-            run(config, project_root, 0, false)
+            run(config, project_root, None, false)
+        }
+        SpiralState::ScopeComplete => {
+            terminal::log_info("Scope already complete. Running spiral passes.");
+            run(config, project_root, None, false)
         }
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
@@ -116,7 +77,7 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
             match review::review_gate(config, pass, &lisa_root)? {
                 ReviewDecision::Accept => finalize(config, project_root, pass),
                 ReviewDecision::Continue | ReviewDecision::Redirect => {
-                    run_remaining_passes(config, project_root, pass + 1)
+                    run_pass_range(config, project_root, pass + 1, config.limits.max_spiral_passes)
                 }
             }
         }
@@ -189,18 +150,23 @@ fn resume_from_phase(
     match review::review_gate(config, pass, &lisa_root)? {
         ReviewDecision::Accept => finalize(config, project_root, pass),
         ReviewDecision::Continue | ReviewDecision::Redirect => {
-            run_remaining_passes(config, project_root, pass + 1)
+            run_pass_range(config, project_root, pass + 1, config.limits.max_spiral_passes)
         }
     }
 }
 
-fn run_remaining_passes(config: &Config, project_root: &Path, start_pass: u32) -> Result<()> {
+/// Shared loop body: run passes from start_pass to max_pass
+fn run_pass_range(
+    config: &Config,
+    project_root: &Path,
+    start_pass: u32,
+    max_pass: u32,
+) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
-    let max = config.limits.max_spiral_passes;
 
-    for pass in start_pass..=max {
+    for pass in start_pass..=max_pass {
         println!();
-        terminal::log_phase(&format!("═══ SPIRAL PASS {} / {} ═══", pass, max));
+        terminal::log_phase(&format!("═══ SPIRAL PASS {} / {} ═══", pass, max_pass));
 
         if lisa_root
             .join(format!("spiral/pass-{}/PASS_COMPLETE.md", pass))
@@ -213,7 +179,10 @@ fn run_remaining_passes(config: &Config, project_root: &Path, start_pass: u32) -
         run_refine(config, project_root, pass)?;
         run_ddv_red(config, project_root, pass)?;
         if !run_build_loop(config, project_root, pass, 1)? {
-            terminal::log_error(&format!("Build aborted at pass {}.", pass));
+            terminal::log_error(&format!(
+                "Build aborted at pass {}. Run `lisa resume` to retry from the build phase.",
+                pass
+            ));
             return Ok(());
         }
         run_execute(config, project_root, pass)?;
@@ -228,8 +197,9 @@ fn run_remaining_passes(config: &Config, project_root: &Path, start_pass: u32) -
     }
 
     terminal::log_warn(&format!(
-        "Reached max spiral passes ({}) without convergence.",
-        max
+        "Reached max spiral passes ({}) without convergence. \
+         Run `lisa run --max-passes N` with a higher limit, or `lisa finalize` to accept current results.",
+        max_pass
     ));
     Ok(())
 }
@@ -354,10 +324,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
         }
     }
 
-    state::save_state(
-        &lisa_root,
-        &SpiralState::Scoping { attempt: 0 }, // 0 = complete
-    )?;
+    state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
     terminal::log_success("Pass 0 (scoping) complete.");
     Ok(())
 }
@@ -426,7 +393,7 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     )?;
 
     // Verify DDV isolation
-    enforcement::verify_ddv_isolation(&result.tool_log, config, project_root);
+    enforcement::verify_ddv_isolation(&result.tool_log, config, project_root)?;
 
     git::commit_all(
         &format!("ddv-red: pass {} — domain verification tests written", pass),
@@ -447,7 +414,7 @@ fn run_build_loop(
     let plan_path = lisa_root.join("methodology/plan.md");
     let extra = format!("Current spiral pass: {}", pass);
 
-    let mut prev_remaining = tasks::count_uncompleted_tasks(&plan_path, pass)?;
+    let mut prev_plan_hash = hash_plan_content(&plan_path);
     let mut stall_count: u32 = 0;
 
     for iter in start_iter..=config.limits.max_ralph_iterations {
@@ -504,17 +471,17 @@ fn run_build_loop(
             break;
         }
 
-        // Stall detection
-        let cur_remaining = tasks::count_uncompleted_tasks(&plan_path, pass)?;
-        if cur_remaining == prev_remaining {
+        // Stall detection (content-hash-based)
+        let cur_plan_hash = hash_plan_content(&plan_path);
+        if cur_plan_hash == prev_plan_hash {
             stall_count += 1;
             terminal::log_warn(&format!(
-                "No task progress (stall count: {}/2, remaining: {}).",
-                stall_count, cur_remaining
+                "No plan changes detected (stall count: {}/2).",
+                stall_count
             ));
         } else {
             stall_count = 0;
-            prev_remaining = cur_remaining;
+            prev_plan_hash = cur_plan_hash;
         }
 
         if stall_count >= 2 {
@@ -592,6 +559,13 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     )?;
     git::commit_all(&format!("validate: pass {}", pass), config)?;
     Ok(())
+}
+
+fn hash_plan_content(plan_path: &Path) -> u64 {
+    let content = std::fs::read_to_string(plan_path).unwrap_or_default();
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    hasher.finish()
 }
 
 pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
