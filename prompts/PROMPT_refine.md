@@ -17,24 +17,24 @@ number. Look for lines starting with `Current spiral pass:` and `Previous pass r
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — project goals
-- `AGENTS.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
-- `methodology/methodology.md` — the current methodology
-- `methodology/plan.md` — the current implementation plan
-- `methodology/verification-cases.md` — verification case specifications
-- `spiral/pass-0/acceptance-criteria.md` — what success looks like
-- `spiral/pass-0/spiral-plan.md` — scope progression across passes (read this to determine the scope and fidelity target for this pass)
+- `{{lisa_root}}/AGENTS.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
+- `{{lisa_root}}/methodology/methodology.md` — the current methodology
+- `{{lisa_root}}/methodology/plan.md` — the current implementation plan
+- `{{lisa_root}}/methodology/verification-cases.md` — verification case specifications
+- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
+- `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression across passes (read this to determine the scope and fidelity target for this pass)
 
 If this is **Pass 1** (first refine):
-- Read `spiral/pass-0/literature-survey.md` for method candidates
-- Read `spiral/pass-0/spiral-plan.md` — determine what scope subset and fidelity this pass targets. Your methodology refinement and plan should address ONLY this pass's scope, not the full problem.
+- Read `{{lisa_root}}/spiral/pass-0/literature-survey.md` for method candidates
+- Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — determine what scope subset and fidelity this pass targets. Your methodology refinement and plan should address ONLY this pass's scope, not the full problem.
 
 If this is **Pass N > 1**:
-- Read `spiral/pass-{N-1}/progress-tracking.md` — how outputs changed between passes
-- Read `spiral/pass-{N-1}/review-package.md` — previous pass results
-- Read `spiral/pass-{N-1}/system-validation.md` — what validation checks passed/failed
-- Read `spiral/pass-{N-1}/execution-report.md` — previous execution results
-- Read `spiral/pass-{N-1}/human-redirect.md` — human guidance (if file exists)
-- Read any files in `spiral/pass-{N-1}/reconsiderations/` — unresolved methodology or DDV disagreement issues from build
+- Read `{{lisa_root}}/spiral/pass-{N-1}/progress-tracking.md` — how outputs changed between passes
+- Read `{{lisa_root}}/spiral/pass-{N-1}/review-package.md` — previous pass results
+- Read `{{lisa_root}}/spiral/pass-{N-1}/system-validation.md` — what validation checks passed/failed
+- Read `{{lisa_root}}/spiral/pass-{N-1}/execution-report.md` — previous execution results
+- Read `{{lisa_root}}/spiral/pass-{N-1}/human-redirect.md` — human guidance (if file exists)
+- Read any files in `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` — unresolved methodology or DDV disagreement issues from build
 
 ### 2. Research Delegation
 
@@ -47,7 +47,7 @@ Recommended subagent tasks:
 Delegate when: methodology needs new or alternative methods, a paper is referenced but not
 yet retrieved, or a method needs to be evaluated against alternatives.
 Prompt pattern: "Search for methods to [X]. For each candidate: citation, approach, fidelity,
-assumptions, valid range, pros/cons for our problem. Save summaries to references/retrieved/.
+assumptions, valid range, pros/cons for our problem. Save summaries to {{lisa_root}}/references/retrieved/.
 Return a ranked recommendation."
 
 #### Code audit subagent
@@ -58,8 +58,8 @@ what would need to change if we [specific methodology change under consideration
 
 #### Validation review subagent
 Delegate when: pass > 1.
-Prompt pattern: "Read spiral/pass-{N-1}/execution-report.md, spiral/pass-{N-1}/system-validation.md,
-and spiral/pass-{N-1}/progress-tracking.md. Summarize: what passed, what failed, what nearly failed,
+Prompt pattern: "Read {{lisa_root}}/spiral/pass-{N-1}/execution-report.md, {{lisa_root}}/spiral/pass-{N-1}/system-validation.md,
+and {{lisa_root}}/spiral/pass-{N-1}/progress-tracking.md. Summarize: what passed, what failed, what nearly failed,
 what improved vs previous pass, what the agent recommended. Be concise."
 
 After subagents report back, synthesize their findings into your methodology and plan updates.
@@ -67,21 +67,21 @@ Do not simply paste subagent output — integrate it with your own reasoning.
 
 ### 2b. Resolve Reconsiderations and Unblock Tasks
 
-If `spiral/pass-{N-1}/reconsiderations/` contains unresolved issues, resolve each one:
+If `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` contains unresolved issues, resolve each one:
 
 **For DDV disagreements** (`ddv-disagreement-*.md`):
 1. Go back to the authoritative source paper cited by both the test and the implementation
 2. Determine which interpretation is correct
-3. If the **test was wrong**: update `methodology/verification-cases.md` with the correct expected value. The DDV Red phase will rewrite the test this pass.
+3. If the **test was wrong**: update `{{lisa_root}}/methodology/verification-cases.md` with the correct expected value. The DDV Red phase will rewrite the test this pass.
 4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
 5. Document your adjudication in the refine summary
 
 **For methodology issues** (other reconsideration files):
 1. Evaluate the proposed alternative
-2. Update methodology.md if the alternative is accepted
+2. Update `{{lisa_root}}/methodology/methodology.md` if the alternative is accepted
 3. Update verification cases if the methodology change affects expected values
 
-**After resolving**, update `methodology/plan.md`:
+**After resolving**, update `{{lisa_root}}/methodology/plan.md`:
 - Change BLOCKED tasks back to TODO if they can now proceed
 - Or create replacement tasks if the approach has fundamentally changed
 - Remove stale dependencies that no longer apply
@@ -92,7 +92,7 @@ Every reconsideration must be explicitly resolved — do not carry BLOCKED tasks
 
 Based on what you've read, identify what methodology needs to be added, changed, or refined for this pass's fidelity level.
 
-**Update `methodology/methodology.md`:**
+**Update `{{lisa_root}}/methodology/methodology.md`:**
 - **Method name and source** — Full citation (author(s), year, title, DOI/URL).
 - **Governing equations** — Written out completely. Every variable defined. Every constant specified.
 - **Assumptions** — Every assumption, explicit and implicit. What simplifications are made.
@@ -101,23 +101,23 @@ Based on what you've read, identify what methodology needs to be added, changed,
 - **Numerical considerations** — Known issues with discretization, convergence, stability.
 
 If this is **Pass 1**:
-- Technology stack selection with justification (update `AGENTS.md`)
+- Technology stack selection with justification (update `{{lisa_root}}/AGENTS.md`)
 - Transform methodology stubs from scoping into complete, implementable specifications
 
 ### 4. Update Cross-Cutting Documents
 
 After any methodology change:
 
-1. **Update `methodology/assumptions-register.md`** — If changes affect cross-cutting assumptions, update the register. Flag conflicts.
-2. **Update `validation/` living documents** — If the methodology refinement introduces new checks:
-   - Add new entries to `validation/sanity-checks.md`
-   - Add new entries to `validation/limiting-cases.md` (format: `LC-NNN`)
-   - Add new entries to `validation/reference-data.md` (format: `RD-NNN`)
+1. **Update `{{lisa_root}}/methodology/assumptions-register.md`** — If changes affect cross-cutting assumptions, update the register. Flag conflicts.
+2. **Update `{{lisa_root}}/validation/` living documents** — If the methodology refinement introduces new checks:
+   - Add new entries to `{{lisa_root}}/validation/sanity-checks.md`
+   - Add new entries to `{{lisa_root}}/validation/limiting-cases.md` (format: `LC-NNN`)
+   - Add new entries to `{{lisa_root}}/validation/reference-data.md` (format: `RD-NNN`)
    These documents are checked during every validation phase. Keep them current.
 
 ### 5. Update Verification Cases
 
-Update `methodology/verification-cases.md`:
+Update `{{lisa_root}}/methodology/verification-cases.md`:
 - Add verification cases for new/changed methods:
   - Level 0: Individual function tests (known input → known output)
   - Level 1: Model-level tests (behavior over valid range)
@@ -125,9 +125,9 @@ Update `methodology/verification-cases.md`:
 
 ### 6. Update Implementation Plan
 
-Read `spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
+Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
 
-Update `methodology/plan.md`:
+Update `{{lisa_root}}/methodology/plan.md`:
 - **For Pass 1:** The scope phase created a structural skeleton with task names, ordering, methodology references, and dependencies — but no checklists. Now that the methodology is fully specified, add detailed checklists to each existing task based on the complete equations and implementation notes. Split or merge tasks if the fully specified methodology reveals the original sizing was wrong.
 - **For Pass N > 1:** Add new tasks for this pass that address ONLY the current pass's scope subset (not the full problem)
 - Keep completed tasks as history
@@ -162,7 +162,7 @@ Note: no DDV test items in the plan. Those come from the DDV Red phase.
 
 ### 7. Produce Refine Summary
 
-Create `spiral/pass-N/refine-summary.md`:
+Create `{{lisa_root}}/spiral/pass-N/refine-summary.md`:
 
 If nothing changed: write only "No methodology changes this pass."
 
@@ -189,9 +189,9 @@ Otherwise, use this terse diff-style format:
 ### Literature Grounding
 
 - **Every method choice must trace to a peer-reviewed source.** Cite author(s), year, title, and DOI/URL.
-- **Never fabricate equations from memory.** If you need an equation, find it in a paper in `references/` or search the web for it. If the full paper is not available, flag it with `[NEEDS_PAPER]`.
-- **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `references/retrieved/` with the citation and key equations.
-- **Reference alternatives in the literature survey.** Do not repeat alternatives analysis — cite `spiral/pass-0/literature-survey.md` for method candidates evaluated during scoping.
+- **Never fabricate equations from memory.** If you need an equation, find it in a paper in `{{lisa_root}}/references/` or search the web for it. If the full paper is not available, flag it with `[NEEDS_PAPER]`.
+- **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `{{lisa_root}}/references/retrieved/` with the citation and key equations.
+- **Reference alternatives in the literature survey.** Do not repeat alternatives analysis — cite `{{lisa_root}}/spiral/pass-0/literature-survey.md` for method candidates evaluated during scoping.
 
 ### Internal Consistency Checks
 

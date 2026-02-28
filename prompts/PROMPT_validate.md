@@ -15,27 +15,27 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — project goals
-- `AGENTS.md` — build/test/plot commands
-- `methodology/methodology.md` — the methodology
-- `spiral/pass-0/acceptance-criteria.md` — what success looks like
-- `spiral/pass-0/sanity-checks.md` — engineering judgment checks
-- `spiral/pass-0/validation-strategy.md` — validation approach
-- `spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
-- `spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
-- `spiral/pass-N/ddv-red-manifest.md` — DDV test manifest for this pass
-- `validation/sanity-checks.md` — living sanity check document
-- `validation/limiting-cases.md` — limiting cases to check
-- `validation/reference-data.md` — reference data to compare against
-- `validation/progress-log.md` — progress history
-- `plots/REVIEW.md` — current plot assessments
+- `{{lisa_root}}/AGENTS.md` — build/test/plot commands
+- `{{lisa_root}}/methodology/methodology.md` — the methodology
+- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
+- `{{lisa_root}}/spiral/pass-0/sanity-checks.md` — engineering judgment checks
+- `{{lisa_root}}/spiral/pass-0/validation-strategy.md` — validation approach
+- `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
+- `{{lisa_root}}/spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
+- `{{lisa_root}}/spiral/pass-N/ddv-red-manifest.md` — DDV test manifest for this pass
+- `{{lisa_root}}/validation/sanity-checks.md` — living sanity check document
+- `{{lisa_root}}/validation/limiting-cases.md` — limiting cases to check
+- `{{lisa_root}}/validation/reference-data.md` — reference data to compare against
+- `{{lisa_root}}/validation/progress-log.md` — progress history
+- `{{lisa_root}}/plots/REVIEW.md` — current plot assessments
 
 If this is **Pass N > 1**:
-- Read `spiral/pass-{N-1}/progress-tracking.md` — previous progress tracking
-- Read `spiral/pass-{N-1}/system-validation.md` — previous validation report
+- Read `{{lisa_root}}/spiral/pass-{N-1}/progress-tracking.md` — previous progress tracking
+- Read `{{lisa_root}}/spiral/pass-{N-1}/system-validation.md` — previous validation report
 
 ### 1b. Determine This Pass's Acceptance Targets
 
-Read `spiral/pass-0/spiral-plan.md` to find the staged acceptance criteria for this pass.
+Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to find the staged acceptance criteria for this pass.
 Early passes have wider tolerances — do NOT apply final acceptance targets to intermediate
 passes. When checking acceptance criteria in section 3d, use this pass's staged tolerances,
 not the final targets from acceptance-criteria.md.
@@ -59,7 +59,7 @@ Collect test results:
 
 #### 3a. Sanity Checks
 
-Execute every check in `validation/sanity-checks.md`:
+Execute every check in `{{lisa_root}}/validation/sanity-checks.md`:
 
 - **Order of magnitude:** Are results in the expected ballpark?
 - **Expected trends:** When parameters change, do outputs move in the expected direction?
@@ -72,17 +72,17 @@ Record each check as PASS or FAIL with the actual value observed.
 
 #### 3b. Limiting Cases
 
-Check limiting cases from `validation/limiting-cases.md`:
+Check limiting cases from `{{lisa_root}}/validation/limiting-cases.md`:
 - When parameters go to extreme values, do results match known analytical solutions?
 
 #### 3c. Reference Data
 
-Compare against reference data from `validation/reference-data.md`:
+Compare against reference data from `{{lisa_root}}/validation/reference-data.md`:
 - How do results compare to published experimental or computational data?
 
 #### 3d. Acceptance Criteria
 
-Check against THIS PASS's staged acceptance criteria from `spiral/pass-0/spiral-plan.md`.
+Check against THIS PASS's staged acceptance criteria from `{{lisa_root}}/spiral/pass-0/spiral-plan.md`.
 Do not apply final targets to early passes.
 
 For each criterion:
@@ -91,15 +91,15 @@ For each criterion:
 
 ### 4. Engineering Judgment Audit
 
-Using the intermediate values and final answer from `spiral/pass-N/execution-report.md`,
-and the engineering judgment checks from `spiral/pass-0/sanity-checks.md`, perform an
+Using the intermediate values and final answer from `{{lisa_root}}/spiral/pass-N/execution-report.md`,
+and the engineering judgment checks from `{{lisa_root}}/spiral/pass-0/sanity-checks.md`, perform an
 independent engineering judgment audit:
 
 1. **Intermediate values:** Do intermediate quantities fall within the expected ranges
    stated in the methodology? Flag any that don't.
 2. **Dimensional consistency:** Do all quantities have correct units throughout the chain?
 3. **Order of magnitude:** Is the final answer in the right ballpark? Compare against
-   the order-of-magnitude estimates from `spiral/pass-0/sanity-checks.md`.
+   the order-of-magnitude estimates from `{{lisa_root}}/spiral/pass-0/sanity-checks.md`.
 4. **Conservation:** Are conserved quantities preserved through the computation?
 5. **Hard bounds:** Does the result respect known physical/domain bounds?
 
@@ -120,7 +120,7 @@ Compare key outputs with the previous spiral pass. Compute and present deltas �
 If this is **Pass 1:** No previous pass to compare. Establish baseline values.
 
 If this is **Pass N > 1:**
-- Read `spiral/pass-{N-1}/progress-tracking.md` for previous values
+- Read `{{lisa_root}}/spiral/pass-{N-1}/progress-tracking.md` for previous values
 - For each key output quantity:
   - Compute absolute and relative change from previous pass
   - Note whether the change is within the accuracy bounds of the methods used
@@ -129,7 +129,7 @@ If this is **Pass N > 1:**
 
 Create **all** of the following:
 
-#### `spiral/pass-N/system-validation.md`
+#### `{{lisa_root}}/spiral/pass-N/system-validation.md`
 
 Detailed validation report. Be concise: one line per passing check, detailed analysis only for failures.
 
@@ -184,7 +184,7 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 | [criterion] | [from spiral-plan] | [from acceptance-criteria] | [value] | YES/NO | YES/NO |
 ```
 
-#### `spiral/pass-N/progress-tracking.md`
+#### `{{lisa_root}}/spiral/pass-N/progress-tracking.md`
 
 ```markdown
 # Spiral Pass N — Progress Tracking
@@ -198,7 +198,7 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 [What is driving changes between passes. Which quantities are stabilizing, which are still shifting.]
 ```
 
-#### `spiral/pass-N/review-package.md`
+#### `{{lisa_root}}/spiral/pass-N/review-package.md`
 
 This is the primary artifact for human review. Use this **exact format**:
 
@@ -239,21 +239,21 @@ These checks require domain expertise and first-principles reasoning:
 - [What to change and why]
 
 ## Details
-- Execution report: spiral/pass-N/execution-report.md
-- Full validation: spiral/pass-N/system-validation.md
-- Progress: spiral/pass-N/progress-tracking.md
-- Plots: plots/REVIEW.md
+- Execution report: {{lisa_root}}/spiral/pass-N/execution-report.md
+- Full validation: {{lisa_root}}/spiral/pass-N/system-validation.md
+- Progress: {{lisa_root}}/spiral/pass-N/progress-tracking.md
+- Plots: {{lisa_root}}/plots/REVIEW.md
 ```
 
-#### Update `validation/progress-log.md`
+#### Update `{{lisa_root}}/validation/progress-log.md`
 
 Append this pass's progress data to the cumulative log.
 
-#### Update `plots/REVIEW.md`
+#### Update `{{lisa_root}}/plots/REVIEW.md`
 
 Ensure all plots have current assessments reflecting this pass's results.
 
-#### `spiral/pass-N/PASS_COMPLETE.md`
+#### `{{lisa_root}}/spiral/pass-N/PASS_COMPLETE.md`
 
 Create this file **last**:
 
@@ -274,8 +274,8 @@ recommendation and evidence — not the deliverables themselves.
 
 ## Rules
 
-- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/progress-log.md`, and `plots/REVIEW.md`.
-- **Do NOT skip any sanity check.** Execute every check in `validation/sanity-checks.md`.
+- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `{{lisa_root}}/spiral/pass-N/` reports, `{{lisa_root}}/validation/progress-log.md`, and `{{lisa_root}}/plots/REVIEW.md`.
+- **Do NOT skip any sanity check.** Execute every check in `{{lisa_root}}/validation/sanity-checks.md`.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 
 ## Output

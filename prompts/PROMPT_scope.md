@@ -7,36 +7,36 @@ You are a research engineer establishing the scope, acceptance criteria, methodo
 ## Your Task — Phased Workflow
 
 ### Phase 1: READ INPUTS
-Read `ASSIGNMENT.md`, `AGENTS.md`, and skim `references/core/`.
+Read `ASSIGNMENT.md`, `{{lisa_root}}/AGENTS.md`, and skim `{{lisa_root}}/references/core/`.
 
 ### Phase 2: DELEGATE RESEARCH
 Spawn the **Literature Survey** and **Environment Probe** subagents (they are independent — delegate back-to-back). Wait for results.
 
 ### Phase 3: FIRST SYNTHESIS
 Synthesize subagent results. Select methodology and technology stack. Write:
-- `methodology/methodology.md`
-- `methodology/overview.md`
-- `spiral/pass-0/acceptance-criteria.md`
-- Update `AGENTS.md` with resolved technology stack
+- `{{lisa_root}}/methodology/methodology.md`
+- `{{lisa_root}}/methodology/overview.md`
+- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
+- Update `{{lisa_root}}/AGENTS.md` with resolved technology stack
 
 ### Phase 4: DELEGATE VALIDATION
 Spawn the **Validation Research** and **Test Framework Research** subagents (they are independent — delegate back-to-back). Wait for results.
 
 ### Phase 5: FINAL SYNTHESIS
 Synthesize subagent results. Write all remaining artifacts:
-- `methodology/verification-cases.md`
-- `methodology/plan.md`
-- `spiral/pass-0/validation-strategy.md`
-- `spiral/pass-0/sanity-checks.md` (+ copy to `validation/sanity-checks.md`)
-- `spiral/pass-0/literature-survey.md` (review/augment subagent output)
-- `spiral/pass-0/spiral-plan.md`
-- `validation/limiting-cases.md`
-- `validation/reference-data.md`
-- `spiral/pass-0/PASS_COMPLETE.md` (last)
+- `{{lisa_root}}/methodology/verification-cases.md`
+- `{{lisa_root}}/methodology/plan.md`
+- `{{lisa_root}}/spiral/pass-0/validation-strategy.md`
+- `{{lisa_root}}/spiral/pass-0/sanity-checks.md` (+ copy to `{{lisa_root}}/validation/sanity-checks.md`)
+- `{{lisa_root}}/spiral/pass-0/literature-survey.md` (review/augment subagent output)
+- `{{lisa_root}}/spiral/pass-0/spiral-plan.md`
+- `{{lisa_root}}/validation/limiting-cases.md`
+- `{{lisa_root}}/validation/reference-data.md`
+- `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md` (last)
 
 ## Scope Feedback (Refinement Re-invocation)
 
-If `spiral/pass-0/scope-feedback.md` exists, the human has reviewed your scope artifacts
+If `{{lisa_root}}/spiral/pass-0/scope-feedback.md` exists, the human has reviewed your scope artifacts
 and provided corrections. Read it carefully. Update all affected artifacts to address their
 feedback. Do not discard previous work — refine it.
 
@@ -44,7 +44,7 @@ Common feedback patterns:
 - Acceptance criteria too tight/loose → adjust criteria AND spiral plan staging
 - Missing phenomenon → add to methodology, update verification cases
 - Scope progression too aggressive → widen early-pass tolerances, reduce Pass 1 scope
-- Wrong technology choice → update AGENTS.md, review methodology for implications
+- Wrong technology choice → update {{lisa_root}}/AGENTS.md, review methodology for implications
 - Missing validation strategy → add sanity checks, limiting cases, or reference data
 
 If re-invoked with scope feedback, read the feedback first and only delegate subagents for
@@ -59,12 +59,12 @@ then synthesize the results.
 
 ### Literature Survey subagent
 Delegate when: Always (Phase 2, first delegation).
-Prompt pattern: "Read ASSIGNMENT.md and all papers in references/core/. Search the web for
+Prompt pattern: "Read ASSIGNMENT.md and all papers in {{lisa_root}}/references/core/. Search the web for
 candidate methods for [problem from ASSIGNMENT.md]. For each candidate: provide full citation
 (author(s), year, title, DOI/URL), approach description, fidelity level, assumptions,
 valid range, pros/cons for our problem. Evaluate alternatives. Save paper summaries to
-references/retrieved/ with citations and key equations. Write the complete literature
-survey to spiral/pass-0/literature-survey.md using this template:
+{{lisa_root}}/references/retrieved/ with citations and key equations. Write the complete literature
+survey to {{lisa_root}}/spiral/pass-0/literature-survey.md using this template:
 
 # Literature Survey
 
@@ -86,7 +86,7 @@ survey to spiral/pass-0/literature-survey.md using this template:
 [Which method(s) to use and why]
 
 ## Papers Retrieved
-[List papers saved to references/retrieved/ with full citations]
+[List papers saved to {{lisa_root}}/references/retrieved/ with full citations]
 
 ## Papers Needed
 [Papers flagged with NEEDS_PAPER that the human should provide]
@@ -117,8 +117,8 @@ make technology decisions — report findings only. Return a structured report:
 Record actual command output. Do not guess based on training data."
 
 ### Validation Research subagent
-Delegate when: After methodology.md is written (Phase 4).
-Prompt pattern: "Read ASSIGNMENT.md and methodology/methodology.md. Search papers and the web
+Delegate when: After {{lisa_root}}/methodology/methodology.md is written (Phase 4).
+Prompt pattern: "Read ASSIGNMENT.md and {{lisa_root}}/methodology/methodology.md. Search papers and the web
 for: limiting cases where the answer is known analytically, reference datasets for
 comparison, conservation laws that must be satisfied, order-of-magnitude estimates from
 first principles, and cross-validation opportunities using independent methods. Return
@@ -168,13 +168,13 @@ You must create **all** of the following files. Do not skip any.
 
 ---
 
-### 1. `methodology/methodology.md` — The Methodology Document
+### 1. `{{lisa_root}}/methodology/methodology.md` — The Methodology Document
 
 **This is the central technical artifact.** It identifies the recommended methods, cites source papers, lists key equations by name/number, and documents assumptions and valid ranges.
 
 **Division of labor:** The methodology created here is an *initial specification*. It identifies the recommended method, cites the source paper, lists key equations by name/number, and documents assumptions and valid ranges. It does NOT contain full equation derivations with every variable defined — that level of detail is the refine phase's job in Pass 1. This intentional fidelity gap is what gives the first refine phase meaningful work: transforming a method recommendation into a complete, implementable specification.
 
-Populate `methodology/methodology.md`:
+Populate `{{lisa_root}}/methodology/methodology.md`:
 
 ```markdown
 # Methodology
@@ -211,7 +211,7 @@ If the problem has distinct sub-topics (e.g., frictional resistance, wave resist
 
 ---
 
-### 2. `methodology/plan.md` — Implementation Plan (Structural Skeleton)
+### 2. `{{lisa_root}}/methodology/plan.md` — Implementation Plan (Structural Skeleton)
 
 Initial implementation plan with task structure for Pass 1. At this stage you know *what*
 needs to be implemented and in what order, but the equations are not yet fully specified —
@@ -248,7 +248,7 @@ refine phase will flesh those out once the methodology is complete.
 
 ---
 
-### 3. `methodology/verification-cases.md` — Verification Case Specifications
+### 3. `{{lisa_root}}/methodology/verification-cases.md` — Verification Case Specifications
 
 L0 and L1 test specifications. These will be turned into executable tests by the DDV Red phase.
 
@@ -276,7 +276,7 @@ L0 and L1 test specifications. These will be turned into executable tests by the
 
 ---
 
-### 4. Technology Stack Selection — `AGENTS.md` + Environment Probing
+### 4. Technology Stack Selection — `{{lisa_root}}/AGENTS.md` + Environment Probing
 
 **This artifact ensures that all subsequent agents use a concrete, verified technology stack rather than making implicit choices.**
 
@@ -286,7 +286,7 @@ Before probing the environment, reason about the best technology stack for this 
 
 - **Computational requirements:** Is the problem compute-bound (→ favor compiled language: Rust, C++, Fortran) or I/O-bound / prototyping-oriented (→ scripting language like Python is fine)?
 - **Ecosystem:** Are there domain-specific libraries that favor a particular language? (e.g., NumPy/SciPy for numerical Python, nalgebra/ndarray for Rust, LAPACK for Fortran)
-- **Human preferences:** Read the "Technology Preferences" section of `AGENTS.md`. If the human stated preferences, respect them. If blank, choose freely.
+- **Human preferences:** Read the "Technology Preferences" section of `{{lisa_root}}/AGENTS.md`. If the human stated preferences, respect them. If blank, choose freely.
 
 #### Probe the Local Environment
 
@@ -300,7 +300,7 @@ and note any gaps that require human resolution.
 
 Check if these are present by running version commands. If a required runtime is **not available**:
 - Do **NOT** attempt to install it
-- Create `spiral/pass-0/environment-resolution.md` listing what is missing:
+- Create `{{lisa_root}}/spiral/pass-0/environment-resolution.md` listing what is missing:
 
 ```markdown
 # Environment Resolution Required
@@ -324,11 +324,11 @@ If all required runtimes are present, do **NOT** create this file (or create it 
 Install these directly using the appropriate package manager. These are routine development dependencies:
 - Run the install command (e.g., `pip install numpy scipy pytest`)
 - Verify the install succeeded (e.g., `python3 -c "import numpy; print(numpy.__version__)"`)
-- Record installed versions in AGENTS.md
+- Record installed versions in {{lisa_root}}/AGENTS.md
 
-#### Populate AGENTS.md
+#### Populate {{lisa_root}}/AGENTS.md
 
-Update the "Resolved Technology Stack" section of `AGENTS.md`:
+Update the "Resolved Technology Stack" section of `{{lisa_root}}/AGENTS.md`:
 
 - **Language & Runtime:** Fill with verified language and version (e.g., "Python 3.11.5 (verified present)")
 - **Key Dependencies:** List all installed packages with versions
@@ -337,13 +337,13 @@ Update the "Resolved Technology Stack" section of `AGENTS.md`:
 
 Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, tested commands** — no more placeholders. If the human pre-filled any command sections before running scope, verify those commands work (run them) rather than overwriting them.
 
-**Backward compatibility:** If AGENTS.md already has concrete (non-placeholder) commands filled in by the user, verify they work and keep them. Only populate sections that contain placeholders or template text.
+**Backward compatibility:** If {{lisa_root}}/AGENTS.md already has concrete (non-placeholder) commands filled in by the user, verify they work and keep them. Only populate sections that contain placeholders or template text.
 
 ---
 
 ### 5. System-Level Files
 
-#### `spiral/pass-0/acceptance-criteria.md`
+#### `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
 
 ```markdown
 # Acceptance Criteria
@@ -360,7 +360,7 @@ Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, t
 [What decisions will be made based on this answer? What accuracy is needed for those decisions?]
 ```
 
-#### `spiral/pass-0/validation-strategy.md`
+#### `{{lisa_root}}/spiral/pass-0/validation-strategy.md`
 
 ```markdown
 # Validation Strategy
@@ -393,7 +393,7 @@ Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, t
 - [Test description]: [Expected behavior, source]
 ```
 
-#### `spiral/pass-0/sanity-checks.md`
+#### `{{lisa_root}}/spiral/pass-0/sanity-checks.md`
 
 ```markdown
 # Sanity Checks
@@ -425,15 +425,15 @@ A failure on any check indicates a likely error and should block acceptance.
 - [ ] [Specific condition that would indicate a clearly wrong answer]
 ```
 
-After creating this file, also write the same content to `validation/sanity-checks.md` as the living validation document that will be updated in subsequent passes.
+After creating this file, also write the same content to `{{lisa_root}}/validation/sanity-checks.md` as the living validation document that will be updated in subsequent passes.
 
 After creating the validation strategy, also populate:
-- `validation/limiting-cases.md` — Extract the limiting cases from your validation strategy and format them using the `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
-- `validation/reference-data.md` — Extract the reference datasets from your validation strategy and format them using the `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
+- `{{lisa_root}}/validation/limiting-cases.md` — Extract the limiting cases from your validation strategy and format them using the `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
+- `{{lisa_root}}/validation/reference-data.md` — Extract the reference datasets from your validation strategy and format them using the `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
 
 These are the living validation documents that will be checked during every validation phase and refined during methodology refinement phases.
 
-#### `spiral/pass-0/literature-survey.md`
+#### `{{lisa_root}}/spiral/pass-0/literature-survey.md`
 
 Survey of candidate methods, organized by topic/phenomenon:
 
@@ -466,7 +466,7 @@ Survey of candidate methods, organized by topic/phenomenon:
 [Any methods that span multiple topics]
 
 ## Papers Retrieved
-[List papers saved to references/retrieved/ with full citations]
+[List papers saved to {{lisa_root}}/references/retrieved/ with full citations]
 
 ## Papers Needed
 [Papers flagged with [NEEDS_PAPER] that the human should provide]
@@ -476,9 +476,9 @@ The **Literature Survey subagent** has produced this artifact. Review it, augmen
 own judgment if needed, and ensure it meets the template above. Verify that:
 - Every method candidate cites a peer-reviewed source (author(s), year, title, DOI/URL)
 - Alternatives are documented for each phenomenon
-- Papers saved to `references/retrieved/` have proper citations and key equations
+- Papers saved to `{{lisa_root}}/references/retrieved/` have proper citations and key equations
 
-#### `spiral/pass-0/spiral-plan.md` — Scope Progression
+#### `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — Scope Progression
 
 The spiral plan MUST define how scope and fidelity increase per pass. Early passes test
 the methodology on a SUBSET of the full problem — not the full scope at low fidelity.
@@ -516,7 +516,7 @@ Acceptance criteria are staged — early passes have wider tolerances.
 
 ### 6. Methodology Overview and Assumptions
 
-#### `methodology/overview.md`
+#### `{{lisa_root}}/methodology/overview.md`
 
 Populate with system description and modeling approach:
 
@@ -536,9 +536,9 @@ Populate with system description and modeling approach:
 [What this model will and won't cover]
 ```
 
-#### `methodology/assumptions-register.md`
+#### `{{lisa_root}}/methodology/assumptions-register.md`
 
-If you identify any cross-cutting assumptions during scoping, add them to the existing template in `methodology/assumptions-register.md`.
+If you identify any cross-cutting assumptions during scoping, add them to the existing template in `{{lisa_root}}/methodology/assumptions-register.md`.
 
 ---
 
@@ -581,7 +581,7 @@ When resolving the test framework, also define and document the categorization m
 - How are DDV tests filtered by verification level?
 - Does the framework need any configuration to support this? (e.g., marker registration, custom test runners)
 
-Document the chosen mechanism in `AGENTS.md` by filling in the test command sections with
+Document the chosen mechanism in `{{lisa_root}}/AGENTS.md` by filling in the test command sections with
 concrete commands that select each category. Examples:
 
 For Python/pytest:
@@ -598,13 +598,13 @@ For Julia:
   Run Software Tests: `julia --project test/run_software.jl`
 
 Include any framework configuration needed to make the categorization work as the first
-infrastructure task in `methodology/plan.md`.
+infrastructure task in `{{lisa_root}}/methodology/plan.md`.
 
 ---
 
 ### 9. Code Organization
 
-Establish the code layout in `AGENTS.md` (append to the existing file, do not overwrite):
+Establish the code layout in `{{lisa_root}}/AGENTS.md` (append to the existing file, do not overwrite):
 
 ```
 ## Code Organization
@@ -621,7 +621,7 @@ If during scoping you identify shared infrastructure needs (e.g., common physica
 
 ---
 
-### 10. `spiral/pass-0/PASS_COMPLETE.md`
+### 10. `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md`
 
 Create this file **last**, after all other artifacts are complete.
 
@@ -632,20 +632,20 @@ Create this file **last**, after all other artifacts are complete.
 [One paragraph summary of what was established]
 
 ## Artifacts Produced
-- AGENTS.md (resolved technology stack, concrete commands)
-- methodology/methodology.md
-- methodology/plan.md
-- methodology/verification-cases.md
-- methodology/overview.md
-- spiral/pass-0/acceptance-criteria.md
-- spiral/pass-0/validation-strategy.md
-- spiral/pass-0/sanity-checks.md
-- spiral/pass-0/literature-survey.md
-- spiral/pass-0/spiral-plan.md
-- spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)
-- validation/sanity-checks.md
-- validation/limiting-cases.md
-- validation/reference-data.md
+- {{lisa_root}}/AGENTS.md (resolved technology stack, concrete commands)
+- {{lisa_root}}/methodology/methodology.md
+- {{lisa_root}}/methodology/plan.md
+- {{lisa_root}}/methodology/verification-cases.md
+- {{lisa_root}}/methodology/overview.md
+- {{lisa_root}}/spiral/pass-0/acceptance-criteria.md
+- {{lisa_root}}/spiral/pass-0/validation-strategy.md
+- {{lisa_root}}/spiral/pass-0/sanity-checks.md
+- {{lisa_root}}/spiral/pass-0/literature-survey.md
+- {{lisa_root}}/spiral/pass-0/spiral-plan.md
+- {{lisa_root}}/spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)
+- {{lisa_root}}/validation/sanity-checks.md
+- {{lisa_root}}/validation/limiting-cases.md
+- {{lisa_root}}/validation/reference-data.md
 
 ## Key Decisions
 [List the most important scoping decisions made]
@@ -661,8 +661,8 @@ Create this file **last**, after all other artifacts are complete.
 ### Literature Grounding
 
 - **Every method choice must trace to a peer-reviewed source.** Cite author(s), year, title, and DOI/URL.
-- **Never fabricate equations from memory.** If you need an equation, find it in a paper in `references/` or search the web for it. If the full paper is not available, flag it for the human with `[NEEDS_PAPER]`.
-- **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `references/retrieved/` with the citation and key equations.
+- **Never fabricate equations from memory.** If you need an equation, find it in a paper in `{{lisa_root}}/references/` or search the web for it. If the full paper is not available, flag it for the human with `[NEEDS_PAPER]`.
+- **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `{{lisa_root}}/references/retrieved/` with the citation and key equations.
 - **Document alternatives considered.** For each method choice, briefly state what other approaches exist and why you chose this one.
 
 ### Engineering Judgment

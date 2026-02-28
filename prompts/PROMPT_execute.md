@@ -17,12 +17,12 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — the question we're answering
-- `AGENTS.md` — build/test/run commands
-- `methodology/methodology.md` — the methods being used
-- `methodology/plan.md` — what was implemented
+- `{{lisa_root}}/AGENTS.md` — build/test/run commands
+- `{{lisa_root}}/methodology/methodology.md` — the methods being used
+- `{{lisa_root}}/methodology/plan.md` — what was implemented
 - All code in `src/`
 - Test results from the build phase (check test output or run the test suite)
-- `spiral/pass-0/acceptance-criteria.md` — what success looks like
+- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 
 ### 2. Integration and Runner
 
@@ -51,7 +51,7 @@ Run the complete system. Capture:
 
 ### 4. Produce Execution Report
 
-Create/update `spiral/pass-N/execution-report.md`:
+Create/update `{{lisa_root}}/spiral/pass-N/execution-report.md`:
 
 ```markdown
 # Pass N — Execution Report
