@@ -63,16 +63,11 @@ fn main() -> Result<()> {
                     orchestrator::finalize(&config, &project_root(), pass)
                 }
                 state::SpiralState::Complete { final_pass } => {
-                    terminal::log_info(&format!(
-                        "Spiral already complete at pass {}.",
-                        final_pass
-                    ));
+                    terminal::log_info(&format!("Spiral already complete at pass {}.", final_pass));
                     Ok(())
                 }
                 _ => {
-                    terminal::log_error(
-                        "Cannot finalize: no pass has been completed yet.",
-                    );
+                    terminal::log_error("Cannot finalize: no pass has been completed yet.");
                     Ok(())
                 }
             }
@@ -110,10 +105,7 @@ fn cmd_status() -> Result<()> {
             // Check if spiral is complete
             if lisa_root.join("spiral/SPIRAL_COMPLETE.md").exists() {
                 println!();
-                terminal::println_colored(
-                    "  Spiral COMPLETE — answer accepted.",
-                    Color::Green,
-                );
+                terminal::println_colored("  Spiral COMPLETE — answer accepted.", Color::Green);
             }
 
             // Show pass artifacts

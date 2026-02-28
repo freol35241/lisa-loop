@@ -7,7 +7,11 @@ use crate::git;
 use crate::terminal;
 
 /// Check that the DDV Red agent didn't access source files (isolation violation)
-pub fn verify_ddv_isolation(tool_log: &[ToolCall], config: &Config, project_root: &Path) -> Result<()> {
+pub fn verify_ddv_isolation(
+    tool_log: &[ToolCall],
+    config: &Config,
+    project_root: &Path,
+) -> Result<()> {
     let source_dirs = &config.paths.source;
 
     let violations: Vec<&ToolCall> = tool_log
@@ -65,9 +69,7 @@ fn is_under_source(path: &str, source_dirs: &[String], project_root: &Path) -> b
 fn command_references_source(command: &str, source_dirs: &[String]) -> bool {
     for src in source_dirs {
         // Look for cat/head/tail/less/more of source files
-        if command.contains(&format!(" {}/", src))
-            || command.contains(&format!(" ./{}/", src))
-        {
+        if command.contains(&format!(" {}/", src)) || command.contains(&format!(" ./{}/", src)) {
             return true;
         }
     }

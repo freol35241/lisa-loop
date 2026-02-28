@@ -49,10 +49,7 @@ pub fn run_agent(
     let mut tool_log = Vec::new();
     let mut result_text = String::new();
 
-    terminal::log_info(&format!(
-        "Calling agent: {} (model: {})",
-        label, model
-    ));
+    terminal::log_info(&format!("Calling agent: {} (model: {})", label, model));
 
     let is_tty = std::io::stdout().is_terminal();
     if collapse_output && is_tty {
@@ -152,10 +149,8 @@ pub fn run_agent(
                                 }
                                 Some("tool_use") => {
                                     stats.tool_count += 1;
-                                    let name = item
-                                        .get("name")
-                                        .and_then(|n| n.as_str())
-                                        .unwrap_or("");
+                                    let name =
+                                        item.get("name").and_then(|n| n.as_str()).unwrap_or("");
                                     let input_val =
                                         item.get("input").cloned().unwrap_or(Value::Null);
 
@@ -278,10 +273,7 @@ fn format_tool_detail(name: &str, input: &Value) -> String {
             format!("Write {}", path)
         }
         "Bash" => {
-            let cmd = input
-                .get("command")
-                .and_then(|c| c.as_str())
-                .unwrap_or("");
+            let cmd = input.get("command").and_then(|c| c.as_str()).unwrap_or("");
             let first_line = cmd.lines().next().unwrap_or("");
             let truncated = if first_line.len() > 80 {
                 &first_line[..80]
@@ -291,17 +283,11 @@ fn format_tool_detail(name: &str, input: &Value) -> String {
             format!("Bash $ {}", truncated)
         }
         "Glob" => {
-            let pattern = input
-                .get("pattern")
-                .and_then(|p| p.as_str())
-                .unwrap_or("");
+            let pattern = input.get("pattern").and_then(|p| p.as_str()).unwrap_or("");
             format!("Glob {}", pattern)
         }
         "Grep" => {
-            let pattern = input
-                .get("pattern")
-                .and_then(|p| p.as_str())
-                .unwrap_or("");
+            let pattern = input.get("pattern").and_then(|p| p.as_str()).unwrap_or("");
             format!("Grep {}", pattern)
         }
         "Task" => {

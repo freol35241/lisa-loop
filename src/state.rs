@@ -64,8 +64,7 @@ pub fn load_state(lisa_root: &Path) -> Result<SpiralState> {
     }
     let content = std::fs::read_to_string(&state_path)
         .with_context(|| format!("Failed to read {}", state_path.display()))?;
-    let file: StateFile =
-        toml::from_str(&content).with_context(|| "Failed to parse state.toml")?;
+    let file: StateFile = toml::from_str(&content).with_context(|| "Failed to parse state.toml")?;
     Ok(file.state)
 }
 
