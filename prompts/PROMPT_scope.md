@@ -4,12 +4,35 @@ You are a research engineer establishing the scope, acceptance criteria, methodo
 
 **You have no memory of previous invocations. The filesystem is your shared state. Read it carefully.**
 
-## Your Task
+## Your Task — Phased Workflow
 
-1. Read `BRIEF.md` to understand the project goals.
-2. Read all reference papers in `references/core/`.
-3. Read `AGENTS.md` for any project-specific operational guidance.
-4. Produce all artifacts listed below.
+### Phase 1: READ INPUTS
+Read `BRIEF.md`, `AGENTS.md`, and skim `references/core/`.
+
+### Phase 2: DELEGATE RESEARCH
+Spawn the **Literature Survey** and **Environment Probe** subagents (they are independent — delegate back-to-back). Wait for results.
+
+### Phase 3: FIRST SYNTHESIS
+Synthesize subagent results. Select methodology and technology stack. Write:
+- `methodology/methodology.md`
+- `methodology/overview.md`
+- `spiral/pass-0/acceptance-criteria.md`
+- Update `AGENTS.md` with resolved technology stack
+
+### Phase 4: DELEGATE VALIDATION
+Spawn the **Validation Research** and **Test Framework Research** subagents (they are independent — delegate back-to-back). Wait for results.
+
+### Phase 5: FINAL SYNTHESIS
+Synthesize subagent results. Write all remaining artifacts:
+- `methodology/verification-cases.md`
+- `methodology/plan.md`
+- `spiral/pass-0/validation-strategy.md`
+- `spiral/pass-0/sanity-checks.md` (+ copy to `validation/sanity-checks.md`)
+- `spiral/pass-0/literature-survey.md` (review/augment subagent output)
+- `spiral/pass-0/spiral-plan.md`
+- `validation/limiting-cases.md`
+- `validation/reference-data.md`
+- `spiral/pass-0/PASS_COMPLETE.md` (last)
 
 ## Scope Feedback (Refinement Re-invocation)
 
@@ -23,6 +46,121 @@ Common feedback patterns:
 - Scope progression too aggressive → widen early-pass tolerances, reduce Pass 1 scope
 - Wrong technology choice → update AGENTS.md, review methodology for implications
 - Missing validation strategy → add sanity checks, limiting cases, or reference data
+
+If re-invoked with scope feedback, read the feedback first and only delegate subagents for
+areas that need revision. For minor feedback (e.g., tightening tolerances, adjusting spiral
+staging), address it directly without re-delegating.
+
+## Research Delegation
+
+You have access to the Task tool for delegating focused research tasks. Use it to manage
+your context budget. Do NOT try to do all research yourself — delegate data-gathering,
+then synthesize the results.
+
+### Literature Survey subagent
+Delegate when: Always (Phase 2, first delegation).
+Prompt pattern: "Read BRIEF.md and all papers in references/core/. Search the web for
+candidate methods for [problem from BRIEF.md]. For each candidate: provide full citation
+(author(s), year, title, DOI/URL), approach description, fidelity level, assumptions,
+valid range, pros/cons for our problem. Evaluate alternatives. Save paper summaries to
+references/retrieved/ with citations and key equations. Write the complete literature
+survey to spiral/pass-0/literature-survey.md using this template:
+
+# Literature Survey
+
+## Methods Surveyed
+
+### [Topic/Phenomenon A]
+
+#### [Method 1 Name]
+- **Source:** [Author(s), Year, Title, DOI/URL]
+- **Approach:** [Brief description]
+- **Fidelity:** [Low / Medium / High]
+- **Assumptions:** [Key assumptions]
+- **Valid range:** [Where it applies]
+- **Pros:** [Advantages for our problem]
+- **Cons:** [Disadvantages or limitations]
+- **Available:** [YES / NEEDS_PAPER]
+
+#### Recommended Approach for [Topic A]
+[Which method(s) to use and why]
+
+## Papers Retrieved
+[List papers saved to references/retrieved/ with full citations]
+
+## Papers Needed
+[Papers flagged with NEEDS_PAPER that the human should provide]
+
+Rules: Every method candidate must cite a peer-reviewed source. Never fabricate equations
+from memory. Prefer open-access papers. Document alternatives considered for each phenomenon."
+
+### Environment Probe subagent
+Delegate when: Always (Phase 2, independent of literature survey — delegate back-to-back).
+Prompt pattern: "Probe the local development environment. Run concrete version checks for
+all common runtimes and tools: python3 --version, pip --version, pip list, node --version,
+npm --version, cargo --version, rustc --version, gcc --version, g++ --version,
+gfortran --version, julia --version, and any others relevant. Do NOT install anything or
+make technology decisions — report findings only. Return a structured report:
+
+## Runtimes Found
+- [Tool]: [version]
+
+## Runtimes Not Found
+- [Tool]: not available
+
+## Package Managers
+- [Manager]: [version], [number of packages installed]
+
+## Notable Installed Packages
+- [Package]: [version]
+
+Record actual command output. Do not guess based on training data."
+
+### Validation Research subagent
+Delegate when: After methodology.md is written (Phase 4).
+Prompt pattern: "Read BRIEF.md and methodology/methodology.md. Search papers and the web
+for: limiting cases where the answer is known analytically, reference datasets for
+comparison, conservation laws that must be satisfied, order-of-magnitude estimates from
+first principles, and cross-validation opportunities using independent methods. Return
+structured findings organized by category:
+
+## Known Limiting Cases
+- [Case]: When [condition], result should be [value] because [reason]. Source: [citation].
+
+## Reference Data
+- [Dataset]: [Source citation], [what it measures], [how to compare].
+
+## Conservation Laws
+- [Law]: [Statement], [how to check in our system].
+
+## Order-of-Magnitude Estimates
+- [Quantity]: Estimate [value] [units] based on [reasoning].
+
+## Cross-Validation Opportunities
+- [Method]: [How it can corroborate results]."
+
+### Test Framework Research subagent
+Delegate when: After technology stack is selected (Phase 4).
+Prompt pattern: "Given this technology stack: [language] with [test framework]. Research
+how to implement a three-category test structure: DDV tests (tests/ddv/), software tests
+(tests/software/), and integration tests (tests/integration/). DDV tests need L0/L1
+level filtering. Return:
+
+## Test Commands
+- Run all tests: [command]
+- Run DDV tests only: [command]
+- Run software tests only: [command]
+- Run integration tests only: [command]
+- Run DDV L0 only: [command]
+- Run DDV L1 only: [command]
+
+## Configuration Required
+[Any config files, marker registration, conftest.py, Cargo.toml settings, etc.]
+
+## Infrastructure Task Description
+[What needs to be set up as the first task in the implementation plan — concrete steps]"
+
+---
 
 ## Artifacts to Produce
 
@@ -148,17 +286,9 @@ Before probing the environment, reason about the best technology stack for this 
 
 #### Probe the Local Environment
 
-**You must actually execute commands to check what is installed — do not guess based on training data.** Run concrete commands such as:
-
-- `python3 --version`, `python3 -c "import sys; print(sys.version)"`
-- `pip --version`, `pip list`
-- `node --version`, `npm --version`
-- `cargo --version`, `rustc --version`
-- `gcc --version`, `g++ --version`, `gfortran --version`
-- `julia --version`
-- Any other runtime relevant to the chosen stack
-
-Record actual versions found. This is critical for reproducibility and for detecting missing tooling early.
+The Environment Probe subagent has already checked what runtimes and tools are available.
+Synthesize its report here: verify it covers all runtimes needed for your chosen stack,
+and note any gaps that require human resolution.
 
 #### Handle Two Categories of Dependencies
 
@@ -338,11 +468,11 @@ Survey of candidate methods, organized by topic/phenomenon:
 [Papers flagged with [NEEDS_PAPER] that the human should provide]
 ```
 
-**Rules for literature survey:**
-- **Every method candidate must cite a peer-reviewed source.** Author(s), year, title, and DOI/URL.
-- **Never fabricate equations from memory.** If you need an equation, find it in a paper in `references/` or search the web for it.
-- **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `references/retrieved/` with the citation and key equations.
-- **Document alternatives considered.** For each phenomenon, list multiple candidate methods before recommending one.
+The **Literature Survey subagent** has produced this artifact. Review it, augment with your
+own judgment if needed, and ensure it meets the template above. Verify that:
+- Every method candidate cites a peer-reviewed source (author(s), year, title, DOI/URL)
+- Alternatives are documented for each phenomenon
+- Papers saved to `references/retrieved/` have proper citations and key equations
 
 #### `spiral/pass-0/spiral-plan.md` — Scope Progression
 
