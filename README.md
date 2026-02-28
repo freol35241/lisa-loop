@@ -27,7 +27,7 @@ cargo install --path .
 lisa init resolve-assignment
 ```
 
-3. Edit `.lisa/BRIEF.md` with your project description
+3. Edit `ASSIGNMENT.md` with your project description
 4. Add reference papers to `.lisa/references/core/`
 5. Run:
 
@@ -182,13 +182,13 @@ When tasks are blocked (methodology issues, DDV disagreements), the block gate s
 
 When the human accepts:
 
-1. **`.lisa/output/answer.md`** — Direct response to the question in BRIEF.md
+1. **`.lisa/output/answer.md`** — Direct response to the question in ASSIGNMENT.md
 2. **`.lisa/output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, progress tables, assumptions, limitations, traceability
 
 ## Traceability Chain
 
 ```
-.lisa/BRIEF.md → acceptance criteria
+ASSIGNMENT.md → acceptance criteria
   → scope (.lisa/spiral/pass-0/) — human-refined scope, fidelity progression, validation strategy
     → methodology (.lisa/methodology/methodology.md)
       → authoritative domain source (.lisa/references/)
@@ -275,9 +275,9 @@ project-root/
 ├── Cargo.toml                          # Rust project configuration
 ├── src/                                # Lisa Loop CLI source code
 │
+├── ASSIGNMENT.md                       # Project description (user writes)
 ├── .lisa/                              # Process artifacts root
 │   ├── lisa.toml                       # Configuration
-│   ├── BRIEF.md                        # Project description (user writes)
 │   ├── AGENTS.md                       # Build/test/plot commands
 │   │
 │   ├── methodology/

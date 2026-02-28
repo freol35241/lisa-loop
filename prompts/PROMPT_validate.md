@@ -14,7 +14,7 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 
 Read **all** of the following:
 
-- `BRIEF.md` — project goals
+- `ASSIGNMENT.md` — project goals
 - `AGENTS.md` — build/test/plot commands
 - `methodology/methodology.md` — the methodology
 - `spiral/pass-0/acceptance-criteria.md` — what success looks like
@@ -206,7 +206,7 @@ This is the primary artifact for human review. Use this **exact format**:
 # Spiral Pass N — Review Package
 
 ## Current Answer
-[The quantitative answer to BRIEF.md]
+[The quantitative answer to ASSIGNMENT.md]
 
 ## Pass Scope (from spiral-plan.md)
 [What scope subset and fidelity level this pass covers]

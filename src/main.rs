@@ -126,9 +126,9 @@ fn cmd_status() -> Result<()> {
                 terminal::println_colored("  Spiral COMPLETE — answer accepted.", Color::Green);
 
                 // Show follow-up count
-                let brief_path = lisa_root.join("BRIEF.md");
-                if let Ok(brief_content) = std::fs::read_to_string(&brief_path) {
-                    let follow_ups = brief_content
+                let assignment_path = root.join("ASSIGNMENT.md");
+                if let Ok(assignment_content) = std::fs::read_to_string(&assignment_path) {
+                    let follow_ups = assignment_content
                         .lines()
                         .filter(|l| l.starts_with("## Follow-up "))
                         .count();
@@ -250,14 +250,14 @@ fn cmd_doctor() -> Result<()> {
             }
         }
 
-        // Check BRIEF.md
-        let brief = lisa_root.join("BRIEF.md");
-        if brief.exists() {
+        // Check ASSIGNMENT.md (lives in project root, not .lisa/)
+        let assignment = root.join("ASSIGNMENT.md");
+        if assignment.exists() {
             terminal::print_colored("  ✓", Color::Green);
-            println!(" BRIEF.md exists");
+            println!(" ASSIGNMENT.md exists");
         } else {
             terminal::print_colored("  ✗", Color::Red);
-            println!(" BRIEF.md missing");
+            println!(" ASSIGNMENT.md missing");
         }
     } else {
         terminal::print_colored("  ○", Color::Yellow);

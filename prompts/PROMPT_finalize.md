@@ -12,7 +12,7 @@ Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells yo
 
 Read **all** of the following:
 
-- `{{lisa_root}}/BRIEF.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
+- `ASSIGNMENT.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
 - `{{lisa_root}}/AGENTS.md` — project-specific operational guidance
 - The review package for the final pass: `{{lisa_root}}/spiral/pass-N/review-package.md` (where N is the current pass)
 - `{{lisa_root}}/spiral/pass-N/progress-tracking.md` — progress tracking
@@ -22,7 +22,7 @@ Read **all** of the following:
 
 ### 2. Produce Deliverables
 
-Read the "Deliverables" and "Deliverable format" sections of `{{lisa_root}}/BRIEF.md`.
+Read the "Deliverables" and "Deliverable format" sections of `ASSIGNMENT.md`.
 Produce the specified deliverables at the locations described in the brief.
 If the brief doesn't specify locations, place deliverables in the project root.
 
@@ -34,7 +34,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 # Audit Summary
 
 ## Assignment
-[From BRIEF.md]
+[From ASSIGNMENT.md]
 
 ## Deliverables Produced
 [List with paths]
@@ -58,7 +58,7 @@ See {{lisa_root}}/methodology/assumptions-register.md
 
 ## Rules
 
-- You MUST produce all deliverables specified in BRIEF.md
+- You MUST produce all deliverables specified in ASSIGNMENT.md
 - You MUST produce the audit summary
 - Base your outputs on the accepted review package and validation results
 - Do not change any source code, tests, or methodology files

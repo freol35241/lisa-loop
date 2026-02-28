@@ -16,7 +16,7 @@ number. Look for lines starting with `Current spiral pass:` and `Previous pass r
 
 Read **all** of the following:
 
-- `BRIEF.md` — project goals
+- `ASSIGNMENT.md` — project goals
 - `AGENTS.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
 - `methodology/methodology.md` — the current methodology
 - `methodology/plan.md` — the current implementation plan

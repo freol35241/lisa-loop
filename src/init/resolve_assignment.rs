@@ -7,7 +7,7 @@ use crate::config::default_config_toml;
 use crate::terminal;
 
 // Compiled-in templates
-const BRIEF_TEMPLATE: &str = include_str!("../../templates/brief.md");
+const ASSIGNMENT_TEMPLATE: &str = include_str!("../../templates/assignment.md");
 const AGENTS_TEMPLATE: &str = include_str!("../../templates/agents.md");
 const METHODOLOGY_TEMPLATE: &str = include_str!("../../templates/methodology.md");
 const PLAN_TEMPLATE: &str = include_str!("../../templates/plan.md");
@@ -94,8 +94,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     let config_content = default_config_toml(&project_name);
     write_file(&lisa_root.join("lisa.toml"), &config_content)?;
 
-    // Write BRIEF.md
-    write_file(&lisa_root.join("BRIEF.md"), BRIEF_TEMPLATE)?;
+    // Write ASSIGNMENT.md (in project root, not inside .lisa/)
+    write_file(&project_root.join("ASSIGNMENT.md"), ASSIGNMENT_TEMPLATE)?;
 
     // Write AGENTS.md with optional tech preference
     let agents_content = if tech_pref.is_empty() {
@@ -177,7 +177,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     terminal::println_bold("  Created:");
     terminal::print_colored("    .lisa/lisa.toml              ", Color::Cyan);
     println!("Configuration");
-    terminal::print_colored("    .lisa/BRIEF.md               ", Color::Cyan);
+    terminal::print_colored("    ASSIGNMENT.md                ", Color::Cyan);
     println!("Edit with your full assignment");
     terminal::print_colored("    .lisa/references/core/       ", Color::Cyan);
     println!("Add reference papers here");
@@ -200,7 +200,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!();
 
     terminal::println_bold("  Next steps:");
-    println!("    1. Edit .lisa/BRIEF.md with the full assignment");
+    println!("    1. Edit ASSIGNMENT.md with the full assignment");
     println!("    2. Add reference papers to .lisa/references/core/");
     println!("    3. Run: lisa run");
     println!();

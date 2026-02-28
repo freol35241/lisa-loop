@@ -24,7 +24,7 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 
 Read **all** of the following:
 
-- `BRIEF.md` — project goals
+- `ASSIGNMENT.md` — project goals
 - `AGENTS.md` — build/test/plot commands, test framework
 - `methodology/methodology.md` — equations and methods to verify
 - `methodology/verification-cases.md` — existing verification case specifications

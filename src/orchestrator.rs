@@ -687,11 +687,10 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
          Read the review package at {}/spiral/pass-{}/review-package.md for the current answer.\n\
          Read all {}/spiral/pass-*/progress-tracking.md files for the progress history.\n\
          Read {}/methodology/methodology.md for the methodology.\n\
-         Produce the deliverables specified in {}/BRIEF.md.",
+         Produce the deliverables specified in ASSIGNMENT.md.",
         pass,
         config.paths.lisa_root,
         pass,
-        config.paths.lisa_root,
         config.paths.lisa_root,
         config.paths.lisa_root,
     );
@@ -839,21 +838,21 @@ pub fn continue_spiral(
     };
 
     // Determine follow-up number
-    let brief_path = lisa_root.join("BRIEF.md");
-    let brief_content = std::fs::read_to_string(&brief_path).unwrap_or_default();
-    let follow_up_num = count_follow_ups(&brief_content) + 1;
+    let assignment_path = project_root.join("ASSIGNMENT.md");
+    let assignment_content = std::fs::read_to_string(&assignment_path).unwrap_or_default();
+    let follow_up_num = count_follow_ups(&assignment_content) + 1;
 
     terminal::log_phase(&format!(
         "CONTINUE — Follow-up {} (after pass {})",
         follow_up_num, final_pass
     ));
 
-    // Append follow-up to BRIEF.md
+    // Append follow-up to ASSIGNMENT.md
     let appendix = format!("\n\n## Follow-up {}\n\n{}\n", follow_up_num, question);
-    let updated_brief = format!("{}{}", brief_content, appendix);
-    std::fs::write(&brief_path, &updated_brief)?;
+    let updated = format!("{}{}", assignment_content, appendix);
+    std::fs::write(&assignment_path, &updated)?;
     terminal::log_success(&format!(
-        "Appended follow-up {} to BRIEF.md.",
+        "Appended follow-up {} to ASSIGNMENT.md.",
         follow_up_num
     ));
 
@@ -891,9 +890,9 @@ pub fn continue_spiral(
     run(&config, project_root, Some(effective_max), no_pause)
 }
 
-/// Count the number of `## Follow-up` sections in BRIEF.md content.
-fn count_follow_ups(brief_content: &str) -> u32 {
-    brief_content
+/// Count the number of `## Follow-up` sections in ASSIGNMENT.md content.
+fn count_follow_ups(content: &str) -> u32 {
+    content
         .lines()
         .filter(|line| line.starts_with("## Follow-up "))
         .count() as u32
@@ -905,13 +904,13 @@ mod tests {
 
     #[test]
     fn test_count_follow_ups_none() {
-        let content = "# Assignment Brief\n\n## Assignment\nSolve X.\n";
+        let content = "# Assignment\n\n## Assignment\nSolve X.\n";
         assert_eq!(count_follow_ups(content), 0);
     }
 
     #[test]
     fn test_count_follow_ups_multiple() {
-        let content = "# Assignment Brief\n\n## Assignment\nSolve X.\n\n\
+        let content = "# Assignment\n\n## Assignment\nSolve X.\n\n\
                         ## Follow-up 1\n\nWhat about Y?\n\n\
                         ## Follow-up 2\n\nAlso Z?\n";
         assert_eq!(count_follow_ups(content), 2);
@@ -925,13 +924,13 @@ mod tests {
 
     #[test]
     fn test_append_follow_up_format() {
-        let original = "# Assignment Brief\n\n## Assignment\nSolve X.\n";
+        let original = "# Assignment\n\n## Assignment\nSolve X.\n";
         let follow_up_num = 1u32;
         let question = "What about edge case Y?";
         let appendix = format!("\n\n## Follow-up {}\n\n{}\n", follow_up_num, question);
         let result = format!("{}{}", original, appendix);
 
-        assert!(result.starts_with("# Assignment Brief"));
+        assert!(result.starts_with("# Assignment"));
         assert!(result.contains("## Follow-up 1"));
         assert!(result.contains("What about edge case Y?"));
         assert!(result.contains("## Assignment\nSolve X."));

@@ -7,7 +7,7 @@ You are a research engineer establishing the scope, acceptance criteria, methodo
 ## Your Task — Phased Workflow
 
 ### Phase 1: READ INPUTS
-Read `BRIEF.md`, `AGENTS.md`, and skim `references/core/`.
+Read `ASSIGNMENT.md`, `AGENTS.md`, and skim `references/core/`.
 
 ### Phase 2: DELEGATE RESEARCH
 Spawn the **Literature Survey** and **Environment Probe** subagents (they are independent — delegate back-to-back). Wait for results.
@@ -59,8 +59,8 @@ then synthesize the results.
 
 ### Literature Survey subagent
 Delegate when: Always (Phase 2, first delegation).
-Prompt pattern: "Read BRIEF.md and all papers in references/core/. Search the web for
-candidate methods for [problem from BRIEF.md]. For each candidate: provide full citation
+Prompt pattern: "Read ASSIGNMENT.md and all papers in references/core/. Search the web for
+candidate methods for [problem from ASSIGNMENT.md]. For each candidate: provide full citation
 (author(s), year, title, DOI/URL), approach description, fidelity level, assumptions,
 valid range, pros/cons for our problem. Evaluate alternatives. Save paper summaries to
 references/retrieved/ with citations and key equations. Write the complete literature
@@ -118,7 +118,7 @@ Record actual command output. Do not guess based on training data."
 
 ### Validation Research subagent
 Delegate when: After methodology.md is written (Phase 4).
-Prompt pattern: "Read BRIEF.md and methodology/methodology.md. Search papers and the web
+Prompt pattern: "Read ASSIGNMENT.md and methodology/methodology.md. Search papers and the web
 for: limiting cases where the answer is known analytically, reference datasets for
 comparison, conservation laws that must be satisfied, order-of-magnitude estimates from
 first principles, and cross-validation opportunities using independent methods. Return
@@ -180,7 +180,7 @@ Populate `methodology/methodology.md`:
 # Methodology
 
 ## Phenomenon
-[What this project models — from BRIEF.md]
+[What this project models — from ASSIGNMENT.md]
 
 ## Candidate Methods
 
@@ -349,7 +349,7 @@ Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, t
 # Acceptance Criteria
 
 ## Primary Question
-[What question are we answering? Restate from BRIEF.md in precise terms.]
+[What question are we answering? Restate from ASSIGNMENT.md in precise terms.]
 
 ## Success Criteria
 [For each key output:]
@@ -524,7 +524,7 @@ Populate with system description and modeling approach:
 # Methodology Overview
 
 ## System Description
-[What physical system is being modeled, from BRIEF.md]
+[What physical system is being modeled, from ASSIGNMENT.md]
 
 ## Modeling Approach
 [High-level description of the recommended approach, from literature survey]

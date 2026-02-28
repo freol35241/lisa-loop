@@ -1,4 +1,4 @@
-# Assignment Brief
+# Assignment
 
 ## Assignment
 [Describe what you need solved, built, or analyzed]

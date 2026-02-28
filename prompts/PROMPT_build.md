@@ -12,7 +12,7 @@ number. Look for `Current spiral pass:` at the top of this prompt.
 
 ## Your Task
 
-1. Read `BRIEF.md` for project context.
+1. Read `ASSIGNMENT.md` for project context.
 2. Read `AGENTS.md` for build/test/plot commands.
 3. Read `methodology/plan.md` to find the next task.
 4. Read `methodology/methodology.md` for the equations to implement (relevant section only — the task tells you which section).

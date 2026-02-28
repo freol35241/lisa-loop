@@ -3,7 +3,7 @@
 You are a senior engineer assembling and running the complete system. The code has been
 implemented and passes its unit tests. Your job is to:
 1. Write or update the integration/runner code that chains everything together
-2. Run the system end-to-end and produce the actual answer to the question in BRIEF.md
+2. Run the system end-to-end and produce the actual answer to the question in ASSIGNMENT.md
 3. Surface any system-level problems
 
 You have no memory of previous invocations. The filesystem is your shared state.
@@ -16,7 +16,7 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 
 Read **all** of the following:
 
-- `BRIEF.md` — the question we're answering
+- `ASSIGNMENT.md` — the question we're answering
 - `AGENTS.md` — build/test/run commands
 - `methodology/methodology.md` — the methods being used
 - `methodology/plan.md` — what was implemented
@@ -30,7 +30,7 @@ Write or update code that:
 1. Chains the implemented modules together in the correct order
 2. Feeds the outputs of earlier computations as inputs to later ones
 3. Handles the data flow from initial conditions to final answer
-4. Produces a clear, quantitative answer to the question in BRIEF.md
+4. Produces a clear, quantitative answer to the question in ASSIGNMENT.md
 
 This code lives in `src/` (e.g., `src/main.py` or `src/runner.py`). It is real, committed code
 that can be re-run — not a one-off script.
@@ -57,7 +57,7 @@ Create/update `spiral/pass-N/execution-report.md`:
 # Pass N — Execution Report
 
 ## Answer
-[The quantitative answer to BRIEF.md as of this pass]
+[The quantitative answer to ASSIGNMENT.md as of this pass]
 
 ## Execution
 - Runtime: [time]
@@ -83,11 +83,11 @@ for engineering judgment checks.]
 - Rule of thumb: if a file has corresponding tests in `tests/ddv/`, don't touch it.
 - You MUST NOT modify DDV tests in `tests/ddv/`
 - You MUST produce the execution report
-- You MUST produce a concrete answer to BRIEF.md — even if approximate or known to be rough
+- You MUST produce a concrete answer to ASSIGNMENT.md — even if approximate or known to be rough
 
 ## Output
 
 Provide a brief summary of:
-- The current answer to BRIEF.md
+- The current answer to ASSIGNMENT.md
 - Any system-level problems discovered
 - Integration test results

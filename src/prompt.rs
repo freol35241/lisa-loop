@@ -97,7 +97,7 @@ pub fn build_context_preamble(
 - Lisa root: {}
 
 ### Paths
-- BRIEF: {}/BRIEF.md
+- ASSIGNMENT: ASSIGNMENT.md
 - AGENTS: {}/AGENTS.md
 - Methodology: {}/methodology/
 - Spiral: {}/spiral/
@@ -114,7 +114,6 @@ pub fn build_context_preamble(
 - Phase: {}
 "#,
         config.project.name,
-        lisa_root,
         lisa_root,
         lisa_root,
         lisa_root,
@@ -203,9 +202,9 @@ mod tests {
     #[test]
     fn test_render_prompt_substitutions() {
         let config = test_config();
-        let prompt = "Read {{lisa_root}}/BRIEF.md and {{tests_ddv}}/ tests.";
+        let prompt = "Read ASSIGNMENT.md and {{tests_ddv}}/ tests.";
         let rendered = render_prompt(prompt, &config);
-        assert_eq!(rendered, "Read .lisa/BRIEF.md and tests/ddv/ tests.");
+        assert_eq!(rendered, "Read ASSIGNMENT.md and tests/ddv/ tests.");
     }
 
     #[test]
