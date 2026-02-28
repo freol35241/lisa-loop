@@ -29,7 +29,7 @@ If this is **Pass 1** (first refine):
 - Read `spiral/pass-0/spiral-plan.md` — determine what scope subset and fidelity this pass targets. Your methodology refinement and plan should address ONLY this pass's scope, not the full problem.
 
 If this is **Pass N > 1**:
-- Read `spiral/pass-{N-1}/convergence.md` — what converged, what didn't
+- Read `spiral/pass-{N-1}/progress-tracking.md` — how outputs changed between passes
 - Read `spiral/pass-{N-1}/review-package.md` — previous pass results
 - Read `spiral/pass-{N-1}/system-validation.md` — what validation checks passed/failed
 - Read `spiral/pass-{N-1}/execution-report.md` — previous execution results
@@ -59,7 +59,7 @@ what would need to change if we [specific methodology change under consideration
 #### Validation review subagent
 Delegate when: pass > 1.
 Prompt pattern: "Read spiral/pass-{N-1}/execution-report.md, spiral/pass-{N-1}/system-validation.md,
-and spiral/pass-{N-1}/convergence.md. Summarize: what passed, what failed, what nearly failed,
+and spiral/pass-{N-1}/progress-tracking.md. Summarize: what passed, what failed, what nearly failed,
 what improved vs previous pass, what the agent recommended. Be concise."
 
 After subagents report back, synthesize their findings into your methodology and plan updates.

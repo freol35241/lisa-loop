@@ -1,8 +1,8 @@
 # Validation Phase — Lisa Loop v2
 
-You are a senior engineer conducting system-level verification, validation, and convergence
-assessment. The system has been executed and produced an answer. Your job is to evaluate that
-answer rigorously and determine if it has converged.
+You are a senior engineer conducting system-level verification, validation, and progress
+tracking. The system has been executed and produced an answer. Your job is to evaluate that
+answer rigorously and present the evidence for human review.
 
 You have no memory of previous invocations. The filesystem is your shared state.
 
@@ -26,11 +26,11 @@ Read **all** of the following:
 - `validation/sanity-checks.md` — living sanity check document
 - `validation/limiting-cases.md` — limiting cases to check
 - `validation/reference-data.md` — reference data to compare against
-- `validation/convergence-log.md` — convergence history
+- `validation/progress-log.md` — progress history
 - `plots/REVIEW.md` — current plot assessments
 
 If this is **Pass N > 1**:
-- Read `spiral/pass-{N-1}/convergence.md` — previous convergence assessment
+- Read `spiral/pass-{N-1}/progress-tracking.md` — previous progress tracking
 - Read `spiral/pass-{N-1}/system-validation.md` — previous validation report
 
 ### 1b. Determine This Pass's Acceptance Targets
@@ -46,7 +46,7 @@ it wouldn't meet final targets.
 
 In the review package, report BOTH:
 - Whether this pass's staged criteria are met
-- How far the result is from the final acceptance target (for convergence tracking)
+- How far the result is from the final acceptance target (for progress tracking)
 
 ### 2. Test Results Summary
 
@@ -102,23 +102,17 @@ Sample key equations: does the code match the methodology?
 - Are valid ranges enforced?
 - Are derivation docs present for non-trivial mappings?
 
-### 6. Convergence Assessment
+### 6. Progress Tracking
 
-Compare key outputs with the previous spiral pass.
+Compare key outputs with the previous spiral pass. Compute and present deltas — do NOT render a convergence verdict. The human decides at the review gate whether to accept or continue.
 
-If this is **Pass 1:** No previous pass to compare. Establish baseline values. Note convergence assessment is not possible yet.
+If this is **Pass 1:** No previous pass to compare. Establish baseline values.
 
 If this is **Pass N > 1:**
-- Read `spiral/pass-{N-1}/convergence.md` for previous values
+- Read `spiral/pass-{N-1}/progress-tracking.md` for previous values
 - For each key output quantity:
   - Compute absolute and relative change from previous pass
-  - Assess whether the change is within the accuracy bounds of the methods used
-  - Determine if the quantity has converged
-
-Overall convergence assessment:
-- **CONVERGED:** All key quantities have stabilized within method accuracy
-- **NOT YET CONVERGED:** Some quantities are still changing significantly
-- **DIVERGING:** Quantities are moving further from expected values (indicates a problem)
+  - Note whether the change is within the accuracy bounds of the methods used
 
 ### 7. Produce Artifacts
 
@@ -171,24 +165,18 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 | [criterion] | [from spiral-plan] | [from acceptance-criteria] | [value] | YES/NO | YES/NO |
 ```
 
-#### `spiral/pass-N/convergence.md`
+#### `spiral/pass-N/progress-tracking.md`
 
 ```markdown
-# Spiral Pass N — Convergence Assessment
+# Spiral Pass N — Progress Tracking
 
 ## Key Quantities
-| Quantity | Pass N-1 | Pass N | Δ (abs) | Δ (%) | Converged? |
-|----------|---------|--------|---------|-------|------------|
-| [qty 1] | [value] | [value] | [value] | [X.X] | [yes/no] |
-
-## Overall Assessment
-[CONVERGED / NOT YET CONVERGED / DIVERGING]
+| Quantity | Pass N-1 | Pass N | Δ (abs) | Δ (%) |
+|----------|---------|--------|---------|-------|
+| [qty 1] | [value] | [value] | [value] | [X.X] |
 
 ## Analysis
-[Why quantities have/haven't converged. What is driving remaining changes.]
-
-## Recommendation
-[ACCEPT: answer has converged / CONTINUE: refine X because Y / BLOCKED: need Z]
+[What is driving changes between passes. Which quantities are stabilizing, which are still shifting.]
 ```
 
 #### `spiral/pass-N/review-package.md`
@@ -205,10 +193,10 @@ This is the primary artifact for human review. Use this **exact format**:
 [What scope subset and fidelity level this pass covers]
 [Staged acceptance for this pass: ±X%]
 
-## Convergence: [CONVERGED / NOT YET / DIVERGING]
-| Quantity | Δ from prev | Converged? |
-|----------|------------|------------|
-| [qty]    | [X.X%]     | [yes/no]   |
+## Progress
+| Quantity | Δ from prev |
+|----------|------------|
+| [qty]    | [X.X%]     |
 
 ## Tests
 DDV: [pass/total] | Software: [pass/total] | Integration: [pass/total]
@@ -226,7 +214,7 @@ These checks require domain expertise and first-principles reasoning:
 2. [Key result] → [is this reasonable? dimensional analysis, conservation, order-of-magnitude]
 
 ## Recommendation
-[ACCEPT / CONTINUE: reason / BLOCKED: reason]
+[ACCEPT: tests pass, sanity checks pass / CONTINUE: reason / BLOCKED: reason]
 
 ## If Continuing — Proposed Refinements
 - [What to change and why]
@@ -234,13 +222,13 @@ These checks require domain expertise and first-principles reasoning:
 ## Details
 - Execution report: spiral/pass-N/execution-report.md
 - Full validation: spiral/pass-N/system-validation.md
-- Convergence: spiral/pass-N/convergence.md
+- Progress: spiral/pass-N/progress-tracking.md
 - Plots: plots/REVIEW.md
 ```
 
-#### Update `validation/convergence-log.md`
+#### Update `validation/progress-log.md`
 
-Append this pass's convergence data to the cumulative log.
+Append this pass's progress data to the cumulative log.
 
 #### Update `plots/REVIEW.md`
 
@@ -255,7 +243,7 @@ Create this file **last**:
 
 Verification: DDV [pass/total], Software [pass/total], Integration [pass/total]
 Validation: [X/Y sanity checks passing]
-Convergence: [CONVERGED / NOT YET CONVERGED / DIVERGING]
+Progress: see progress-tracking.md
 Agent recommendation: [ACCEPT / CONTINUE / BLOCKED]
 ```
 
@@ -267,7 +255,7 @@ recommendation and evidence — not the deliverables themselves.
 
 ## Rules
 
-- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/convergence-log.md`, and `plots/REVIEW.md`.
+- **Do NOT modify source code, methodology, or tests.** This is an audit phase. The only files you create or modify are: `spiral/pass-N/` reports, `validation/progress-log.md`, and `plots/REVIEW.md`.
 - **Do NOT skip any sanity check.** Execute every check in `validation/sanity-checks.md`.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 
@@ -276,5 +264,5 @@ recommendation and evidence — not the deliverables themselves.
 Provide a brief summary of:
 - Test results (DDV, software, integration pass rates)
 - Validation results (sanity check results)
-- Convergence assessment
+- Progress tracking (deltas from previous pass)
 - Your recommendation (ACCEPT, CONTINUE, or BLOCKED with reasons)

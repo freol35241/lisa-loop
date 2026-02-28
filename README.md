@@ -1,17 +1,17 @@
 # Lisa Loop
 
-A methodology and toolbox for solving complex engineering and research problems with AI agents, grounded in peer-reviewed literature, with explicit verification, validation, and convergence tracking.
+A methodology and toolbox for solving complex engineering and research problems with AI agents, grounded in peer-reviewed literature, with explicit verification, validation, and progress tracking.
 
 Lisa Loop fuses two established engineering paradigms:
 
 - **The V-Model** (systems engineering): every level of specification is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
-- **The Design Spiral** (Evans, 1959): the same problem is revisited iteratively at increasing fidelity and scope until the answer converges.
+- **The Design Spiral** (Evans, 1959): the same problem is revisited iteratively at increasing fidelity and scope until the human accepts the answer.
 
 ## Three Absolute Rules
 
 1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper. No method without a citation.
 2. **Engineering judgment is a first-class, auditable artifact.** "Do these numbers make physical sense?" is always asked, and the checks are written down, versioned, and executed.
-3. **The spiral history is the deliverable, not just the answer.** Every methodological choice, every refinement, every convergence step is preserved as a complete record.
+3. **The spiral history is the deliverable, not just the answer.** Every methodological choice, every refinement, every progress step is preserved as a complete record.
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ lisa init resolve-assignment
 5. Run:
 
 ```bash
-# Run the full spiral — scoping through convergence
+# Run the full spiral — scoping through acceptance
 lisa run
 
 # Or step by step:
@@ -63,7 +63,7 @@ lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
                                                              ↓
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         OUTER LOOP: SPIRAL                               │
-│                   (convergence-driven, human-gated)                      │
+│                   (progress-tracked, human-gated)                        │
 │                                                                          │
 │   ┌────────────────┐                                                     │
 │   │    REFINE       │  opus + subagents                                  │
@@ -91,8 +91,8 @@ lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
 │           ↓                                                              │
 │   ┌────────────────┐                                                     │
 │   │   VALIDATE      │  opus                                              │
-│   │   V&V +         │  sanity checks → convergence → recommendation     │
-│   │   convergence   │                                                    │
+│   │   V&V +         │  sanity checks → progress → recommendation        │
+│   │   progress      │                                                    │
 │   └───────┬────────┘                                                     │
 │           ↓                                                              │
 │   ┌───────────────────────────────────────────┐                          │
@@ -153,7 +153,7 @@ The human can iteratively refine scope artifacts before any code exists:
 | DDV Red | opus | Tests only | What should correct results look like? |
 | Build | sonnet (Ralph loop) | Yes | Make the red tests green + software quality |
 | Execute | opus | Runner + integration tests | Does the system produce an answer? |
-| Validate | opus | No | Does the answer converge? |
+| Validate | opus | No | Is the answer ready for acceptance? |
 
 ## Human Interaction
 
@@ -165,11 +165,11 @@ The human can iteratively refine scope artifacts before any code exists:
 ═══════════════════════════════════════════════════════
 
   Answer:      142.3 kN total resistance
-  Convergence: NOT YET (Δ 12% from prev)
+  Progress:    Δ 12% from prev
   Tests:       DDV: 8/8 | Software: 15/15 | Integration: 2/2
   Agent recommends: CONTINUE
 
-  [A] ACCEPT — converged, produce final report
+  [A] ACCEPT — produce final report
   [C] CONTINUE — next spiral pass
   [R] REDIRECT — provide guidance (opens $EDITOR)
 ```
@@ -183,7 +183,7 @@ When tasks are blocked (methodology issues, DDV disagreements), the block gate s
 When the human accepts:
 
 1. **`.lisa/output/answer.md`** — Direct response to the question in BRIEF.md
-2. **`.lisa/output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, convergence tables, assumptions, limitations, traceability
+2. **`.lisa/output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, progress tables, assumptions, limitations, traceability
 
 ## Traceability Chain
 
@@ -198,7 +198,7 @@ When the human accepts:
               → derivations (.lisa/methodology/derivations/) — non-trivial mappings only
                 → software tests (tests/software/) — edge cases, stability
                   → execution (src/runner) — end-to-end, engineering judgment audit
-                    → system validation — sanity checks, convergence
+                    → system validation — sanity checks, progress tracking
                       → human acceptance
                         → final answer + report
 ```
@@ -302,7 +302,7 @@ project-root/
 │   │       ├── ddv-red-manifest.md
 │   │       ├── execution-report.md
 │   │       ├── system-validation.md
-│   │       ├── convergence.md
+│   │       ├── progress-tracking.md
 │   │       ├── review-package.md
 │   │       ├── reconsiderations/
 │   │       └── PASS_COMPLETE.md
@@ -311,7 +311,7 @@ project-root/
 │   │   ├── sanity-checks.md
 │   │   ├── limiting-cases.md
 │   │   ├── reference-data.md
-│   │   └── convergence-log.md
+│   │   └── progress-log.md
 │   │
 │   ├── references/
 │   │   ├── core/

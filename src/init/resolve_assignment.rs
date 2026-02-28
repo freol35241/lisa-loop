@@ -13,12 +13,11 @@ const METHODOLOGY_TEMPLATE: &str = include_str!("../../templates/methodology.md"
 const PLAN_TEMPLATE: &str = include_str!("../../templates/plan.md");
 const VERIFICATION_CASES_TEMPLATE: &str = include_str!("../../templates/verification_cases.md");
 const OVERVIEW_TEMPLATE: &str = include_str!("../../templates/overview.md");
-const ASSUMPTIONS_REGISTER_TEMPLATE: &str =
-    include_str!("../../templates/assumptions_register.md");
+const ASSUMPTIONS_REGISTER_TEMPLATE: &str = include_str!("../../templates/assumptions_register.md");
 const SANITY_CHECKS_TEMPLATE: &str = include_str!("../../templates/sanity_checks.md");
 const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cases.md");
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
-const CONVERGENCE_LOG_TEMPLATE: &str = include_str!("../../templates/convergence_log.md");
+const PROGRESS_LOG_TEMPLATE: &str = include_str!("../../templates/progress_log.md");
 const PLOTS_REVIEW_TEMPLATE: &str = include_str!("../../templates/plots_review.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
@@ -123,7 +122,10 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         &lisa_root.join("methodology/verification-cases.md"),
         VERIFICATION_CASES_TEMPLATE,
     )?;
-    write_file(&lisa_root.join("methodology/overview.md"), OVERVIEW_TEMPLATE)?;
+    write_file(
+        &lisa_root.join("methodology/overview.md"),
+        OVERVIEW_TEMPLATE,
+    )?;
     write_file(
         &lisa_root.join("methodology/assumptions-register.md"),
         ASSUMPTIONS_REGISTER_TEMPLATE,
@@ -143,8 +145,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         REFERENCE_DATA_TEMPLATE,
     )?;
     write_file(
-        &lisa_root.join("validation/convergence-log.md"),
-        CONVERGENCE_LOG_TEMPLATE,
+        &lisa_root.join("validation/progress-log.md"),
+        PROGRESS_LOG_TEMPLATE,
     )?;
 
     // Write plots review

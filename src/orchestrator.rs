@@ -198,7 +198,7 @@ fn run_pass_range(
     }
 
     terminal::log_warn(&format!(
-        "Reached max spiral passes ({}) without convergence. \
+        "Reached max spiral passes ({}) without acceptance. \
          Run `lisa run --max-passes N` with a higher limit, or `lisa finalize` to accept current results.",
         max_pass
     ));
@@ -596,7 +596,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         "Current spiral pass: {}\n\
          FINALIZATION MODE: The human has ACCEPTED the results.\n\
          Read the review package at {}/spiral/pass-{}/review-package.md for the current answer.\n\
-         Read all {}/spiral/pass-*/convergence.md files for the convergence history.\n\
+         Read all {}/spiral/pass-*/progress-tracking.md files for the progress history.\n\
          Read {}/methodology/methodology.md for the methodology.\n\
          Produce the deliverables specified in {}/BRIEF.md.",
         pass,
@@ -622,7 +622,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     // Create SPIRAL_COMPLETE.md
     let complete_content = format!(
         "# Spiral Complete\n\n\
-         The spiral has converged and the human has accepted the results.\n\n\
+         The human has accepted the results.\n\n\
          Completed: {}\n\
          Final pass: {}\n",
         chrono::Local::now().to_rfc3339(),

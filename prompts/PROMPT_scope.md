@@ -495,8 +495,8 @@ the methodology on a SUBSET of the full problem — not the full scope at low fi
 | 3    | [full]      | [level]  | [±X%]               | Does coupling work? |
 | 4    | [full]      | [refined]| [±X%]               | Converged? |
 
-## Convergence Expectations
-[What quantities to track for convergence, expected convergence rate]
+## Progress Tracking Expectations
+[What quantities to track across passes, expected rate of change]
 
 ## Risk Areas
 [Where methodology might need reconsideration, known difficult aspects]

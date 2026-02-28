@@ -48,7 +48,10 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
     terminal::print_colored("  Plan:              ", Color::Cyan);
     println!("{}/methodology/plan.md", lisa_root.display());
     terminal::print_colored("  Acceptance:        ", Color::Cyan);
-    println!("{}/spiral/pass-0/acceptance-criteria.md", lisa_root.display());
+    println!(
+        "{}/spiral/pass-0/acceptance-criteria.md",
+        lisa_root.display()
+    );
     terminal::print_colored("  Scope progression: ", Color::Cyan);
     println!("{}/spiral/pass-0/spiral-plan.md", lisa_root.display());
     terminal::print_colored("  Validation:        ", Color::Cyan);
@@ -77,7 +80,8 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
                 .lines()
                 .filter(|l| {
                     (l.starts_with("| ") && l.contains("Pass"))
-                        || (l.starts_with("| ") && l.chars().nth(2).map_or(false, |c| c.is_ascii_digit()))
+                        || (l.starts_with("| ")
+                            && l.chars().nth(2).map_or(false, |c| c.is_ascii_digit()))
                 })
                 .take(5)
                 .collect();
@@ -162,10 +166,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
         }
     } else {
         terminal::print_colored(
-            &format!(
-                "  Review package not found at {}\n",
-                review_path.display()
-            ),
+            &format!("  Review package not found at {}\n", review_path.display()),
             Color::Yellow,
         );
     }
@@ -186,7 +187,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!();
 
     terminal::print_colored("  [A]", Color::Green);
-    println!(" ACCEPT — converged, produce final report");
+    println!(" ACCEPT — produce final report");
     terminal::print_colored("  [C]", Color::Yellow);
     println!(" CONTINUE — next spiral pass");
     terminal::print_colored("  [R]", Color::Cyan);
@@ -223,10 +224,9 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                 );
                 std::fs::write(&redirect_path, &template)?;
 
-                let editor =
-                    std::env::var("EDITOR").unwrap_or_else(|_| {
-                        std::env::var("VISUAL").unwrap_or_else(|_| "vi".to_string())
-                    });
+                let editor = std::env::var("EDITOR").unwrap_or_else(|_| {
+                    std::env::var("VISUAL").unwrap_or_else(|_| "vi".to_string())
+                });
 
                 let _ = std::process::Command::new(&editor)
                     .arg(&redirect_path)
@@ -234,16 +234,14 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
 
                 if redirect_path.exists() {
                     let content = std::fs::read_to_string(&redirect_path).unwrap_or_default();
-                    let has_real_content = content
-                        .lines()
-                        .any(|l| {
-                            let trimmed = l.trim();
-                            !trimmed.is_empty()
-                                && !trimmed.starts_with('#')
-                                && !trimmed.starts_with("<!--")
-                                && !trimmed.starts_with("-->")
-                                && !trimmed.contains("<!--")
-                        });
+                    let has_real_content = content.lines().any(|l| {
+                        let trimmed = l.trim();
+                        !trimmed.is_empty()
+                            && !trimmed.starts_with('#')
+                            && !trimmed.starts_with("<!--")
+                            && !trimmed.starts_with("-->")
+                            && !trimmed.contains("<!--")
+                    });
                     if has_real_content {
                         terminal::log_info(&format!(
                             "REDIRECT — guidance saved to {}",
@@ -251,7 +249,9 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                         ));
                         return Ok(ReviewDecision::Redirect);
                     } else {
-                        terminal::log_warn("Redirect file contains only template comments. Treating as CONTINUE.");
+                        terminal::log_warn(
+                            "Redirect file contains only template comments. Treating as CONTINUE.",
+                        );
                     }
                 } else {
                     terminal::log_warn("Redirect file is empty. Treating as CONTINUE.");
@@ -355,7 +355,11 @@ pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<Block
 pub fn environment_gate(config: &Config, lisa_root: &Path) -> Result<bool> {
     let env_file = lisa_root.join("spiral/pass-0/environment-resolution.md");
 
-    if !env_file.exists() || std::fs::metadata(&env_file).map(|m| m.len() == 0).unwrap_or(true) {
+    if !env_file.exists()
+        || std::fs::metadata(&env_file)
+            .map(|m| m.len() == 0)
+            .unwrap_or(true)
+    {
         return Ok(true); // No issues
     }
 
@@ -435,20 +439,10 @@ fn display_review_summary(content: &str, _pass: u32) {
         println!("{}", answer);
     }
 
-    // Extract convergence
-    for line in content.lines() {
-        if line.contains("## Convergence:") {
-            let conv = line.trim_start_matches("## Convergence:").trim();
-            terminal::print_bold("  Convergence: ");
-            if conv.contains("CONVERGED") && !conv.contains("NOT") {
-                terminal::println_colored(conv, Color::Green);
-            } else if conv.contains("DIVERGING") {
-                terminal::println_colored(conv, Color::Red);
-            } else {
-                terminal::println_colored(conv, Color::Yellow);
-            }
-            break;
-        }
+    // Extract progress
+    if let Some(progress) = extract_section_first_line(content, "## Progress") {
+        terminal::print_bold("  Progress: ");
+        println!("{}", progress);
     }
 
     // Extract test summary

@@ -15,7 +15,7 @@ Read **all** of the following:
 - `{{lisa_root}}/BRIEF.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
 - `{{lisa_root}}/AGENTS.md` — project-specific operational guidance
 - The review package for the final pass: `{{lisa_root}}/spiral/pass-N/review-package.md` (where N is the current pass)
-- `{{lisa_root}}/spiral/pass-N/convergence.md` — convergence assessment
+- `{{lisa_root}}/spiral/pass-N/progress-tracking.md` — progress tracking
 - `{{lisa_root}}/spiral/pass-N/system-validation.md` — validation results
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/methodology/assumptions-register.md` — assumptions and limitations
@@ -44,12 +44,12 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 - Software tests: [pass/total]
 - Integration tests: [pass/total]
 - Sanity checks: [pass/total]
-- Convergence: achieved at Pass [N] (Δ [X]%)
+- Progress: stabilized at Pass [N] (Δ [X]%)
 
 ## Key Evidence
 - Methodology: {{lisa_root}}/methodology/methodology.md
 - Verification plots: {{lisa_root}}/plots/REVIEW.md
-- Convergence history: {{lisa_root}}/validation/convergence-log.md
+- Progress history: {{lisa_root}}/validation/progress-log.md
 - Full spiral history: {{lisa_root}}/spiral/
 
 ## Assumptions and Limitations
