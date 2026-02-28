@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use base64::Engine;
 use crossterm::style::Color;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, IsTerminal, Write};
@@ -173,13 +172,15 @@ pub fn run_agent(
         }
     }
 
-    let _ = child.wait();
-    let elapsed = start.elapsed().as_secs();
-
-    // If collapse mode, try to decode base64 result_text if needed
-    if result_text.is_empty() {
-        // Try to extract from the tool log as fallback
+    let status = child.wait().context("Failed to wait for claude process")?;
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
+        anyhow::bail!(
+            "Agent '{}' exited with code {}. Check the output above for errors. Run `lisa resume` to retry this phase.",
+            label, code
+        );
     }
+    let elapsed = start.elapsed().as_secs();
 
     // Print summary
     let mut summary = format!("{} tools", stats.tool_count);
@@ -335,14 +336,4 @@ fn parse_tool_call(name: &str, input: &Value) -> ToolCall {
             name: name.to_string(),
         },
     }
-}
-
-/// Decode base64 result text (used in NDJSON parsing)
-#[allow(dead_code)]
-fn decode_b64_result(encoded: &str) -> String {
-    base64::engine::general_purpose::STANDARD
-        .decode(encoded)
-        .ok()
-        .and_then(|bytes| String::from_utf8(bytes).ok())
-        .unwrap_or_default()
 }

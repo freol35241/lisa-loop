@@ -15,7 +15,7 @@ use crate::terminal;
 pub fn run(
     config: &Config,
     project_root: &Path,
-    max_passes: u32,
+    max_passes: Option<u32>,
     no_pause: bool,
 ) -> Result<()> {
     let mut config = config.clone();
@@ -23,11 +23,7 @@ pub fn run(
         config.review.pause = false;
     }
 
-    let max = if max_passes > 0 {
-        max_passes
-    } else {
-        config.limits.max_spiral_passes
-    };
+    let max = max_passes.unwrap_or(config.limits.max_spiral_passes);
 
     let lisa_root = config.lisa_root(project_root);
 
@@ -101,12 +97,16 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
     match state {
         SpiralState::NotStarted => {
             terminal::log_info("No previous run found. Starting fresh.");
-            run(config, project_root, 0, false)
+            run(config, project_root, None, false)
         }
         SpiralState::Scoping { .. } | SpiralState::ScopeReview => {
             terminal::log_info("Resuming: scope was incomplete.");
             run_scope(config, project_root)?;
-            run(config, project_root, 0, false)
+            run(config, project_root, None, false)
+        }
+        SpiralState::ScopeComplete => {
+            terminal::log_info("Scope already complete. Running spiral passes.");
+            run(config, project_root, None, false)
         }
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
@@ -354,10 +354,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
         }
     }
 
-    state::save_state(
-        &lisa_root,
-        &SpiralState::Scoping { attempt: 0 }, // 0 = complete
-    )?;
+    state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
     terminal::log_success("Pass 0 (scoping) complete.");
     Ok(())
 }

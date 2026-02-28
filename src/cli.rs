@@ -18,11 +18,14 @@ pub enum Commands {
     /// Run the full spiral (scope if needed, then iterate)
     Run {
         /// Maximum number of spiral passes
-        #[arg(long, default_value_t = 0)]
-        max_passes: u32,
+        #[arg(long)]
+        max_passes: Option<u32>,
         /// Skip all human review gates
         #[arg(long)]
         no_pause: bool,
+        /// Show full agent output (overrides collapse_output config)
+        #[arg(long, short)]
+        verbose: bool,
     },
     /// Resume from saved state
     Resume,

@@ -37,8 +37,12 @@ fn main() -> Result<()> {
         cli::Commands::Run {
             max_passes,
             no_pause,
+            verbose,
         } => {
-            let config = load_config()?;
+            let mut config = load_config()?;
+            if verbose {
+                config.terminal.collapse_output = false;
+            }
             orchestrator::run(&config, &project_root(), max_passes, no_pause)
         }
         cli::Commands::Resume => {
