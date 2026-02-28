@@ -1,6 +1,4 @@
 use anyhow::Result;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use crate::agent;
@@ -76,16 +74,16 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
             terminal::log_info(&format!("Resuming: review gate of pass {}.", pass));
             match review::review_gate(config, pass, &lisa_root)? {
                 ReviewDecision::Accept => finalize(config, project_root, pass),
-                ReviewDecision::Continue | ReviewDecision::Redirect => {
-                    run_pass_range(config, project_root, pass + 1, config.limits.max_spiral_passes)
-                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
             }
         }
         SpiralState::Complete { final_pass } => {
-            terminal::log_success(&format!(
-                "Spiral already complete at pass {}.",
-                final_pass
-            ));
+            terminal::log_success(&format!("Spiral already complete at pass {}.", final_pass));
             Ok(())
         }
     }
@@ -149,9 +147,12 @@ fn resume_from_phase(
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
     match review::review_gate(config, pass, &lisa_root)? {
         ReviewDecision::Accept => finalize(config, project_root, pass),
-        ReviewDecision::Continue | ReviewDecision::Redirect => {
-            run_pass_range(config, project_root, pass + 1, config.limits.max_spiral_passes)
-        }
+        ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+            config,
+            project_root,
+            pass + 1,
+            config.limits.max_spiral_passes,
+        ),
     }
 }
 
@@ -304,7 +305,12 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                     Some(refine_ctx),
                 );
 
-                agent::run_agent(&input, &model, "Scope: refinement", config.terminal.collapse_output)?;
+                agent::run_agent(
+                    &input,
+                    &model,
+                    "Scope: refinement",
+                    config.terminal.collapse_output,
+                )?;
                 git::commit_all("scope: refined after human feedback", config)?;
                 terminal::log_info("Scope refined. Reviewing again...");
             }
@@ -370,7 +376,10 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
 fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
-    terminal::log_phase(&format!("PASS {} — DDV RED (domain verification tests)", pass));
+    terminal::log_phase(&format!(
+        "PASS {} — DDV RED (domain verification tests)",
+        pass
+    ));
     state::save_state(
         &lisa_root,
         &SpiralState::InPass {
@@ -382,8 +391,7 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
 
     let extra = format!("Current spiral pass: {}", pass);
-    let input =
-        prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
+    let input = prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
     let model = Phase::DdvRed.model_key(config);
     let result = agent::run_agent(
         &input,
@@ -414,7 +422,7 @@ fn run_build_loop(
     let plan_path = lisa_root.join("methodology/plan.md");
     let extra = format!("Current spiral pass: {}", pass);
 
-    let mut prev_plan_hash = hash_plan_content(&plan_path);
+    let mut prev_task_hash = tasks::hash_task_statuses(&plan_path)?;
     let mut stall_count: u32 = 0;
 
     for iter in start_iter..=config.limits.max_ralph_iterations {
@@ -440,8 +448,7 @@ fn run_build_loop(
             },
         )?;
 
-        let input =
-            prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&extra));
+        let input = prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&extra));
         let model = Phase::Build.model_key(config);
         agent::run_agent(
             &input,
@@ -471,21 +478,42 @@ fn run_build_loop(
             break;
         }
 
-        // Stall detection (content-hash-based)
-        let cur_plan_hash = hash_plan_content(&plan_path);
-        if cur_plan_hash == prev_plan_hash {
-            stall_count += 1;
-            terminal::log_warn(&format!(
-                "No plan changes detected (stall count: {}/2).",
-                stall_count
-            ));
-        } else {
+        // Dual-signal stall detection
+        let cur_task_hash = tasks::hash_task_statuses(&plan_path)?;
+        let code_changed = git::source_changed_in_last_commit(&config.paths.source)?;
+
+        let tasks_changed = cur_task_hash != prev_task_hash;
+        if tasks_changed || code_changed {
             stall_count = 0;
-            prev_plan_hash = cur_plan_hash;
+        } else {
+            stall_count += 1;
+        }
+        prev_task_hash = cur_task_hash;
+
+        let task_signal = if tasks_changed {
+            "tasks changed"
+        } else {
+            "tasks unchanged"
+        };
+        let code_signal = if code_changed {
+            "source files modified"
+        } else {
+            "source files unchanged"
+        };
+        println!("  Signals: {}, {}", task_signal, code_signal);
+
+        if stall_count > 0 {
+            terminal::log_warn(&format!(
+                "No progress detected (stall count: {}/{}).",
+                stall_count, config.limits.stall_threshold
+            ));
         }
 
-        if stall_count >= 2 {
-            terminal::log_warn("Build stalled — no progress for 2 consecutive iterations.");
+        if stall_count >= config.limits.stall_threshold {
+            terminal::log_warn(&format!(
+                "Build stalled — no progress for {} consecutive iterations.",
+                config.limits.stall_threshold
+            ));
             if tasks::has_blocked_tasks(&plan_path, pass)? {
                 match review::block_gate(config, pass, &plan_path)? {
                     BlockDecision::Fix => {
@@ -521,8 +549,7 @@ fn run_execute(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
 
     let extra = format!("Current spiral pass: {}", pass);
-    let input =
-        prompt::build_agent_input(Phase::Execute, config, &lisa_root, pass, Some(&extra));
+    let input = prompt::build_agent_input(Phase::Execute, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Execute.model_key(config);
     agent::run_agent(
         &input,
@@ -548,8 +575,7 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
 
     let extra = format!("Current spiral pass: {}", pass);
-    let input =
-        prompt::build_agent_input(Phase::Validate, config, &lisa_root, pass, Some(&extra));
+    let input = prompt::build_agent_input(Phase::Validate, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Validate.model_key(config);
     agent::run_agent(
         &input,
@@ -559,13 +585,6 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     )?;
     git::commit_all(&format!("validate: pass {}", pass), config)?;
     Ok(())
-}
-
-fn hash_plan_content(plan_path: &Path) -> u64 {
-    let content = std::fs::read_to_string(plan_path).unwrap_or_default();
-    let mut hasher = DefaultHasher::new();
-    content.hash(&mut hasher);
-    hasher.finish()
 }
 
 pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
@@ -590,8 +609,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     std::fs::create_dir_all(lisa_root.join("output"))?;
 
-    let input =
-        prompt::build_agent_input(Phase::Finalize, config, &lisa_root, pass, Some(&extra));
+    let input = prompt::build_agent_input(Phase::Finalize, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Finalize.model_key(config);
     agent::run_agent(
         &input,

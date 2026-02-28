@@ -1,5 +1,7 @@
 use anyhow::Result;
 use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 /// Parse methodology/plan.md and count tasks by status for a given max pass
@@ -57,6 +59,25 @@ pub struct TaskCounts {
     pub in_progress: u32,
     pub done: u32,
     pub blocked: u32,
+}
+
+/// Hash only the (index, status) pairs from plan.md tasks.
+/// Ignores descriptions, checklists, and prose — only status transitions change the hash.
+pub fn hash_task_statuses(plan_path: &Path) -> Result<u64> {
+    let content = if plan_path.exists() {
+        std::fs::read_to_string(plan_path)?
+    } else {
+        String::new()
+    };
+    let tasks = parse_tasks(&content);
+    let pairs: Vec<(usize, &str)> = tasks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (i, t.status.as_str()))
+        .collect();
+    let mut hasher = DefaultHasher::new();
+    pairs.hash(&mut hasher);
+    Ok(hasher.finish())
 }
 
 #[derive(Debug)]
@@ -180,5 +201,57 @@ mod tests {
         assert_eq!(tasks[1].pass, 2);
         assert_eq!(tasks[2].status, "IN_PROGRESS");
         assert_eq!(tasks[2].pass, 1); // default when missing
+    }
+
+    #[test]
+    fn test_hash_task_statuses_changes_on_status_change() {
+        let dir = std::env::temp_dir().join("lisa_test_hash_status");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content_v1 = "### Task 1: Foo\n- **Status:** TODO\n- **Pass:** 1\n\n### Task 2: Bar\n- **Status:** TODO\n- **Pass:** 1\n";
+        std::fs::write(&plan, content_v1).unwrap();
+        let hash1 = hash_task_statuses(&plan).unwrap();
+
+        // Change a status
+        let content_v2 = "### Task 1: Foo\n- **Status:** DONE\n- **Pass:** 1\n\n### Task 2: Bar\n- **Status:** TODO\n- **Pass:** 1\n";
+        std::fs::write(&plan, content_v2).unwrap();
+        let hash2 = hash_task_statuses(&plan).unwrap();
+
+        assert_ne!(hash1, hash2, "Hash should change when task status changes");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_hash_task_statuses_stable_on_description_change() {
+        let dir = std::env::temp_dir().join("lisa_test_hash_stable");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content_v1 = "### Task 1: Original description\n- **Status:** TODO\n- **Pass:** 1\n- **Checklist:**\n  - [ ] Do something\n";
+        std::fs::write(&plan, content_v1).unwrap();
+        let hash1 = hash_task_statuses(&plan).unwrap();
+
+        // Change description and checklist but keep same status
+        let content_v2 = "### Task 1: Completely rewritten description with more words\n- **Status:** TODO\n- **Pass:** 1\n- **Checklist:**\n  - [ ] Do something different\n  - [ ] Extra item\n\nSome added prose here.\n";
+        std::fs::write(&plan, content_v2).unwrap();
+        let hash2 = hash_task_statuses(&plan).unwrap();
+
+        assert_eq!(
+            hash1, hash2,
+            "Hash should NOT change when only descriptions change"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_hash_task_statuses_missing_file() {
+        let path = Path::new("/tmp/lisa_nonexistent_plan.md");
+        let hash = hash_task_statuses(path).unwrap();
+        // Should not panic; returns hash of empty task list
+        let hash2 = hash_task_statuses(path).unwrap();
+        assert_eq!(hash, hash2, "Hash of missing file should be deterministic");
     }
 }

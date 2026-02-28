@@ -105,6 +105,33 @@ pub fn has_any_modifications(path: &str) -> Result<bool> {
     Ok(!staged_files.trim().is_empty())
 }
 
+/// Check if any source files were modified in the most recent commit.
+/// Runs `git diff --name-only HEAD~1 HEAD -- <source_dirs...>` and returns
+/// true if any files match.
+pub fn source_changed_in_last_commit(source_dirs: &[String]) -> Result<bool> {
+    let mut args = vec![
+        "diff".to_string(),
+        "--name-only".to_string(),
+        "HEAD~1".to_string(),
+        "HEAD".to_string(),
+        "--".to_string(),
+    ];
+    args.extend(source_dirs.iter().cloned());
+
+    let output = Command::new("git")
+        .args(&args)
+        .output()
+        .context("Failed to run git diff HEAD~1 HEAD")?;
+
+    if !output.status.success() {
+        // HEAD~1 may not exist (first commit); treat as no change
+        return Ok(false);
+    }
+
+    let files = String::from_utf8_lossy(&output.stdout);
+    Ok(!files.trim().is_empty())
+}
+
 /// Unstage changes to a specific path
 pub fn reset_path(path: &str) -> Result<()> {
     Command::new("git")

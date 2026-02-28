@@ -68,6 +68,8 @@ pub struct LimitsConfig {
     pub max_spiral_passes: u32,
     #[serde(default = "default_max_ralph_iterations")]
     pub max_ralph_iterations: u32,
+    #[serde(default = "default_stall_threshold")]
+    pub stall_threshold: u32,
 }
 
 impl Default for LimitsConfig {
@@ -75,6 +77,7 @@ impl Default for LimitsConfig {
         Self {
             max_spiral_passes: default_max_spiral_passes(),
             max_ralph_iterations: default_max_ralph_iterations(),
+            stall_threshold: default_stall_threshold(),
         }
     }
 }
@@ -84,6 +87,9 @@ fn default_max_spiral_passes() -> u32 {
 }
 fn default_max_ralph_iterations() -> u32 {
     50
+}
+fn default_stall_threshold() -> u32 {
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -227,6 +233,7 @@ mod tests {
         assert_eq!(config.models.build, "sonnet");
         assert_eq!(config.limits.max_spiral_passes, 5);
         assert_eq!(config.limits.max_ralph_iterations, 50);
+        assert_eq!(config.limits.stall_threshold, 2);
         assert!(config.review.pause);
         assert!(config.git.auto_commit);
         assert!(!config.git.auto_push);
@@ -274,6 +281,7 @@ validate = "opus"
 [limits]
 max_spiral_passes = 5
 max_ralph_iterations = 50
+stall_threshold = 2
 
 [review]
 # Human review gates. When false, loop runs fully autonomously.
