@@ -128,7 +128,8 @@ Update `methodology/verification-cases.md`:
 Read `spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
 
 Update `methodology/plan.md`:
-- Add tasks for this pass that address ONLY the current pass's scope subset (not the full problem)
+- **For Pass 1:** The scope phase created a structural skeleton with task names, ordering, methodology references, and dependencies — but no checklists. Now that the methodology is fully specified, add detailed checklists to each existing task based on the complete equations and implementation notes. Split or merge tasks if the fully specified methodology reveals the original sizing was wrong.
+- **For Pass N > 1:** Add new tasks for this pass that address ONLY the current pass's scope subset (not the full problem)
 - Keep completed tasks as history
 - Each task references a methodology section
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)

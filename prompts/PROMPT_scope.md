@@ -211,9 +211,13 @@ If the problem has distinct sub-topics (e.g., frictional resistance, wave resist
 
 ---
 
-### 2. `methodology/plan.md` — Implementation Plan
+### 2. `methodology/plan.md` — Implementation Plan (Structural Skeleton)
 
-Initial implementation plan with tasks for Pass 1:
+Initial implementation plan with task structure for Pass 1. At this stage you know *what*
+needs to be implemented and in what order, but the equations are not yet fully specified —
+that detail comes from the refine phase. Keep this plan at the structural level: task names,
+ordering, methodology references, and dependencies. Do NOT write detailed checklists — the
+refine phase will flesh those out once the methodology is complete.
 
 ```markdown
 # Implementation Plan
@@ -224,23 +228,23 @@ Initial implementation plan with tasks for Pass 1:
 - **Status:** TODO
 - **Pass:** 1
 - **Methodology:** [section ref]
-- **Checklist:**
-  - [ ] [Implement X]
-  - [ ] [Implement Y]
-  - [ ] [Derivation doc for Z (only if non-trivial)]
-  - [ ] [Software tests for edge cases / error handling]
-  - [ ] [Plot: description]
+- **Dependencies:** [task refs or "None"]
+
+### Task 2: [Short name]
+- **Status:** TODO
+- **Pass:** 1
+- **Methodology:** [section ref]
 - **Dependencies:** [task refs or "None"]
 ```
 
 **Task rules:**
 - Order tasks bottom-up: utilities → core equations → higher-level models → integration
-- Each task completable in a single Ralph iteration
-- No more than **5 checklist items** per task — split if larger
+- Each task should be scoped for a single Ralph iteration
 - Infrastructure tasks (setup, test framework, etc.) come first if needed
 - Tag every task with `**Pass:** 1` for Pass 1 tasks
 - Pass 2+ tasks can be sketched with TODO placeholders
 - Tasks do NOT include DDV test items — DDV tests are written by the DDV Red phase
+- Do NOT add checklists — the refine phase adds those after completing the methodology
 
 ---
 
