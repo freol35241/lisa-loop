@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: lisa
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: lisa.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Rename binary (Linux)
+        if: runner.os == 'Linux'
+        run: cp target/${{ matrix.target }}/release/lisa lisa-linux-x86_64
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: cp target/${{ matrix.target }}/release/lisa.exe lisa-windows-x86_64.exe
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lisa-linux-x86_64
+            lisa-windows-x86_64.exe
