@@ -29,11 +29,9 @@ fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
     match cli.command {
-        cli::Commands::Init { mode } => match mode {
-            cli::InitMode::ResolveAssignment { name, tech } => {
-                init::resolve_assignment::run(&project_root(), name, tech)
-            }
-        },
+        cli::Commands::Init { name, tech } => {
+            init::resolve_assignment::run(&project_root(), name, tech)
+        }
         cli::Commands::Run {
             max_passes,
             no_pause,

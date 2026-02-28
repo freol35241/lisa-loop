@@ -12,8 +12,12 @@ pub struct Cli {
 pub enum Commands {
     /// Initialize a new Lisa Loop project
     Init {
-        #[command(subcommand)]
-        mode: InitMode,
+        /// Assignment name (defaults to directory name)
+        #[arg(long)]
+        name: Option<String>,
+        /// Technology preference (e.g., "Python 3.11+ with NumPy/SciPy")
+        #[arg(long)]
+        tech: Option<String>,
     },
     /// Run the full spiral (scope if needed, then iterate)
     Run {
@@ -39,17 +43,4 @@ pub enum Commands {
     Finalize,
     /// Copy compiled-in prompts to .lisa/prompts/ for customization
     EjectPrompts,
-}
-
-#[derive(Subcommand)]
-pub enum InitMode {
-    /// Set up a project for resolving an assignment
-    ResolveAssignment {
-        /// Assignment name (defaults to directory name)
-        #[arg(long)]
-        name: Option<String>,
-        /// Technology preference (e.g., "Python 3.11+ with NumPy/SciPy")
-        #[arg(long)]
-        tech: Option<String>,
-    },
 }
