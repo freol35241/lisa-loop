@@ -42,37 +42,80 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
     terminal::print_separator();
     println!();
 
-    // Show file locations
-    terminal::print_colored("  Methodology:       ", Color::Cyan);
-    println!("{}/methodology/methodology.md", lisa_root.display());
-    terminal::print_colored("  Plan:              ", Color::Cyan);
-    println!("{}/methodology/plan.md", lisa_root.display());
-    terminal::print_colored("  Acceptance:        ", Color::Cyan);
-    println!(
-        "{}/spiral/pass-0/acceptance-criteria.md",
-        lisa_root.display()
-    );
-    terminal::print_colored("  Scope progression: ", Color::Cyan);
-    println!("{}/spiral/pass-0/spiral-plan.md", lisa_root.display());
-    terminal::print_colored("  Validation:        ", Color::Cyan);
-    println!(
-        "{}/spiral/pass-0/validation-strategy.md",
-        lisa_root.display()
-    );
+    // Question (from acceptance-criteria.md)
+    let acceptance_path = lisa_root.join("spiral/pass-0/acceptance-criteria.md");
+    if acceptance_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&acceptance_path) {
+            if let Some(question) = extract_primary_question_from(&content) {
+                terminal::print_colored("  Question: ", Color::Cyan);
+                println!("{}", question);
+            }
+        }
+    }
 
-    // Show technology stack if available
+    // Approach (from methodology.md)
+    let method_path = lisa_root.join("methodology/methodology.md");
+    if method_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&method_path) {
+            if let Some(approach) = extract_methodology_approach_from(&content) {
+                terminal::print_colored("  Approach: ", Color::Cyan);
+                println!("{}", approach);
+            }
+        }
+    }
+
+    // Stack (from AGENTS.md)
     let agents_path = lisa_root.join("AGENTS.md");
     if agents_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&agents_path) {
             if let Some(stack) = extract_stack_info(&content) {
-                println!();
-                terminal::print_colored("  Stack: ", Color::Cyan);
+                terminal::print_colored("  Stack:    ", Color::Cyan);
                 println!("{}", stack);
             }
         }
     }
 
-    // Show spiral plan summary
+    // Tasks (from plan.md)
+    let plan_path = lisa_root.join("methodology/plan.md");
+    if plan_path.exists() {
+        if let Ok(counts) = crate::tasks::count_tasks_by_status(&plan_path) {
+            if counts.total > 0 {
+                terminal::print_colored("  Tasks:    ", Color::Cyan);
+                println!(
+                    "{} total ({} TODO, {} BLOCKED)",
+                    counts.total, counts.todo, counts.blocked
+                );
+            }
+        }
+    }
+
+    // DDV cases (from validation-strategy.md)
+    let validation_path = lisa_root.join("spiral/pass-0/validation-strategy.md");
+    if validation_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&validation_path) {
+            let ddv_count = count_verification_cases_from(&content);
+            if ddv_count > 0 {
+                terminal::print_colored("  DDV cases:", Color::Cyan);
+                println!(" {}", ddv_count);
+            }
+        }
+    }
+
+    // Acceptance criteria lines
+    if acceptance_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&acceptance_path) {
+            let criteria = extract_acceptance_lines(&content, 5);
+            if !criteria.is_empty() {
+                println!();
+                terminal::print_colored("  Acceptance criteria:\n", Color::Cyan);
+                for line in &criteria {
+                    println!("    {}", line);
+                }
+            }
+        }
+    }
+
+    // Spiral plan summary
     let spiral_plan = lisa_root.join("spiral/pass-0/spiral-plan.md");
     if spiral_plan.exists() {
         if let Ok(content) = std::fs::read_to_string(&spiral_plan) {
@@ -81,7 +124,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
                 .filter(|l| {
                     (l.starts_with("| ") && l.contains("Pass"))
                         || (l.starts_with("| ")
-                            && l.chars().nth(2).map_or(false, |c| c.is_ascii_digit()))
+                            && l.chars().nth(2).is_some_and(|c| c.is_ascii_digit()))
                 })
                 .take(5)
                 .collect();
@@ -95,8 +138,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         }
     }
 
-    // Show methodology sections
-    let method_path = lisa_root.join("methodology/methodology.md");
+    // Methodology sections
     if method_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&method_path) {
             let sections: Vec<&str> = content
@@ -113,6 +155,13 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
             }
         }
     }
+
+    // File paths (compact, at bottom)
+    println!();
+    terminal::print_colored("  Files: ", Color::DarkGrey);
+    println!(
+        "methodology.md, plan.md, acceptance-criteria.md, spiral-plan.md, validation-strategy.md"
+    );
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
@@ -414,6 +463,81 @@ pub fn environment_gate(config: &Config, lisa_root: &Path) -> Result<bool> {
     }
 }
 
+// --- Extraction helpers ---
+
+/// Extract the primary question/problem statement from acceptance-criteria.md.
+pub fn extract_primary_question_from(content: &str) -> Option<String> {
+    let headings = ["## Primary Question", "## Problem Statement", "## Question"];
+    for heading in &headings {
+        if let Some(line) = extract_section_first_line(content, heading) {
+            return Some(line);
+        }
+    }
+    None
+}
+
+/// Extract first N non-empty lines after ## Success Criteria or ## Acceptance Criteria.
+pub fn extract_acceptance_lines(content: &str, max: usize) -> Vec<String> {
+    let headings = [
+        "## Success Criteria",
+        "## Acceptance Criteria",
+        "## Criteria",
+    ];
+    for heading in &headings {
+        let mut found = false;
+        let mut lines = Vec::new();
+        for line in content.lines() {
+            if line.starts_with(heading) {
+                found = true;
+                continue;
+            }
+            if found {
+                // Stop at next heading
+                if line.starts_with("## ") {
+                    break;
+                }
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    lines.push(trimmed.to_string());
+                    if lines.len() >= max {
+                        break;
+                    }
+                }
+            }
+        }
+        if !lines.is_empty() {
+            return lines;
+        }
+    }
+    Vec::new()
+}
+
+/// Extract the first line after ## Recommended Approach / ## Selected Approach / ## Approach.
+pub fn extract_methodology_approach_from(content: &str) -> Option<String> {
+    let headings = [
+        "## Recommended Approach",
+        "## Selected Approach",
+        "## Approach",
+    ];
+    for heading in &headings {
+        if let Some(line) = extract_section_first_line(content, heading) {
+            return Some(line);
+        }
+    }
+    None
+}
+
+/// Count `### V0-` and `### V1-` headings in validation-strategy.md.
+pub fn count_verification_cases_from(content: &str) -> u32 {
+    content
+        .lines()
+        .filter(|l| {
+            let trimmed = l.trim_start_matches('#').trim();
+            trimmed.starts_with("V0-") || trimmed.starts_with("V1-")
+        })
+        .count() as u32
+}
+
 fn extract_stack_info(agents_content: &str) -> Option<String> {
     let mut found = false;
     for line in agents_content.lines() {
@@ -457,7 +581,7 @@ fn display_review_summary(content: &str, _pass: u32) {
     // Extract sanity checks
     for line in content.lines() {
         if line.to_lowercase().contains("sanity checks:") && !line.starts_with('#') {
-            let info = line.split(':').last().unwrap_or("").trim();
+            let info = line.split(':').next_back().unwrap_or("").trim();
             terminal::print_bold("  Sanity: ");
             println!("{}", info);
             break;
@@ -472,7 +596,8 @@ fn display_review_summary(content: &str, _pass: u32) {
     }
 }
 
-fn extract_section_first_line(content: &str, heading: &str) -> Option<String> {
+/// Extract the first non-empty line after a given heading.
+pub fn extract_section_first_line(content: &str, heading: &str) -> Option<String> {
     let mut found = false;
     for line in content.lines() {
         if line.starts_with(heading) {
@@ -484,4 +609,119 @@ fn extract_section_first_line(content: &str, heading: &str) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_primary_question_from() {
+        let content = "# Acceptance Criteria\n\n## Primary Question\n\nWhat is the Reynolds number?\n\n## Success Criteria\n";
+        assert_eq!(
+            extract_primary_question_from(content),
+            Some("What is the Reynolds number?".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_primary_question_problem_statement() {
+        let content = "# Criteria\n\n## Problem Statement\n\nCalculate drag coefficient.\n";
+        assert_eq!(
+            extract_primary_question_from(content),
+            Some("Calculate drag coefficient.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_primary_question_missing() {
+        let content = "# Criteria\n\n## Other Section\n\nSome text.\n";
+        assert_eq!(extract_primary_question_from(content), None);
+    }
+
+    #[test]
+    fn test_extract_acceptance_lines() {
+        let content = "# Doc\n\n## Success Criteria\n\n- Accuracy within 1%\n- Validated against reference\n- Clean convergence\n\n## Other\n";
+        let lines = extract_acceptance_lines(content, 5);
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0], "- Accuracy within 1%");
+        assert_eq!(lines[1], "- Validated against reference");
+    }
+
+    #[test]
+    fn test_extract_acceptance_lines_limited() {
+        let content = "## Acceptance Criteria\n\n- A\n- B\n- C\n- D\n- E\n- F\n";
+        let lines = extract_acceptance_lines(content, 3);
+        assert_eq!(lines.len(), 3);
+    }
+
+    #[test]
+    fn test_extract_acceptance_lines_stops_at_heading() {
+        let content = "## Success Criteria\n\n- A\n- B\n\n## Next Section\n\n- C\n";
+        let lines = extract_acceptance_lines(content, 10);
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_methodology_approach_from() {
+        let content = "# Methodology\n\n## Recommended Approach\n\nFinite element analysis with mesh refinement.\n\n## Details\n";
+        assert_eq!(
+            extract_methodology_approach_from(content),
+            Some("Finite element analysis with mesh refinement.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_methodology_approach_fallback() {
+        let content = "# Methodology\n\n## Approach\n\nDirect numerical simulation.\n";
+        assert_eq!(
+            extract_methodology_approach_from(content),
+            Some("Direct numerical simulation.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_count_verification_cases_from() {
+        let content = "# Validation\n\n### V0-basic-check\nDetails...\n\n### V0-boundary\nDetails...\n\n### V1-convergence\nDetails...\n\n## Other\n";
+        assert_eq!(count_verification_cases_from(content), 3);
+    }
+
+    #[test]
+    fn test_count_verification_cases_none() {
+        let content = "# Validation\n\n## Some Section\n\nNo verification headings.\n";
+        assert_eq!(count_verification_cases_from(content), 0);
+    }
+
+    #[test]
+    fn test_extract_section_first_line() {
+        let content = "## Current Answer\n\nRe = 1.23e5 +/- 2.1%\n\n## Progress\n";
+        assert_eq!(
+            extract_section_first_line(content, "## Current Answer"),
+            Some("Re = 1.23e5 +/- 2.1%".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_section_first_line_missing() {
+        let content = "## Other\n\nSome text.\n";
+        assert_eq!(
+            extract_section_first_line(content, "## Current Answer"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_extract_stack_info() {
+        let content = "# Agents\n\n## Language & Runtime\n\nPython 3.11 with NumPy/SciPy\n";
+        assert_eq!(
+            extract_stack_info(content),
+            Some("Python 3.11 with NumPy/SciPy".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_stack_info_unresolved() {
+        let content = "# Agents\n\n## Language & Runtime\n\nTo be resolved during scoping\n";
+        assert_eq!(extract_stack_info(content), None);
+    }
 }

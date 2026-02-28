@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crossterm::style::Color;
 use std::path::Path;
 
 use crate::agent;
@@ -52,6 +53,20 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
 
     terminal::log_phase("RESUMING FROM SAVED STATE");
     terminal::log_info(&format!("Current state: {}", state));
+
+    // Show error context from previous failure
+    let error_path = lisa_root.join("last-error.md");
+    if error_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&error_path) {
+            println!();
+            terminal::print_colored("  Previous failure context:\n", Color::Yellow);
+            for line in content.lines().take(15) {
+                terminal::println_colored(&format!("  {}", line), Color::Yellow);
+            }
+            println!();
+        }
+        let _ = std::fs::remove_file(&error_path);
+    }
 
     match state {
         SpiralState::NotStarted => {
@@ -205,6 +220,11 @@ fn run_pass_range(
     Ok(())
 }
 
+/// Return the path to the error log file for a given lisa root.
+fn error_log(lisa_root: &Path) -> std::path::PathBuf {
+    lisa_root.join("last-error.md")
+}
+
 // --- Individual phase runners ---
 
 fn ensure_scope_complete(config: &Config, project_root: &Path) -> Result<()> {
@@ -262,7 +282,14 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     );
     let model = Phase::Scope.model_key(config);
 
-    agent::run_agent(&input, &model, "Scope", config.terminal.collapse_output)?;
+    let err_log = error_log(&lisa_root);
+    agent::run_agent(
+        &input,
+        &model,
+        "Scope",
+        config.terminal.collapse_output,
+        Some(&err_log),
+    )?;
     git::commit_all("scope: pass 0 — scoping complete", config)?;
 
     // Environment gate
@@ -310,6 +337,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                     &model,
                     "Scope: refinement",
                     config.terminal.collapse_output,
+                    Some(&err_log),
                 )?;
                 git::commit_all("scope: refined after human feedback", config)?;
                 terminal::log_info("Scope refined. Reviewing again...");
@@ -364,11 +392,13 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     let input = prompt::build_agent_input(Phase::Refine, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Refine.model_key(config);
+    let err_log = error_log(&lisa_root);
     agent::run_agent(
         &input,
         &model,
         &format!("Refine: pass {}", pass),
         config.terminal.collapse_output,
+        Some(&err_log),
     )?;
     git::commit_all(&format!("refine: pass {}", pass), config)?;
     Ok(())
@@ -393,11 +423,13 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
     let model = Phase::DdvRed.model_key(config);
+    let err_log = error_log(&lisa_root);
     let result = agent::run_agent(
         &input,
         &model,
         &format!("DDV Red: pass {}", pass),
         config.terminal.collapse_output,
+        Some(&err_log),
     )?;
 
     // Verify DDV isolation
@@ -450,11 +482,13 @@ fn run_build_loop(
 
         let input = prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&extra));
         let model = Phase::Build.model_key(config);
+        let err_log = error_log(&lisa_root);
         agent::run_agent(
             &input,
             &model,
             &format!("Build: iter {}", iter),
             config.terminal.collapse_output,
+            Some(&err_log),
         )?;
 
         // Verify DDV tests weren't modified
@@ -551,11 +585,13 @@ fn run_execute(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::Execute, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Execute.model_key(config);
+    let err_log = error_log(&lisa_root);
     agent::run_agent(
         &input,
         &model,
         &format!("Execute: pass {}", pass),
         config.terminal.collapse_output,
+        Some(&err_log),
     )?;
     git::commit_all(&format!("execute: pass {}", pass), config)?;
     Ok(())
@@ -577,11 +613,13 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::Validate, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Validate.model_key(config);
+    let err_log = error_log(&lisa_root);
     agent::run_agent(
         &input,
         &model,
         &format!("Validate: pass {}", pass),
         config.terminal.collapse_output,
+        Some(&err_log),
     )?;
     git::commit_all(&format!("validate: pass {}", pass), config)?;
     Ok(())
@@ -611,11 +649,13 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     let input = prompt::build_agent_input(Phase::Finalize, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Finalize.model_key(config);
+    let err_log = error_log(&lisa_root);
     agent::run_agent(
         &input,
         &model,
         "Finalize: output",
         config.terminal.collapse_output,
+        Some(&err_log),
     )?;
     git::commit_all("final: generate output deliverables", config)?;
 

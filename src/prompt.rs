@@ -182,7 +182,7 @@ pub fn build_agent_input(
 
     let mut input = preamble;
     if let Some(extra) = extra_context {
-        input.push_str("\n");
+        input.push('\n');
         input.push_str(extra);
         input.push_str("\n\n");
     }

@@ -73,6 +73,7 @@ fn main() -> Result<()> {
             }
         }
         cli::Commands::EjectPrompts => cmd_eject_prompts(),
+        cli::Commands::History => cmd_history(),
     }
 }
 
@@ -256,4 +257,140 @@ fn cmd_eject_prompts() -> Result<()> {
     println!();
 
     Ok(())
+}
+
+fn cmd_history() -> Result<()> {
+    let root = project_root();
+    let lisa_root = match load_config() {
+        Ok(config) => config.lisa_root(&root),
+        Err(_) => root.join(".lisa"),
+    };
+
+    if !lisa_root.exists() {
+        terminal::log_error("No .lisa/ directory found. Run `lisa init` first.");
+        return Ok(());
+    }
+
+    let spiral_dir = lisa_root.join("spiral");
+    if !spiral_dir.exists() {
+        terminal::log_error("No spiral directory found. Run `lisa run` first.");
+        return Ok(());
+    }
+
+    // Collect pass directories (skip pass-0)
+    let mut passes: Vec<u32> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&spiral_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if let Some(num_str) = name_str.strip_prefix("pass-") {
+                if let Ok(num) = num_str.parse::<u32>() {
+                    if num > 0 {
+                        passes.push(num);
+                    }
+                }
+            }
+        }
+    }
+
+    passes.sort();
+
+    if passes.is_empty() {
+        terminal::log_info("No completed passes found (only pass-0 exists).");
+        return Ok(());
+    }
+
+    println!();
+    terminal::println_bold("Lisa Loop — Pass History");
+    println!();
+
+    // Header
+    println!(
+        "  {:>4}  {:<30}  {:<8}  {:<7}  Recommendation",
+        "Pass", "Answer", "DDV", "Sanity"
+    );
+    println!(
+        "  {:>4}  {:<30}  {:<8}  {:<7}  --------------",
+        "----", "------------------------------", "--------", "-------"
+    );
+
+    for pass in &passes {
+        let review_path = lisa_root.join(format!("spiral/pass-{}/review-package.md", pass));
+        if !review_path.exists() {
+            continue;
+        }
+        let content = match std::fs::read_to_string(&review_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let answer = review::extract_section_first_line(&content, "## Current Answer")
+            .unwrap_or_else(|| "-".to_string());
+        let answer_trunc = truncate_str(&answer, 30);
+
+        let ddv = extract_ddv_summary(&content).unwrap_or_else(|| "-".to_string());
+        let ddv_trunc = truncate_str(&ddv, 8);
+
+        let sanity = extract_sanity_summary(&content).unwrap_or_else(|| "-".to_string());
+        let sanity_trunc = truncate_str(&sanity, 7);
+
+        let rec = review::extract_section_first_line(&content, "## Recommendation")
+            .unwrap_or_else(|| "-".to_string());
+
+        println!(
+            "  {:>4}  {:<30}  {:<8}  {:<7}  {}",
+            pass, answer_trunc, ddv_trunc, sanity_trunc, rec
+        );
+    }
+
+    println!();
+
+    Ok(())
+}
+
+/// Extract DDV test result summary (e.g., "3/4") from review content.
+fn extract_ddv_summary(content: &str) -> Option<String> {
+    for line in content.lines() {
+        if line.starts_with("DDV:") {
+            // Try to extract a fraction like "3/4" or "passed: 3/4"
+            let text = line.trim_start_matches("DDV:").trim();
+            // Look for N/M pattern
+            if let Some(frac) = extract_fraction(text) {
+                return Some(frac);
+            }
+            return Some(truncate_str(text, 8));
+        }
+    }
+    None
+}
+
+/// Extract sanity check summary from review content.
+fn extract_sanity_summary(content: &str) -> Option<String> {
+    for line in content.lines() {
+        if line.to_lowercase().contains("sanity checks:") && !line.starts_with('#') {
+            let info = line.split(':').next_back().unwrap_or("").trim();
+            if let Some(frac) = extract_fraction(info) {
+                return Some(frac);
+            }
+            return Some(truncate_str(info, 7));
+        }
+    }
+    None
+}
+
+/// Find a "N/M" fraction pattern in text.
+fn extract_fraction(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"(\d+)\s*/\s*(\d+)").unwrap();
+    re.captures(text)
+        .map(|caps| format!("{}/{}", &caps[1], &caps[2]))
+}
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else if max > 3 {
+        format!("{}...", &s[..max - 3])
+    } else {
+        s[..max].to_string()
+    }
 }

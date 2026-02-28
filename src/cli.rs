@@ -46,4 +46,6 @@ pub enum Commands {
     Finalize,
     /// Copy compiled-in prompts to .lisa/prompts/ for customization
     EjectPrompts,
+    /// Show pass-by-pass history (answer, tests, recommendation)
+    History,
 }
