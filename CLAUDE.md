@@ -41,7 +41,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 - **`tasks.rs`** — Regex parser for `### Task N` blocks in `plan.md` (status tracking, stall detection)
 - **`git.rs`** — Git commit/push/reset operations respecting config flags
 - **`terminal.rs`** — Colored output utilities via crossterm
-- **`init/resolve_assignment.rs`** — Scaffolds `.lisa/` directory tree with embedded templates
+- **`init/scaffold.rs`** — Scaffolds `.lisa/` directory tree with embedded templates
 
 ### Key Design Patterns
 

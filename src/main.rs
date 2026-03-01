@@ -31,7 +31,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         cli::Commands::Init { name, tech } => {
-            init::resolve_assignment::run(&project_root(), name, tech)
+            init::scaffold::run(&project_root(), name, tech)
         }
         cli::Commands::Run {
             max_passes,
@@ -102,7 +102,7 @@ fn cmd_status() -> Result<()> {
     };
 
     if !lisa_root.exists() {
-        terminal::log_error("No .lisa/ directory found. Run `lisa init resolve-assignment` first.");
+        terminal::log_error("No .lisa/ directory found. Run `lisa init` first.");
         return Ok(());
     }
 
@@ -315,7 +315,7 @@ fn cmd_doctor() -> Result<()> {
         }
     } else {
         terminal::print_colored("  ○", Color::Yellow);
-        println!(" .lisa/ not found (run: lisa init resolve-assignment)");
+        println!(" .lisa/ not found (run: lisa init)");
     }
 
     println!();
@@ -327,7 +327,7 @@ fn cmd_eject_prompts() -> Result<()> {
     let lisa_root = root.join(".lisa");
 
     if !lisa_root.exists() {
-        terminal::log_error("No .lisa/ directory found. Run `lisa init resolve-assignment` first.");
+        terminal::log_error("No .lisa/ directory found. Run `lisa init` first.");
         return Ok(());
     }
 

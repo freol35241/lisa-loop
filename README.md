@@ -24,7 +24,7 @@ cargo install --path .
 2. Initialize a new project:
 
 ```bash
-lisa init resolve-assignment
+lisa init
 ```
 
 3. Edit `ASSIGNMENT.md` with your project description

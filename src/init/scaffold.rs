@@ -42,7 +42,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
 
         if std::io::stdin().is_terminal() {
             println!();
-            terminal::println_bold("  Lisa Loop — Resolve Assignment");
+            terminal::println_bold("  Lisa Loop — Initialize Project");
             println!();
             let name: String = dialoguer::Input::new()
                 .with_prompt("  Assignment name")
