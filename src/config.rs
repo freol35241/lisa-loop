@@ -212,7 +212,7 @@ pub struct CommandsConfig {
 
 impl Config {
     pub fn load(project_root: &Path) -> Result<Self> {
-        let config_path = project_root.join(".lisa").join("lisa.toml");
+        let config_path = project_root.join("lisa.toml");
         let content = std::fs::read_to_string(&config_path)
             .with_context(|| format!("Failed to read {}", config_path.display()))?;
         let config: Config =

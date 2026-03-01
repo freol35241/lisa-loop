@@ -688,11 +688,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
          Read all {}/spiral/pass-*/progress-tracking.md files for the progress history.\n\
          Read {}/methodology/methodology.md for the methodology.\n\
          Produce the deliverables specified in ASSIGNMENT.md.",
-        pass,
-        config.paths.lisa_root,
-        pass,
-        config.paths.lisa_root,
-        config.paths.lisa_root,
+        pass, config.paths.lisa_root, pass, config.paths.lisa_root, config.paths.lisa_root,
     );
 
     std::fs::create_dir_all(lisa_root.join("output"))?;

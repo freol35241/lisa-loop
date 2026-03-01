@@ -3,12 +3,12 @@ use crossterm::style::Color;
 use std::io::IsTerminal;
 use std::path::Path;
 
-use crate::config::default_config_toml;
+use crate::config::{default_config_toml, PathsConfig};
 use crate::terminal;
 
 // Compiled-in templates
 const ASSIGNMENT_TEMPLATE: &str = include_str!("../../templates/assignment.md");
-const AGENTS_TEMPLATE: &str = include_str!("../../templates/agents.md");
+const STACK_TEMPLATE: &str = include_str!("../../templates/stack.md");
 const METHODOLOGY_TEMPLATE: &str = include_str!("../../templates/methodology.md");
 const PLAN_TEMPLATE: &str = include_str!("../../templates/plan.md");
 const VERIFICATION_CASES_TEMPLATE: &str = include_str!("../../templates/verification_cases.md");
@@ -67,6 +67,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         String::new()
     };
 
+    let paths = PathsConfig::default();
+
     // Create directory structure
     let dirs = [
         ".lisa",
@@ -79,29 +81,32 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/references/retrieved",
         ".lisa/plots",
         ".lisa/output",
-        "src",
-        "tests/ddv",
-        "tests/software",
-        "tests/integration",
+    ];
+    let source_dirs: Vec<&str> = paths.source.iter().map(|s| s.as_str()).collect();
+    let test_dirs = [
+        paths.tests_ddv.as_str(),
+        paths.tests_software.as_str(),
+        paths.tests_integration.as_str(),
     ];
 
-    for dir in &dirs {
+    for dir in dirs
+        .iter()
+        .chain(source_dirs.iter())
+        .chain(test_dirs.iter())
+    {
         std::fs::create_dir_all(project_root.join(dir))
             .with_context(|| format!("Failed to create directory: {}", dir))?;
     }
 
     // Write config
     let config_content = default_config_toml(&project_name);
-    write_file(&lisa_root.join("lisa.toml"), &config_content)?;
+    write_file(&project_root.join("lisa.toml"), &config_content)?;
 
-    // Write ASSIGNMENT.md (in project root, not inside .lisa/)
-    write_file(&project_root.join("ASSIGNMENT.md"), ASSIGNMENT_TEMPLATE)?;
-
-    // Write AGENTS.md with optional tech preference
-    let agents_content = if tech_pref.is_empty() {
-        AGENTS_TEMPLATE.to_string()
+    // Write ASSIGNMENT.md (in project root, not inside .lisa/) with optional tech preference
+    let assignment_content = if tech_pref.is_empty() {
+        ASSIGNMENT_TEMPLATE.to_string()
     } else {
-        AGENTS_TEMPLATE.replacen(
+        ASSIGNMENT_TEMPLATE.replacen(
             "<!-- State your technology preferences here",
             &format!(
                 "{}\n\n<!-- State your technology preferences here",
@@ -110,7 +115,10 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
             1,
         )
     };
-    write_file(&lisa_root.join("AGENTS.md"), &agents_content)?;
+    write_file(&project_root.join("ASSIGNMENT.md"), &assignment_content)?;
+
+    // Write STACK.md
+    write_file(&lisa_root.join("STACK.md"), STACK_TEMPLATE)?;
 
     // Write methodology templates
     write_file(
@@ -153,16 +161,17 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     write_file(&lisa_root.join("plots/REVIEW.md"), PLOTS_REVIEW_TEMPLATE)?;
 
     // Write .gitkeep files
-    for dir in &[
+    let lisa_keepdirs = [
         ".lisa/methodology/derivations",
         ".lisa/references/core",
         ".lisa/references/retrieved",
         ".lisa/output",
-        "tests/ddv",
-        "tests/software",
-        "tests/integration",
-        "src",
-    ] {
+    ];
+    for dir in lisa_keepdirs
+        .iter()
+        .chain(test_dirs.iter())
+        .chain(source_dirs.iter())
+    {
         let keepfile = project_root.join(dir).join(".gitkeep");
         if !keepfile.exists() {
             std::fs::write(&keepfile, "")?;
@@ -175,7 +184,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     // Print summary
     println!();
     terminal::println_bold("  Created:");
-    terminal::print_colored("    .lisa/lisa.toml              ", Color::Cyan);
+    terminal::print_colored("    lisa.toml                    ", Color::Cyan);
     println!("Configuration");
     terminal::print_colored("    ASSIGNMENT.md                ", Color::Cyan);
     println!("Edit with your full assignment");
@@ -189,13 +198,25 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("V&V artifacts (auto-managed)");
     terminal::print_colored("    .lisa/plots/                 ", Color::Cyan);
     println!("Verification plots");
-    terminal::print_colored("    src/                         ", Color::Cyan);
+    terminal::print_colored(
+        &format!("    {:<33}", format!("{}/", paths.source.join(", "))),
+        Color::Cyan,
+    );
     println!("Implementation code");
-    terminal::print_colored("    tests/ddv/                   ", Color::Cyan);
+    terminal::print_colored(
+        &format!("    {:<33}", format!("{}/", paths.tests_ddv)),
+        Color::Cyan,
+    );
     println!("Domain verification tests");
-    terminal::print_colored("    tests/software/              ", Color::Cyan);
+    terminal::print_colored(
+        &format!("    {:<33}", format!("{}/", paths.tests_software)),
+        Color::Cyan,
+    );
     println!("Software quality tests");
-    terminal::print_colored("    tests/integration/           ", Color::Cyan);
+    terminal::print_colored(
+        &format!("    {:<33}", format!("{}/", paths.tests_integration)),
+        Color::Cyan,
+    );
     println!("End-to-end tests");
     println!();
 

@@ -13,7 +13,7 @@ Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells yo
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
-- `{{lisa_root}}/AGENTS.md` — project-specific operational guidance
+- `{{lisa_root}}/STACK.md` — project-specific operational guidance
 - The review package for the final pass: `{{lisa_root}}/spiral/pass-N/review-package.md` (where N is the current pass)
 - `{{lisa_root}}/spiral/pass-N/progress-tracking.md` — progress tracking
 - `{{lisa_root}}/spiral/pass-N/system-validation.md` — validation results

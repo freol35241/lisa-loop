@@ -15,7 +15,7 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — project goals
-- `{{lisa_root}}/AGENTS.md` — build/test/plot commands
+- `{{lisa_root}}/STACK.md` — build/test/plot commands
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/sanity-checks.md` — engineering judgment checks

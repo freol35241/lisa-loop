@@ -13,10 +13,10 @@ number. Look for `Current spiral pass:` at the top of this prompt.
 ## Your Task
 
 1. Read `ASSIGNMENT.md` for project context.
-2. Read `{{lisa_root}}/AGENTS.md` for build/test/plot commands.
+2. Read `{{lisa_root}}/STACK.md` for build/test/plot commands.
 3. Read `{{lisa_root}}/methodology/plan.md` to find the next task.
 4. Read `{{lisa_root}}/methodology/methodology.md` for the equations to implement (relevant section only — the task tells you which section).
-5. Read existing code in `src/` (relevant files only).
+5. Read existing code in `{{source_dirs}}/` (relevant files only).
 6. Read existing derivation docs in `{{lisa_root}}/methodology/derivations/`.
 7. Implement the next TODO task.
 
@@ -52,7 +52,7 @@ After implementing the code for a task, run the DDV tests tagged for the relevan
 verification cases. Your goal: turn red tests green.
 
 Rules:
-- You MUST NOT modify DDV test files in `tests/ddv/`. They encode the domain specification.
+- You MUST NOT modify DDV test files in `{{tests_ddv}}/`. They encode the domain specification.
   If a DDV test expects a value your code doesn't produce, your code is wrong — not the test.
 - If after implementing you believe a DDV test has an error (wrong expected value,
   wrong tolerance, misread paper), do NOT modify the test. Instead:
@@ -74,9 +74,9 @@ In addition to making DDV tests green, you are responsible for software correctn
 - Numerical stability: behavior near singularities, convergence at boundaries
 - Array/shape correctness for vectorized operations
 
-Write these tests in `tests/software/` alongside your implementation. They must pass before marking a task done.
+Write these tests in `{{tests_software}}/` alongside your implementation. They must pass before marking a task done.
 Categorize them so they can be run independently of DDV and integration tests. Use the
-mechanism defined in `{{lisa_root}}/AGENTS.md` (see "Run Software Tests" command). Ensure every software
+mechanism defined in `{{lisa_root}}/STACK.md` (see "Run Software Tests" command). Ensure every software
 test you write is picked up by that command.
 
 There is no strict red-before-green ceremony for software tests. Write them as part of
@@ -84,20 +84,20 @@ normal development. The requirement is simply: they must exist and they must pas
 
 ### Code Organization
 
-- Create source files in `src/` organized by logical module (not by subsystem)
-- `src/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `tests/ddv/` — Domain-Driven Verification tests (read-only for you — written by DDV Red phase)
-- `tests/software/` — Software quality tests (written by you)
-- `tests/integration/` — End-to-end tests (written by Execute phase)
+- Create source files in `{{source_dirs}}/` organized by logical module (not by subsystem)
+- `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
+- `{{tests_ddv}}/` — Domain-Driven Verification tests (read-only for you — written by DDV Red phase)
+- `{{tests_software}}/` — Software quality tests (written by you)
+- `{{tests_integration}}/` — End-to-end tests (written by Execute phase)
 
 ### Technology Stack Adherence
 
-- Read the "Resolved Technology Stack" section of `{{lisa_root}}/AGENTS.md` before writing any code.
+- Read the "Resolved Technology Stack" section of `{{lisa_root}}/STACK.md` before writing any code.
 - Use the specified language, libraries, and test framework — no exceptions.
-- Do not introduce new languages or major dependencies not listed in `{{lisa_root}}/AGENTS.md`.
-- If you need an additional package-level dependency not yet listed, you may install it (pip/cargo/npm) and add it to the dependency list in `{{lisa_root}}/AGENTS.md`.
+- Do not introduce new languages or major dependencies not listed in `{{lisa_root}}/STACK.md`.
+- If you need an additional package-level dependency not yet listed, you may install it using the appropriate package manager and add it to the dependency list in `{{lisa_root}}/STACK.md`.
 - If you believe a fundamentally different tool or language is needed, do not install it — instead follow the Reconsideration Protocol and flag it for the next refine phase.
-- Use the exact build/test/lint commands from `{{lisa_root}}/AGENTS.md`.
+- Use the exact build/test/lint commands from `{{lisa_root}}/STACK.md`.
 
 ### Derivation Documentation
 
@@ -117,7 +117,7 @@ When a derivation doc is needed, create or update a document in `{{lisa_root}}/m
 
 After implementing, run verification:
 
-1. **Run DDV tests:** Use the test command from `{{lisa_root}}/AGENTS.md` to run DDV tests for the relevant verification cases.
+1. **Run DDV tests:** Use the test command from `{{lisa_root}}/STACK.md` to run DDV tests for the relevant verification cases.
 2. **Run software tests:** Run your newly written software quality tests.
 3. **Run full suite:** Full test suite as regression check.
 4. **Regenerate affected plots:** Any plot whose underlying model changed.

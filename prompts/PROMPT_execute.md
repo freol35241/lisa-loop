@@ -17,10 +17,10 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — the question we're answering
-- `{{lisa_root}}/AGENTS.md` — build/test/run commands
+- `{{lisa_root}}/STACK.md` — build/test/run commands
 - `{{lisa_root}}/methodology/methodology.md` — the methods being used
 - `{{lisa_root}}/methodology/plan.md` — what was implemented
-- All code in `src/`
+- All code in `{{source_dirs}}/`
 - Test results from the build phase (check test output or run the test suite)
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 
@@ -32,13 +32,13 @@ Write or update code that:
 3. Handles the data flow from initial conditions to final answer
 4. Produces a clear, quantitative answer to the question in ASSIGNMENT.md
 
-This code lives in `src/` (e.g., `src/main.py` or `src/runner.py`). It is real, committed code
+This code lives in `{{source_dirs}}/` (e.g., a main or runner module in `{{source_dirs}}/`). It is real, committed code
 that can be re-run — not a one-off script.
 
 If integration code already exists from a previous pass, update it to incorporate any new
 or changed modules from this pass.
 
-You may also write integration tests in `tests/integration/` that verify the end-to-end
+You may also write integration tests in `{{tests_integration}}/` that verify the end-to-end
 pipeline produces expected results.
 
 ### 3. End-to-End Execution
@@ -72,16 +72,16 @@ for engineering judgment checks.]
 - [Issue]: [description, severity, what it affects]
 
 ## Integration Test Results
-[Results of any end-to-end tests written in tests/integration/]
+[Results of any end-to-end tests written in {{tests_integration}}/]
 ```
 
 ## Rules
 
-- You MAY write integration/runner code in `src/` and integration tests in `tests/integration/`
-- You MAY create or modify runner/integration files (e.g., `src/main.py`, `src/runner.py`, `src/pipeline.py`)
+- You MAY write integration/runner code in `{{source_dirs}}/` and integration tests in `{{tests_integration}}/`
+- You MAY create or modify runner/integration files (e.g., a main or runner module in `{{source_dirs}}/`)
 - You MUST NOT modify files that implement domain equations or methodology (the modules that DDV tests verify). If a module has a bug or interface problem, document it in the execution report for the next pass's build phase to fix.
-- Rule of thumb: if a file has corresponding tests in `tests/ddv/`, don't touch it.
-- You MUST NOT modify DDV tests in `tests/ddv/`
+- Rule of thumb: if a file has corresponding tests in `{{tests_ddv}}/`, don't touch it.
+- You MUST NOT modify DDV tests in `{{tests_ddv}}/`
 - You MUST produce the execution report
 - You MUST produce a concrete answer to ASSIGNMENT.md — even if approximate or known to be rough
 

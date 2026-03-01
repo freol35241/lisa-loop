@@ -1,21 +1,8 @@
-# Operational Guide
+# Project Stack
 
-<!-- This file tells the AI agent how to build, test, and run the project.
-     It is read by ALL phase agents (scope, refine, ddv, build, execute, validate).
+<!-- This file records the resolved technology stack and operational commands.
+     It is populated by the scope agent during Pass 0 and read by ALL subsequent phase agents.
      Update it as your project evolves. -->
-
-## Technology Preferences (Human-Provided, Optional)
-
-<!-- State your technology preferences here BEFORE running scope.
-     If left blank, the scope agent will choose freely based on the problem requirements.
-
-     Examples:
-       - "Use Python 3.11+ with NumPy/SciPy"
-       - "Must be Rust for performance"
-       - "Python with PyO3 for hot loops"
-       - "Julia 1.10+ for numerical work"
-
-     You may also specify preferred test frameworks, linters, or build tools. -->
 
 ## Resolved Technology Stack (Scope-Agent-Populated)
 
@@ -83,7 +70,7 @@
 ## Lint / Format
 
 ```bash
-# e.g., ruff check . && ruff format --check .
+# Lint and format commands
 ```
 
 ## Project-Specific Notes

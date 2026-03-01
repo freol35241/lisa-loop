@@ -17,7 +17,7 @@ number. Look for lines starting with `Current spiral pass:` and `Previous pass r
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — project goals
-- `{{lisa_root}}/AGENTS.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
+- `{{lisa_root}}/STACK.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
 - `{{lisa_root}}/methodology/methodology.md` — the current methodology
 - `{{lisa_root}}/methodology/plan.md` — the current implementation plan
 - `{{lisa_root}}/methodology/verification-cases.md` — verification case specifications
@@ -52,7 +52,7 @@ Return a ranked recommendation."
 
 #### Code audit subagent
 Delegate when: pass > 1 and significant code exists.
-Prompt pattern: "Read all files in src/ and tests/. Report: current module structure, total
+Prompt pattern: "Read all files in {{source_dirs}}/ and the test directories. Report: current module structure, total
 lines by module, what interfaces exist between modules, any tech debt or structural problems,
 what would need to change if we [specific methodology change under consideration]."
 
@@ -101,7 +101,7 @@ Based on what you've read, identify what methodology needs to be added, changed,
 - **Numerical considerations** — Known issues with discretization, convergence, stability.
 
 If this is **Pass 1**:
-- Technology stack selection with justification (update `{{lisa_root}}/AGENTS.md`)
+- Technology stack selection with justification (update `{{lisa_root}}/STACK.md`)
 - Transform methodology stubs from scoping into complete, implementable specifications
 
 ### 4. Update Cross-Cutting Documents

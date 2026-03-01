@@ -98,7 +98,7 @@ pub fn build_context_preamble(
 
 ### Paths
 - ASSIGNMENT: ASSIGNMENT.md
-- AGENTS: {}/AGENTS.md
+- Stack: {}/STACK.md
 - Methodology: {}/methodology/
 - Spiral: {}/spiral/
 - Validation: {}/validation/

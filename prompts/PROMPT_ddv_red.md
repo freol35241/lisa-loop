@@ -25,7 +25,7 @@ Dynamic context is prepended above this prompt by loop.sh. It tells you the curr
 Read **all** of the following:
 
 - `ASSIGNMENT.md` — project goals
-- `{{lisa_root}}/AGENTS.md` — build/test/plot commands, test framework
+- `{{lisa_root}}/STACK.md` — build/test/plot commands, test framework
 - `{{lisa_root}}/methodology/methodology.md` — equations and methods to verify
 - `{{lisa_root}}/methodology/verification-cases.md` — existing verification case specifications
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
@@ -48,7 +48,7 @@ corrections yet.
 
 ### 3. What NOT to Read
 
-**Do NOT read** any files in `src/` (implementation code). The whole point of DDV is that
+**Do NOT read** any files in `{{source_dirs}}/` (implementation code). The whole point of DDV is that
 the test writer is independent of the implementation. Reading the code would defeat the
 purpose.
 
@@ -60,7 +60,7 @@ already exist from previous passes.
 For each verification case in `{{lisa_root}}/methodology/verification-cases.md` that is within this pass's
 scope and does not yet have a corresponding executable test:
 
-1. Write the test file in `tests/ddv/`. The test must:
+1. Write the test file in `{{tests_ddv}}/`. The test must:
    - Assert a specific expected value derived from a paper, analytical solution, or known limiting case
    - Include a comment citing the source: paper, equation number, table/figure, page
    - Include a tolerance with justification (numerical method accuracy, not "close enough")
@@ -79,20 +79,17 @@ scope and does not yet have a corresponding executable test:
 ### 5. Test Categorization
 
 DDV tests must be runnable independently of software and integration tests. Use whatever
-categorization mechanism is defined in `{{lisa_root}}/AGENTS.md` — this could be markers, directory
+categorization mechanism is defined in `{{lisa_root}}/STACK.md` — this could be markers, directory
 conventions, test name prefixes, test sets, or framework-specific grouping.
 
-Read the "Run DDV Tests" command in `{{lisa_root}}/AGENTS.md` to understand how DDV tests are selected.
+Read the "Run DDV Tests" command in `{{lisa_root}}/STACK.md` to understand how DDV tests are selected.
 Ensure every test you write is picked up by that command.
 
 Additionally, categorize tests by verification level so they can be filtered:
 - **Level 0:** Individual function tests (known input → known output)
 - **Level 1:** Model-level tests (behavior over valid range)
 
-Example mechanisms (the scope phase chooses one and documents it in {{lisa_root}}/AGENTS.md):
-- pytest: `@pytest.mark.ddv`, `@pytest.mark.level0` markers
-- cargo test: `tests/ddv/` directory + module-level grouping
-- Julia: `@testset "ddv"` / `@testset "level0"` grouping
+Use whatever categorization mechanism is defined in `{{lisa_root}}/STACK.md`.
 
 ### 6. Produce Test Manifest
 
@@ -118,11 +115,11 @@ Create `{{lisa_root}}/spiral/pass-N/ddv-red-manifest.md`:
 
 ## Rules
 
-- **Never read implementation code in `src/`.** This is the core DDV constraint.
+- **Never read implementation code in `{{source_dirs}}/`.** This is the core DDV constraint.
 - **Never weaken a test to make it pass.** If a test is failing, the implementation must be fixed — not the test.
 - **Every expected value must have a citation.** Paper, equation number, table, figure, page.
 - **If you cannot find a reference value** for a verification case, flag it and skip — do not invent expected values.
-- **Use the test framework specified in `{{lisa_root}}/AGENTS.md`.** Follow the project's testing conventions.
+- **Use the test framework specified in `{{lisa_root}}/STACK.md`.** Follow the project's testing conventions.
 - **Subagents may be used** to search for reference data or analytical solutions.
 
 ## Output

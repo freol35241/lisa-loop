@@ -64,8 +64,8 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         }
     }
 
-    // Stack (from AGENTS.md)
-    let agents_path = lisa_root.join("AGENTS.md");
+    // Stack (from STACK.md)
+    let agents_path = lisa_root.join("STACK.md");
     if agents_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&agents_path) {
             if let Some(stack) = extract_stack_info(&content) {
