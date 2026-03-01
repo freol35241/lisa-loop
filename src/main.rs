@@ -213,6 +213,38 @@ fn cmd_doctor() -> Result<()> {
         println!(" Not a git repository (run: git init)");
     }
 
+    // Check git user.name
+    let git_name = std::process::Command::new("git")
+        .args(["config", "user.name"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(name) = &git_name {
+        terminal::print_colored("  ✓", Color::Green);
+        println!(" Git user.name: {}", name);
+    } else {
+        terminal::print_colored("  ✗", Color::Red);
+        println!(" Git user.name not set (run: git config --global user.name \"Your Name\")");
+    }
+
+    // Check git user.email
+    let git_email = std::process::Command::new("git")
+        .args(["config", "user.email"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(email) = &git_email {
+        terminal::print_colored("  ✓", Color::Green);
+        println!(" Git user.email: {}", email);
+    } else {
+        terminal::print_colored("  ✗", Color::Red);
+        println!(" Git user.email not set (run: git config --global user.email \"you@example.com\")");
+    }
+
     // Check claude CLI
     let claude_ok = std::process::Command::new("claude")
         .arg("--version")
@@ -225,6 +257,28 @@ fn cmd_doctor() -> Result<()> {
     } else {
         terminal::print_colored("  ✗", Color::Red);
         println!(" Claude CLI not found (install: npm install -g @anthropic-ai/claude-code)");
+    }
+
+    // Check claude authentication
+    if claude_ok {
+        let auth_ok = std::process::Command::new("claude")
+            .args(["auth", "status"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&o.stdout).ok()?;
+                json.get("loggedIn")?.as_bool()
+            })
+            .unwrap_or(false);
+        if auth_ok {
+            terminal::print_colored("  ✓", Color::Green);
+            println!(" Claude CLI authenticated");
+        } else {
+            terminal::print_colored("  ✗", Color::Red);
+            println!(" Claude CLI not authenticated (run: claude auth login)");
+        }
     }
 
     // Check .lisa directory
