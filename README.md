@@ -13,34 +13,47 @@ Lisa Loop fuses two established engineering paradigms:
 2. **Engineering judgment is a first-class, auditable artifact.** "Do these numbers make physical sense?" is always asked, and the checks are written down, versioned, and executed.
 3. **The spiral history is the deliverable, not just the answer.** Every methodological choice, every refinement, every progress step is preserved as a complete record.
 
-## Quick Start
+## Getting Started
 
-1. Install the `lisa` CLI:
+### Prerequisites
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated (`npm install -g @anthropic-ai/claude-code && claude auth login`)
+- Git configured with `user.name` and `user.email`
+
+### Install
+
+Download the latest release binary (Linux x86_64):
+
+```bash
+curl -fsSL https://github.com/freol35241/lisa-loop/releases/latest/download/lisa-linux-x86_64 -o lisa && chmod +x lisa && sudo mv lisa /usr/local/bin/
+```
+
+Or build from source:
 
 ```bash
 cargo install --path .
 ```
 
-2. Initialize a new project:
+### Usage
 
 ```bash
-lisa init
+lisa doctor                  # Check environment and prerequisites
+lisa init                    # Scaffold .lisa/ directory and ASSIGNMENT.md
+# Edit ASSIGNMENT.md with your problem description
+# Add reference papers to .lisa/references/core/
+lisa run                     # Run the full spiral — scoping through acceptance
 ```
 
-3. Edit `ASSIGNMENT.md` with your project description
-4. Add reference papers to `.lisa/references/core/`
-5. Run:
+### All Commands
 
 ```bash
-# Run the full spiral — scoping through acceptance
-lisa run
-
-# Or step by step:
 lisa scope                   # Pass 0: scoping only
 lisa run --max-passes 3      # Limit spiral passes
 lisa resume                  # Resume from where you left off
 lisa status                  # Check current state
-lisa doctor                  # Check environment and prerequisites
+lisa history                 # Show pass-by-pass history (answer, tests, recommendation)
+lisa rollback <pass>         # Roll back to a previous pass boundary
+lisa continue "<question>"   # Continue with a follow-up question after acceptance
 lisa finalize                # Produce final deliverables
 lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
 ```
@@ -273,8 +286,6 @@ This copies all prompts to `.lisa/prompts/`. Edit them freely — the CLI uses l
 ```
 project-root/
 ├── Cargo.toml                          # Rust project configuration
-├── src/                                # Lisa Loop CLI source code
-│
 ├── ASSIGNMENT.md                       # Project description (user writes)
 ├── .lisa/                              # Process artifacts root
 │   ├── lisa.toml                       # Configuration
@@ -324,7 +335,7 @@ project-root/
 │       ├── answer.md
 │       └── report.md
 │
-├── src/                                # Deliverable implementation code
+├── src/                                # Deliverable implementation code (target project)
 ├── tests/
 │   ├── ddv/                            # Domain-Driven Verification tests
 │   ├── software/                       # Software quality tests
