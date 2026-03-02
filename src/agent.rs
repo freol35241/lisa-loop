@@ -126,9 +126,30 @@ pub fn run_agent(
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .context("Failed to spawn claude CLI. Is it installed and on PATH?")?;
+
+    // Collect stderr in a background thread
+    let stderr_handle = {
+        let stderr = child.stderr.take();
+        std::thread::spawn(move || -> String {
+            match stderr {
+                Some(pipe) => {
+                    let reader = BufReader::new(pipe);
+                    let mut buf = String::new();
+                    for line in reader.lines().map_while(Result::ok) {
+                        if buf.len() < 4096 {
+                            buf.push_str(&line);
+                            buf.push('\n');
+                        }
+                    }
+                    buf
+                }
+                None => String::new(),
+            }
+        })
+    };
 
     // Write input to stdin
     if let Some(mut stdin) = child.stdin.take() {
@@ -142,12 +163,21 @@ pub fn run_agent(
         for line in reader.lines() {
             let line = match line {
                 Ok(l) => l,
-                Err(_) => continue,
+                Err(e) => {
+                    eprintln!("    [warn] NDJSON read error: {}", e);
+                    continue;
+                }
             };
 
             let parsed: Value = match serde_json::from_str(&line) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(e) => {
+                    // Only warn for non-empty lines (blank lines between events are normal)
+                    if !line.trim().is_empty() {
+                        eprintln!("    [warn] NDJSON parse error: {}", e);
+                    }
+                    continue;
+                }
             };
 
             match parsed.get("type").and_then(|t| t.as_str()) {
@@ -164,11 +194,7 @@ pub fn run_agent(
                                         if let Some(thought) =
                                             item.get("thinking").and_then(|t| t.as_str())
                                         {
-                                            let truncated = if thought.len() > 200 {
-                                                format!("{}...", &thought[..200])
-                                            } else {
-                                                thought.to_string()
-                                            };
+                                            let truncated = truncate_str(thought, 200);
                                             terminal::print_dim(&format!(
                                                 "    [💭 {}] {}\n",
                                                 terminal::ts(),
@@ -269,6 +295,7 @@ pub fn run_agent(
     }
 
     let status = child.wait().context("Failed to wait for claude process")?;
+    let stderr_output = stderr_handle.join().unwrap_or_default();
 
     // Stop ticker thread
     ticker_running.store(false, Ordering::Relaxed);
@@ -277,6 +304,14 @@ pub fn run_agent(
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         let elapsed = start.elapsed().as_secs();
+
+        // Show stderr if present
+        if !stderr_output.trim().is_empty() {
+            terminal::log_warn("Agent stderr:");
+            for line in stderr_output.lines().take(20) {
+                eprintln!("    {}", line);
+            }
+        }
 
         // Show failure context in collapsed mode
         if collapsed {
@@ -316,6 +351,13 @@ pub fn run_agent(
                 content.push_str("\n## Partial Result\n\n");
                 content.push_str(&result_text);
                 content.push('\n');
+            }
+            if !stderr_output.trim().is_empty() {
+                content.push_str("\n## Stderr\n\n```\n");
+                // Cap at 2048 chars to avoid bloating the error log
+                let capped = truncate_str(&stderr_output, 2048);
+                content.push_str(&capped);
+                content.push_str("\n```\n");
             }
             let _ = std::fs::write(path, &content);
         }
@@ -410,16 +452,25 @@ pub fn format_collapsed_line(
     format!("{} | {}", base, truncated)
 }
 
-/// Truncate a tool detail string to fit within max_len characters.
-pub fn truncate_tool_detail(detail: &str, max_len: usize) -> String {
+/// Truncate a string to fit within max_len characters (UTF-8 safe).
+pub fn truncate_str(s: &str, max_len: usize) -> String {
     if max_len < 4 {
         return String::new();
     }
-    if detail.len() <= max_len {
-        detail.to_string()
-    } else {
-        format!("{}...", &detail[..max_len - 3])
+    if s.len() <= max_len {
+        return s.to_string();
     }
+    // Find a char boundary at or before max_len - 3 to leave room for "..."
+    let mut end = max_len - 3;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", &s[..end])
+}
+
+/// Truncate a tool detail string to fit within max_len characters.
+pub fn truncate_tool_detail(detail: &str, max_len: usize) -> String {
+    truncate_str(detail, max_len)
 }
 
 /// Format a ToolCall for display in error context.
@@ -430,22 +481,12 @@ pub fn format_tool_call_summary(call: &ToolCall) -> String {
         ToolCall::Edit { path } => format!("Edit {}", path),
         ToolCall::Bash { command } => {
             let first_line = command.lines().next().unwrap_or("");
-            let truncated = if first_line.len() > 60 {
-                format!("{}...", &first_line[..57])
-            } else {
-                first_line.to_string()
-            };
-            format!("Bash $ {}", truncated)
+            format!("Bash $ {}", truncate_str(first_line, 60))
         }
         ToolCall::Glob { pattern } => format!("Glob {}", pattern),
         ToolCall::Grep { pattern } => format!("Grep {}", pattern),
         ToolCall::Task { description } => {
-            let truncated = if description.len() > 50 {
-                format!("{}...", &description[..47])
-            } else {
-                description.to_string()
-            };
-            format!("Task {}", truncated)
+            format!("Task {}", truncate_str(description, 50))
         }
         ToolCall::Other { name } => name.to_string(),
     }
@@ -477,12 +518,7 @@ fn format_tool_detail(name: &str, input: &Value) -> String {
         "Bash" => {
             let cmd = input.get("command").and_then(|c| c.as_str()).unwrap_or("");
             let first_line = cmd.lines().next().unwrap_or("");
-            let truncated = if first_line.len() > 80 {
-                &first_line[..80]
-            } else {
-                first_line
-            };
-            format!("Bash $ {}", truncated)
+            format!("Bash $ {}", truncate_str(first_line, 80))
         }
         "Glob" => {
             let pattern = input.get("pattern").and_then(|p| p.as_str()).unwrap_or("");

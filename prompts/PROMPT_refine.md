@@ -7,7 +7,7 @@ written in this phase.
 
 You have no memory of previous invocations. The filesystem is your shared state. Read it carefully.
 
-Dynamic context is prepended above this prompt by loop.sh. It tells you the current pass
+Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass
 number. Look for lines starting with `Current spiral pass:` and `Previous pass results:`.
 
 ## Your Task
@@ -101,7 +101,7 @@ Based on what you've read, identify what methodology needs to be added, changed,
 - **Numerical considerations** — Known issues with discretization, convergence, stability.
 
 If this is **Pass 1**:
-- Technology stack selection with justification (update `{{lisa_root}}/STACK.md`)
+- Review and update technology stack if needed (update `{{lisa_root}}/STACK.md`)
 - Transform methodology stubs from scoping into complete, implementable specifications
 
 ### 4. Update Cross-Cutting Documents

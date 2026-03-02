@@ -6,7 +6,7 @@ answer rigorously and present the evidence for human review.
 
 You have no memory of previous invocations. The filesystem is your shared state.
 
-Dynamic context is prepended above this prompt by loop.sh. It tells you the current pass number.
+Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass number.
 
 ## Your Task
 

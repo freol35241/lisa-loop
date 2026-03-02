@@ -134,20 +134,40 @@ pub fn source_changed_in_last_commit(source_dirs: &[String]) -> Result<bool> {
 
 /// Unstage changes to a specific path
 pub fn reset_path(path: &str) -> Result<()> {
-    Command::new("git")
+    let status = Command::new("git")
         .args(["reset", "HEAD", "--", path])
         .status()
         .context("Failed to run git reset")?;
+    if !status.success() {
+        anyhow::bail!("git reset HEAD -- {} failed", path);
+    }
     Ok(())
 }
 
 /// Revert changes to a specific path
 pub fn checkout_path(path: &str) -> Result<()> {
-    Command::new("git")
+    let status = Command::new("git")
         .args(["checkout", "--", path])
         .status()
         .context("Failed to run git checkout")?;
+    if !status.success() {
+        anyhow::bail!("git checkout -- {} failed", path);
+    }
     Ok(())
+}
+
+/// List untracked files under a path.
+pub fn has_untracked_files(path: &str) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard", path])
+        .output()
+        .context("Failed to run git ls-files")?;
+    let files: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(String::from)
+        .collect();
+    Ok(files)
 }
 
 /// Create a lightweight git tag (delete-then-create for idempotency).

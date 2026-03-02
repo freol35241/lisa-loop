@@ -48,7 +48,7 @@ pub fn run_scope_only(config: &Config, project_root: &Path) -> Result<()> {
 }
 
 /// Resume from saved state
-pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
+pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
     let state = state::load_state(&lisa_root)?;
 
@@ -72,16 +72,16 @@ pub fn resume(config: &Config, project_root: &Path) -> Result<()> {
     match state {
         SpiralState::NotStarted => {
             terminal::log_info("No previous run found. Starting fresh.");
-            run(config, project_root, None, false)
+            run(config, project_root, None, no_pause)
         }
-        SpiralState::Scoping { .. } | SpiralState::ScopeReview => {
+        SpiralState::Scoping | SpiralState::ScopeReview => {
             terminal::log_info("Resuming: scope was incomplete.");
             run_scope(config, project_root)?;
-            run(config, project_root, None, false)
+            run(config, project_root, None, no_pause)
         }
         SpiralState::ScopeComplete => {
             terminal::log_info("Scope already complete. Running spiral passes.");
-            run(config, project_root, None, false)
+            run(config, project_root, None, no_pause)
         }
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
@@ -298,7 +298,7 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
         return Ok(());
     }
 
-    state::save_state(&lisa_root, &SpiralState::Scoping { attempt: 1 })?;
+    state::save_state(&lisa_root, &SpiralState::Scoping)?;
     std::fs::create_dir_all(lisa_root.join("spiral/pass-0"))?;
 
     // Check for existing feedback (resume case)

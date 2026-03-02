@@ -16,7 +16,7 @@ optional — they are the verification standard regardless of domain.
 
 You have no memory of previous invocations. The filesystem is your shared state.
 
-Dynamic context is prepended above this prompt by loop.sh. It tells you the current pass number.
+Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass number.
 
 ## Your Task
 
@@ -52,8 +52,8 @@ corrections yet.
 the test writer is independent of the implementation. Reading the code would defeat the
 purpose.
 
-The only exception: reading existing test files in `tests/` to avoid duplicating tests that
-already exist from previous passes.
+The only exception: reading existing test files in `{{tests_ddv}}/`, `{{tests_software}}/`, or
+`{{tests_integration}}/` to avoid duplicating tests that already exist from previous passes.
 
 ### 4. Write Domain Verification Tests
 

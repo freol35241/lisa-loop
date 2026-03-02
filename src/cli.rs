@@ -35,7 +35,14 @@ pub enum Commands {
         verbose: bool,
     },
     /// Resume from saved state
-    Resume,
+    Resume {
+        /// Skip all human review gates
+        #[arg(long)]
+        no_pause: bool,
+        /// Show full agent output (overrides collapse_output config)
+        #[arg(long, short)]
+        verbose: bool,
+    },
     /// Run only Pass 0 (scoping)
     Scope,
     /// Print current spiral state

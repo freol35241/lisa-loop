@@ -7,7 +7,7 @@ quality with your own tests. You implement ONE task per invocation.
 
 You have no memory of previous invocations. The filesystem is your shared state. Read it carefully.
 
-Dynamic context is prepended above this prompt by loop.sh. It tells you the current pass
+Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass
 number. Look for `Current spiral pass:` at the top of this prompt.
 
 ## Your Task
@@ -194,6 +194,7 @@ Before marking a task as `DONE`, verify **all** of the following:
 4. **Full test suite passes** (regression check).
 5. **Code matches the methodology spec.**
 6. **Derivation doc written** (if non-trivial mapping).
+7. **Affected plots regenerated** and `{{lisa_root}}/plots/REVIEW.md` updated for any new or changed plots.
 
 Only after confirming all criteria, mark the task as `DONE` in `{{lisa_root}}/methodology/plan.md`.
 

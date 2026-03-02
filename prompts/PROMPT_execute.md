@@ -8,7 +8,7 @@ implemented and passes its unit tests. Your job is to:
 
 You have no memory of previous invocations. The filesystem is your shared state.
 
-Dynamic context is prepended above this prompt by loop.sh. It tells you the current pass number.
+Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass number.
 
 ## Your Task
 
@@ -80,7 +80,7 @@ for engineering judgment checks.]
 - You MAY write integration/runner code in `{{source_dirs}}/` and integration tests in `{{tests_integration}}/`
 - You MAY create or modify runner/integration files (e.g., a main or runner module in `{{source_dirs}}/`)
 - You MUST NOT modify files that implement domain equations or methodology (the modules that DDV tests verify). If a module has a bug or interface problem, document it in the execution report for the next pass's build phase to fix.
-- Rule of thumb: if a file has corresponding tests in `{{tests_ddv}}/`, don't touch it.
+- How to tell: if a file has corresponding tests in `{{tests_ddv}}/`, it is a DDV-verified module — do not touch it.
 - You MUST NOT modify DDV tests in `{{tests_ddv}}/`
 - You MUST produce the execution report
 - You MUST produce a concrete answer to ASSIGNMENT.md — even if approximate or known to be rough

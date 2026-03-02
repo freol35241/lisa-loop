@@ -6,7 +6,7 @@ use std::path::Path;
 #[serde(tag = "state")]
 pub enum SpiralState {
     NotStarted,
-    Scoping { attempt: u32 },
+    Scoping,
     ScopeReview,
     ScopeComplete,
     InPass { pass: u32, phase: PassPhase },
@@ -28,7 +28,7 @@ impl std::fmt::Display for SpiralState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SpiralState::NotStarted => write!(f, "Not started"),
-            SpiralState::Scoping { attempt } => write!(f, "Scoping (attempt {})", attempt),
+            SpiralState::Scoping => write!(f, "Scoping"),
             SpiralState::ScopeReview => write!(f, "Scope review"),
             SpiralState::ScopeComplete => write!(f, "Scope complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_state_roundtrip_scoping() {
-        let state = SpiralState::Scoping { attempt: 2 };
+        let state = SpiralState::Scoping;
         let file = StateFile {
             state: state.clone(),
         };

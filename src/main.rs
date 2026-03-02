@@ -30,9 +30,7 @@ fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
     match cli.command {
-        cli::Commands::Init { name, tech } => {
-            init::scaffold::run(&project_root(), name, tech)
-        }
+        cli::Commands::Init { name, tech } => init::scaffold::run(&project_root(), name, tech),
         cli::Commands::Run {
             max_passes,
             no_pause,
@@ -44,9 +42,12 @@ fn main() -> Result<()> {
             }
             orchestrator::run(&config, &project_root(), max_passes, no_pause)
         }
-        cli::Commands::Resume => {
-            let config = load_config()?;
-            orchestrator::resume(&config, &project_root())
+        cli::Commands::Resume { no_pause, verbose } => {
+            let mut config = load_config()?;
+            if verbose {
+                config.terminal.collapse_output = false;
+            }
+            orchestrator::resume(&config, &project_root(), no_pause)
         }
         cli::Commands::Scope => {
             let config = load_config()?;
@@ -59,8 +60,15 @@ fn main() -> Result<()> {
             let lisa_root = config.lisa_root(&project_root());
             let state = state::load_state(&lisa_root)?;
             match state {
-                state::SpiralState::PassReview { pass }
-                | state::SpiralState::InPass { pass, .. } => {
+                state::SpiralState::PassReview { pass } => {
+                    orchestrator::finalize(&config, &project_root(), pass)
+                }
+                state::SpiralState::InPass { pass, ref phase } => {
+                    terminal::log_warn(&format!(
+                        "Finalizing from mid-pass (pass {}, phase {}). \
+                         The validate phase has not run — review-package.md may not exist.",
+                        pass, phase
+                    ));
                     orchestrator::finalize(&config, &project_root(), pass)
                 }
                 state::SpiralState::Complete { final_pass } => {
@@ -242,7 +250,9 @@ fn cmd_doctor() -> Result<()> {
         println!(" Git user.email: {}", email);
     } else {
         terminal::print_colored("  ✗", Color::Red);
-        println!(" Git user.email not set (run: git config --global user.email \"you@example.com\")");
+        println!(
+            " Git user.email not set (run: git config --global user.email \"you@example.com\")"
+        );
     }
 
     // Check claude CLI
@@ -267,8 +277,7 @@ fn cmd_doctor() -> Result<()> {
             .ok()
             .filter(|o| o.status.success())
             .and_then(|o| {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&o.stdout).ok()?;
+                let json: serde_json::Value = serde_json::from_slice(&o.stdout).ok()?;
                 json.get("loggedIn")?.as_bool()
             })
             .unwrap_or(false);
@@ -324,10 +333,16 @@ fn cmd_doctor() -> Result<()> {
 
 fn cmd_eject_prompts() -> Result<()> {
     let root = project_root();
-    let lisa_root = root.join(".lisa");
+    let lisa_root = match config::Config::load(&root) {
+        Ok(config) => config.lisa_root(&root),
+        Err(_) => root.join(".lisa"),
+    };
 
     if !lisa_root.exists() {
-        terminal::log_error("No .lisa/ directory found. Run `lisa init` first.");
+        terminal::log_error(&format!(
+            "{} not found. Run `lisa init` first.",
+            lisa_root.display()
+        ));
         return Ok(());
     }
 
@@ -500,10 +515,14 @@ fn extract_fraction(text: &str) -> Option<String> {
 
 fn truncate_str(s: &str, max: usize) -> String {
     if s.len() <= max {
-        s.to_string()
-    } else if max > 3 {
-        format!("{}...", &s[..max - 3])
-    } else {
-        s[..max].to_string()
+        return s.to_string();
     }
+    if max <= 3 {
+        return ".".repeat(max);
+    }
+    let mut end = max - 3;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", &s[..end])
 }
