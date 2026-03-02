@@ -232,8 +232,9 @@ These checks require domain expertise and first-principles reasoning:
 1. [Plot: path] → [what to look for]
 2. [Key result] → [is this reasonable? dimensional analysis, conservation, order-of-magnitude]
 
-## Recommendation
-[ACCEPT: tests pass, sanity checks pass / CONTINUE: reason / BLOCKED: reason]
+## Status Assessment
+[Factual summary: what is complete vs. what remains from the full scope in spiral-plan.md.
+ Do NOT recommend a specific review action — the human decides.]
 
 ## If Continuing — Proposed Refinements
 - [What to change and why]
@@ -263,14 +264,12 @@ Create this file **last**:
 Verification: DDV [pass/total], Software [pass/total], Integration [pass/total]
 Validation: [X/Y sanity checks passing]
 Progress: see progress-tracking.md
-Agent recommendation: [ACCEPT / CONTINUE / BLOCKED]
+Status: [what is complete vs. what remains]
 ```
 
 #### Note on Final Output
 
-If you recommend ACCEPT, do NOT draft deliverables. The finalize phase handles
-deliverable production after human acceptance. Your job is to provide the
-recommendation and evidence — not the deliverables themselves.
+Do NOT draft deliverables. The finalize phase handles deliverable production after human review.
 
 ## Rules
 
@@ -284,4 +283,4 @@ Provide a brief summary of:
 - Test results (DDV, software, integration pass rates)
 - Validation results (sanity check results)
 - Progress tracking (deltas from previous pass)
-- Your recommendation (ACCEPT, CONTINUE, or BLOCKED with reasons)
+- Status assessment (what is complete vs. what remains from full scope)

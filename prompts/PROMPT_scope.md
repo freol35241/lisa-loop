@@ -32,6 +32,10 @@ Synthesize subagent results. Write all remaining artifacts:
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md`
 - `{{lisa_root}}/validation/limiting-cases.md`
 - `{{lisa_root}}/validation/reference-data.md`
+- Create or update the project root `.gitignore` with patterns appropriate for the resolved
+  technology stack (build outputs, dependency caches, virtual environments, IDE files, OS files,
+  framework-specific artifacts). Base patterns on the resolved stack in `{{lisa_root}}/STACK.md`.
+  If a `.gitignore` already exists, merge new patterns without removing existing ones.
 - `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md` (last)
 
 ## Scope Feedback (Refinement Re-invocation)

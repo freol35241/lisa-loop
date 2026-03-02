@@ -1,7 +1,7 @@
 mod agent;
 mod cli;
 mod config;
-mod enforcement;
+
 mod git;
 mod init;
 mod orchestrator;
@@ -131,7 +131,7 @@ fn cmd_status() -> Result<()> {
             // Check if spiral is complete
             if lisa_root.join("spiral/SPIRAL_COMPLETE.md").exists() {
                 println!();
-                terminal::println_colored("  Spiral COMPLETE — answer accepted.", Color::Green);
+                terminal::println_colored("  Spiral COMPLETE — Finalized.", Color::Green);
 
                 // Show follow-up count
                 let assignment_path = root.join("ASSIGNMENT.md");
@@ -426,7 +426,7 @@ fn cmd_history() -> Result<()> {
 
     // Header
     println!(
-        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Recommendation",
+        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Status",
         "Pass", "Answer", "DDV", "Sanity", "Cost"
     );
     println!(
@@ -454,7 +454,8 @@ fn cmd_history() -> Result<()> {
         let sanity = extract_sanity_summary(&content).unwrap_or_else(|| "-".to_string());
         let sanity_trunc = truncate_str(&sanity, 7);
 
-        let rec = review::extract_section_first_line(&content, "## Recommendation")
+        let rec = review::extract_section_first_line(&content, "## Status Assessment")
+            .or_else(|| review::extract_section_first_line(&content, "## Recommendation"))
             .unwrap_or_else(|| "-".to_string());
 
         let cost = ledger.pass_cost(*pass);

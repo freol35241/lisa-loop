@@ -194,11 +194,10 @@ pub fn run_agent(
                                         if let Some(thought) =
                                             item.get("thinking").and_then(|t| t.as_str())
                                         {
-                                            let truncated = truncate_str(thought, 200);
                                             terminal::print_dim(&format!(
                                                 "    [💭 {}] {}\n",
                                                 terminal::ts(),
-                                                truncated
+                                                thought
                                             ));
                                         }
                                     }

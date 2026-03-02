@@ -1,6 +1,6 @@
 # Finalization Phase — Lisa Loop
 
-You are producing the final deliverables for an accepted engineering/scientific project. The human has reviewed and ACCEPTED the results. Your job is to produce the deliverables specified in the brief and an audit summary.
+You are producing the final deliverables for an accepted engineering/scientific project. The human has reviewed and FINALIZED the results. Your job is to produce the deliverables specified in the brief and an audit summary.
 
 You have no memory of previous invocations. The filesystem is your shared state.
 

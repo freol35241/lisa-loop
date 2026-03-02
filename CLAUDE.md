@@ -16,7 +16,7 @@ cargo install --path .   # Install the `lisa` binary
 
 ## What This Project Is
 
-Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) through a rigorous engineering problem-solving methodology combining the V-Model and Design Spiral. It does NOT do engineering work itself — it manages prompt construction, state transitions, DDV isolation enforcement, git commits, and human review gates across iterative spiral passes.
+Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) through a rigorous engineering problem-solving methodology combining the V-Model and Design Spiral. It does NOT do engineering work itself — it manages prompt construction, state transitions, git commits, and human review gates across iterative spiral passes.
 
 ## Architecture
 
@@ -36,8 +36,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 - **`agent.rs`** — Spawns `claude` CLI subprocess, pipes prompts to stdin, parses streaming NDJSON, tracks tool calls, renders progress UX with elapsed time ticker thread
 - **`prompt.rs`** — Loads prompts (local `.lisa/prompts/` overrides compiled-in defaults), renders `{{placeholder}}` substitutions, assembles context preamble
 - **`config.rs`** — TOML config from `.lisa/lisa.toml` (project, models, limits, review, git, paths, commands)
-- **`review.rs`** — Three interactive gate types: scope review (A/R/E/Q), pass review (A/C/R), block gate (F/S/X)
-- **`enforcement.rs`** — Post-hoc DDV isolation: verifies DDV Red agent didn't touch source files (tool log inspection), verifies Build agent didn't modify DDV test files (git revert if so)
+- **`review.rs`** — Three interactive gate types: scope review (A/R/E/Q), pass review (F/C/R), block gate (F/S/X)
 - **`tasks.rs`** — Regex parser for `### Task N` blocks in `plan.md` (status tracking, stall detection)
 - **`git.rs`** — Git commit/push/reset operations respecting config flags
 - **`terminal.rs`** — Colored output utilities via crossterm
@@ -46,7 +45,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Key Design Patterns
 
 - **Compiled-in resources**: Prompts (`prompts/`) and templates (`templates/`) are embedded via `include_str!`. Users can eject prompts with `lisa eject-prompts` for customization without recompiling.
-- **Two-agent DDV separation**: DDV Red (opus) writes failing tests without seeing source. Build (sonnet) implements code without modifying DDV tests. Enforcement is post-hoc via tool log and git diff — violations are hard errors.
+- **Two-agent DDV separation**: DDV Red (opus) writes failing tests without seeing source. Build (sonnet) implements code without modifying DDV tests. Separation is enforced via prompt guidance (soft enforcement).
 - **Build "Ralph loop"**: The build phase iterates up to `max_ralph_iterations`, with stall detection based on content hashing of `plan.md`. Stalls trigger a block gate.
 - **Model assignment**: Most phases use "opus"; Build uses "sonnet". Configurable in `lisa.toml`.
 - **Error handling**: `anyhow::Result` throughout, propagated with `?`.

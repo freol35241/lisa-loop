@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::agent::{self, AgentResult};
 use crate::config::Config;
-use crate::enforcement;
+
 use crate::git;
 use crate::prompt::{self, Phase};
 use crate::review::{self, BlockDecision, ReviewDecision, ScopeDecision};
@@ -89,7 +89,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
         SpiralState::PassReview { pass } => {
             terminal::log_info(&format!("Resuming: review gate of pass {}.", pass));
             match review::review_gate(config, pass, &lisa_root)? {
-                ReviewDecision::Accept => finalize(config, project_root, pass),
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
                 ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
                     config,
                     project_root,
@@ -166,7 +166,7 @@ fn resume_from_phase(
     git::create_tag(&format!("lisa/pass-{}", pass))?;
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
     match review::review_gate(config, pass, &lisa_root)? {
-        ReviewDecision::Accept => finalize(config, project_root, pass),
+        ReviewDecision::Finalize => finalize(config, project_root, pass),
         ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
             config,
             project_root,
@@ -213,14 +213,14 @@ fn run_pass_range(
 
         state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
         match review::review_gate(config, pass, &lisa_root)? {
-            ReviewDecision::Accept => return finalize(config, project_root, pass),
+            ReviewDecision::Finalize => return finalize(config, project_root, pass),
             ReviewDecision::Continue | ReviewDecision::Redirect => continue,
         }
     }
 
     terminal::log_warn(&format!(
-        "Reached max spiral passes ({}) without acceptance. \
-         Run `lisa run --max-passes N` with a higher limit, or `lisa finalize` to accept current results.",
+        "Reached max spiral passes ({}) without finalization. \
+         Run `lisa run --max-passes N` with a higher limit, or `lisa finalize` to finalize current results.",
         max_pass
     ));
     Ok(())
@@ -470,7 +470,7 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let extra = format!("Current spiral pass: {}", pass);
     let input = prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
     let model = Phase::DdvRed.model_key(config);
-    let result = run_agent_with_tracking(
+    run_agent_with_tracking(
         config,
         &lisa_root,
         &input,
@@ -479,9 +479,6 @@ fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         "ddv_red",
         pass,
     )?;
-
-    // Verify DDV isolation
-    enforcement::verify_ddv_isolation(&result.tool_log, config, project_root)?;
 
     git::commit_all(
         &format!("ddv-red: pass {} — domain verification tests written", pass),
@@ -540,8 +537,6 @@ fn run_build_loop(
             pass,
         )?;
 
-        // Verify DDV tests weren't modified
-        enforcement::verify_ddv_tests_unmodified(config)?;
         git::commit_all(&format!("build: pass {} iteration {}", pass, iter), config)?;
 
         // Check completion
@@ -683,7 +678,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     // Run finalization agent
     let extra = format!(
         "Current spiral pass: {}\n\
-         FINALIZATION MODE: The human has ACCEPTED the results.\n\
+         FINALIZATION MODE: The human has FINALIZED the results.\n\
          Read the review package at {}/spiral/pass-{}/review-package.md for the current answer.\n\
          Read all {}/spiral/pass-*/progress-tracking.md files for the progress history.\n\
          Read {}/methodology/methodology.md for the methodology.\n\
@@ -709,7 +704,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     // Create SPIRAL_COMPLETE.md
     let complete_content = format!(
         "# Spiral Complete\n\n\
-         The human has accepted the results.\n\n\
+         The human has finalized the results.\n\n\
          Completed: {}\n\
          Final pass: {}\n",
         chrono::Local::now().to_rfc3339(),
@@ -722,7 +717,7 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     state::save_state(&lisa_root, &SpiralState::Complete { final_pass: pass })?;
     git::commit_all(
-        &format!("final: spiral complete — answer accepted at pass {}", pass),
+        &format!("final: spiral complete — finalized at pass {}", pass),
         config,
     )?;
     git::push(config)?;

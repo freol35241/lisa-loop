@@ -85,26 +85,6 @@ pub fn is_git_repo() -> bool {
         .unwrap_or(false)
 }
 
-/// Check if files in a path have been modified (unstaged or staged changes)
-pub fn has_any_modifications(path: &str) -> Result<bool> {
-    // Check unstaged
-    let unstaged = Command::new("git")
-        .args(["diff", "--name-only", path])
-        .output()
-        .context("Failed to run git diff")?;
-    let unstaged_files = String::from_utf8_lossy(&unstaged.stdout);
-    if !unstaged_files.trim().is_empty() {
-        return Ok(true);
-    }
-    // Check staged
-    let staged = Command::new("git")
-        .args(["diff", "--cached", "--name-only", path])
-        .output()
-        .context("Failed to run git diff --cached")?;
-    let staged_files = String::from_utf8_lossy(&staged.stdout);
-    Ok(!staged_files.trim().is_empty())
-}
-
 /// Check if any source files were modified in the most recent commit.
 /// Runs `git diff --name-only HEAD~1 HEAD -- <source_dirs...>` and returns
 /// true if any files match.
@@ -130,44 +110,6 @@ pub fn source_changed_in_last_commit(source_dirs: &[String]) -> Result<bool> {
 
     let files = String::from_utf8_lossy(&output.stdout);
     Ok(!files.trim().is_empty())
-}
-
-/// Unstage changes to a specific path
-pub fn reset_path(path: &str) -> Result<()> {
-    let status = Command::new("git")
-        .args(["reset", "HEAD", "--", path])
-        .status()
-        .context("Failed to run git reset")?;
-    if !status.success() {
-        anyhow::bail!("git reset HEAD -- {} failed", path);
-    }
-    Ok(())
-}
-
-/// Revert changes to a specific path
-pub fn checkout_path(path: &str) -> Result<()> {
-    let status = Command::new("git")
-        .args(["checkout", "--", path])
-        .status()
-        .context("Failed to run git checkout")?;
-    if !status.success() {
-        anyhow::bail!("git checkout -- {} failed", path);
-    }
-    Ok(())
-}
-
-/// List untracked files under a path.
-pub fn has_untracked_files(path: &str) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(["ls-files", "--others", "--exclude-standard", path])
-        .output()
-        .context("Failed to run git ls-files")?;
-    let files: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(String::from)
-        .collect();
-    Ok(files)
 }
 
 /// Create a lightweight git tag (delete-then-create for idempotency).

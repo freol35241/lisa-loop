@@ -9,7 +9,7 @@ use crate::terminal;
 #[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum ReviewDecision {
-    Accept,
+    Finalize,
     Continue,
     Redirect,
 }
@@ -235,8 +235,8 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!("    Plots:      {}/plots/REVIEW.md", lisa_root.display());
     println!();
 
-    terminal::print_colored("  [A]", Color::Green);
-    println!(" ACCEPT — produce final report");
+    terminal::print_colored("  [F]", Color::Green);
+    println!(" FINALIZE — produce final report");
     terminal::print_colored("  [C]", Color::Yellow);
     println!(" CONTINUE — next spiral pass");
     terminal::print_colored("  [R]", Color::Cyan);
@@ -246,14 +246,14 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!();
 
     loop {
-        print!("  Your choice [A/C/R]: ");
+        print!("  Your choice [F/C/R]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
-            "A" => {
-                terminal::log_success("ACCEPTED — producing final output.");
-                return Ok(ReviewDecision::Accept);
+            "F" => {
+                terminal::log_success("FINALIZED — producing final output.");
+                return Ok(ReviewDecision::Finalize);
             }
             "C" => {
                 terminal::log_info("CONTINUE — proceeding to next pass.");
@@ -307,7 +307,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                 }
                 return Ok(ReviewDecision::Continue);
             }
-            _ => println!("  Please enter A, C, or R."),
+            _ => println!("  Please enter F, C, or R."),
         }
     }
 }
@@ -586,13 +586,6 @@ fn display_review_summary(content: &str, _pass: u32) {
             println!("{}", info);
             break;
         }
-    }
-
-    // Extract recommendation
-    if let Some(rec) = extract_section_first_line(content, "## Recommendation") {
-        println!();
-        terminal::print_bold("  Agent recommends: ");
-        println!("{}", rec);
     }
 }
 
