@@ -6,6 +6,14 @@ use std::path::Path;
 use crate::config::{default_config_toml, PathsConfig};
 use crate::terminal;
 
+/// Returns true if the path looks like a file (has an extension in its final component).
+fn looks_like_file(path: &str) -> bool {
+    Path::new(path)
+        .file_name()
+        .and_then(|f| Path::new(f).extension())
+        .is_some()
+}
+
 // Compiled-in templates
 const ASSIGNMENT_TEMPLATE: &str = include_str!("../../templates/assignment.md");
 const STACK_TEMPLATE: &str = include_str!("../../templates/stack.md");
@@ -83,6 +91,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/output",
     ];
     let source_dirs: Vec<&str> = paths.source.iter().map(|s| s.as_str()).collect();
+    let source_dirs_only: Vec<&&str> = source_dirs.iter().filter(|s| !looks_like_file(s)).collect();
     let test_dirs = [
         paths.tests_ddv.as_str(),
         paths.tests_software.as_str(),
@@ -91,7 +100,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
 
     for dir in dirs
         .iter()
-        .chain(source_dirs.iter())
+        .chain(source_dirs_only.iter().copied())
         .chain(test_dirs.iter())
     {
         std::fs::create_dir_all(project_root.join(dir))
@@ -170,7 +179,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     for dir in lisa_keepdirs
         .iter()
         .chain(test_dirs.iter())
-        .chain(source_dirs.iter())
+        .chain(source_dirs_only.iter().copied())
     {
         let keepfile = project_root.join(dir).join(".gitkeep");
         if !keepfile.exists() {
@@ -198,8 +207,19 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("V&V artifacts (auto-managed)");
     terminal::print_colored("    .lisa/plots/                 ", Color::Cyan);
     println!("Verification plots");
+    let source_display: Vec<String> = paths
+        .source
+        .iter()
+        .map(|s| {
+            if looks_like_file(s) {
+                s.clone()
+            } else {
+                format!("{}/", s)
+            }
+        })
+        .collect();
     terminal::print_colored(
-        &format!("    {:<33}", format!("{}/", paths.source.join(", "))),
+        &format!("    {:<33}", source_display.join(", ")),
         Color::Cyan,
     );
     println!("Implementation code");
@@ -235,4 +255,20 @@ fn write_file(path: &Path, content: &str) -> Result<()> {
     }
     std::fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_looks_like_file() {
+        assert!(looks_like_file("src/lib.rs"));
+        assert!(looks_like_file("src/my_module/mod.rs"));
+        assert!(looks_like_file("lib.rs"));
+        assert!(looks_like_file("path/to/file.txt"));
+        assert!(!looks_like_file("src"));
+        assert!(!looks_like_file("src/my_module"));
+        assert!(!looks_like_file("tests/ddv"));
+    }
 }
