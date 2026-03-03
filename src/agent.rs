@@ -62,6 +62,7 @@ pub fn run_agent(
     label: &str,
     collapse_output: bool,
     error_log_path: Option<&Path>,
+    extra_args: &[String],
 ) -> Result<AgentResult> {
     let start = Instant::now();
     let mut stats = AgentStats::default();
@@ -114,16 +115,20 @@ pub fn run_agent(
         })
     };
 
-    let mut child = Command::new("claude")
-        .args([
-            "-p",
-            "--dangerously-skip-permissions",
-            "--verbose",
-            "--model",
-            model,
-            "--output-format",
-            "stream-json",
-        ])
+    let mut cmd = Command::new("claude");
+    cmd.args([
+        "-p",
+        "--dangerously-skip-permissions",
+        "--verbose",
+        "--model",
+        model,
+        "--output-format",
+        "stream-json",
+    ]);
+    if !extra_args.is_empty() {
+        cmd.args(extra_args);
+    }
+    let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

@@ -19,6 +19,8 @@ pub struct Config {
     pub paths: PathsConfig,
     #[serde(default)]
     pub commands: CommandsConfig,
+    #[serde(default)]
+    pub agent: AgentConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,6 +195,14 @@ fn default_tests_integration() -> String {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentConfig {
+    /// Extra CLI arguments passed to every `claude` invocation.
+    /// Each element is one argument, e.g. ["--max-turns", "50"].
+    #[serde(default)]
+    pub extra_args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CommandsConfig {
     #[serde(default)]
     pub setup: String,
@@ -250,6 +260,23 @@ mod tests {
         assert_eq!(config.paths.lisa_root, ".lisa");
         assert_eq!(config.paths.source, vec!["src"]);
         assert_eq!(config.paths.tests_ddv, "tests/ddv");
+        assert!(config.agent.extra_args.is_empty());
+    }
+
+    #[test]
+    fn test_parse_agent_extra_args() {
+        let toml_str = r#"
+[project]
+name = "with-args"
+
+[agent]
+extra_args = ["--max-turns", "50", "--verbose"]
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(
+            config.agent.extra_args,
+            vec!["--max-turns", "50", "--verbose"]
+        );
     }
 
     #[test]
@@ -264,6 +291,7 @@ name = "minimal"
         assert_eq!(config.models.scope, "opus");
         assert_eq!(config.limits.max_spiral_passes, 5);
         assert!(config.review.pause);
+        assert!(config.agent.extra_args.is_empty());
     }
 
     #[test]
@@ -317,6 +345,11 @@ source = ["src"]
 tests_ddv = "tests/ddv"
 tests_software = "tests/software"
 tests_integration = "tests/integration"
+
+[agent]
+# Extra CLI flags passed to every claude invocation.
+# Each element becomes one argument, e.g. ["--max-turns", "50"]
+extra_args = []
 
 [commands]
 # These get populated by the scope agent, but can be pre-filled

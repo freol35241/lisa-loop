@@ -248,6 +248,7 @@ fn run_agent_with_tracking(
         label,
         config.terminal.collapse_output,
         Some(&err_log),
+        &config.agent.extra_args,
     )?;
 
     let cumulative = usage::record_invocation(
