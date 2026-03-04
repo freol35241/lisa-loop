@@ -12,6 +12,7 @@ pub enum ReviewDecision {
     Finalize,
     Continue,
     Redirect,
+    Quit,
 }
 
 #[derive(Debug, PartialEq)]
@@ -31,6 +32,14 @@ pub enum BlockDecision {
 
 #[derive(Debug, PartialEq)]
 pub enum DdvDecision {
+    Approve,
+    Refine,
+    Edit,
+    Quit,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RefineDecision {
     Approve,
     Refine,
     Edit,
@@ -287,6 +296,100 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
     }
 }
 
+/// Refine review gate — after each pass's refine phase
+pub fn refine_review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<RefineDecision> {
+    if !config.review.pause {
+        terminal::log_warn("Refine review skipped (pause = false)");
+        return Ok(RefineDecision::Approve);
+    }
+
+    println!();
+    terminal::print_separator();
+    terminal::println_bold(&format!(
+        "  PASS {} REFINE COMPLETE — REVIEW REQUIRED",
+        pass
+    ));
+    terminal::print_separator();
+    println!();
+
+    // Show refine summary path
+    let summary_path = lisa_root.join(format!("spiral/pass-{}/refine-summary.md", pass));
+    if summary_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&summary_path) {
+            let line_count = content.lines().filter(|l| !l.trim().is_empty()).count();
+            terminal::print_colored("  Refine summary: ", Color::Cyan);
+            println!("{} lines", line_count);
+        }
+    }
+
+    // Methodology change count
+    let method_path = lisa_root.join("methodology/methodology.md");
+    if method_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&method_path) {
+            let section_count = content.lines().filter(|l| l.starts_with("## ")).count();
+            terminal::print_colored("  Methodology:    ", Color::Cyan);
+            println!("{} sections", section_count);
+        }
+    }
+
+    // Plan task delta
+    let plan_path = lisa_root.join("methodology/plan.md");
+    if plan_path.exists() {
+        if let Ok(counts) = crate::tasks::count_tasks_by_status(&plan_path) {
+            if counts.total > 0 {
+                terminal::print_colored("  Tasks:          ", Color::Cyan);
+                println!(
+                    "{} total ({} TODO, {} DONE, {} BLOCKED)",
+                    counts.total, counts.todo, counts.done, counts.blocked
+                );
+            }
+        }
+    }
+
+    // Reconsideration resolutions
+    let recon_dir = lisa_root.join(format!("spiral/pass-{}/reconsiderations", pass));
+    if recon_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&recon_dir) {
+            let files: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            if !files.is_empty() {
+                terminal::print_colored("  Reconsiderations: ", Color::Cyan);
+                println!("{} resolved", files.len());
+            }
+        }
+    }
+
+    println!();
+    terminal::print_colored("  [A]", Color::Green);
+    println!(" APPROVE  — proceed to build phase");
+    terminal::print_colored("  [R]", Color::Yellow);
+    println!(" REFINE   — provide feedback, re-run refine agent");
+    terminal::print_colored("  [E]", Color::Cyan);
+    println!(" EDIT     — I'll edit the files directly, then approve");
+    terminal::print_colored("  [Q]", Color::Red);
+    println!(" QUIT     — stop here");
+    println!();
+    terminal::print_separator();
+    println!();
+
+    loop {
+        print!("  Choice: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_lowercase().as_str() {
+            "a" => return Ok(RefineDecision::Approve),
+            "r" => return Ok(RefineDecision::Refine),
+            "e" => return Ok(RefineDecision::Edit),
+            "q" => return Ok(RefineDecision::Quit),
+            _ => println!("  Invalid choice. Enter A, R, E, or Q."),
+        }
+    }
+}
+
 /// Pass review gate — after each pass's validate phase
 pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<ReviewDecision> {
     if !config.review.pause {
@@ -337,12 +440,14 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!(" CONTINUE — next spiral pass");
     terminal::print_colored("  [R]", Color::Cyan);
     println!(" REDIRECT — provide guidance (opens $EDITOR)");
+    terminal::print_colored("  [Q]", Color::Red);
+    println!(" QUIT     — stop here");
     println!();
     terminal::print_separator();
     println!();
 
     loop {
-        print!("  Your choice [F/C/R]: ");
+        print!("  Your choice [F/C/R/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
@@ -354,6 +459,10 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
             "C" => {
                 terminal::log_info("CONTINUE — proceeding to next pass.");
                 return Ok(ReviewDecision::Continue);
+            }
+            "Q" => {
+                terminal::log_warn("QUIT — stopping after this pass.");
+                return Ok(ReviewDecision::Quit);
             }
             "R" => {
                 // Create redirect file and open editor
@@ -403,7 +512,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                 }
                 return Ok(ReviewDecision::Continue);
             }
-            _ => println!("  Please enter F, C, or R."),
+            _ => println!("  Please enter F, C, R, or Q."),
         }
     }
 }
@@ -416,8 +525,8 @@ pub fn block_gate(
     lisa_root: &Path,
 ) -> Result<BlockDecision> {
     if !config.review.pause {
-        terminal::log_warn("Block gate skipped (pause = false) — defaulting to SKIP");
-        return Ok(BlockDecision::Skip);
+        terminal::log_warn("Block gate skipped (pause = false) — defaulting to ABORT");
+        return Ok(BlockDecision::Abort);
     }
 
     // Gather counts
@@ -502,9 +611,23 @@ pub fn block_gate(
         io::stdin().read_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "F" => {
-                terminal::log_info(
-                    "FIX — resolve blocks in methodology/plan.md, then build resumes.",
-                );
+                terminal::log_info("FIX — opening methodology/plan.md in $EDITOR...");
+
+                let editor = std::env::var("EDITOR")
+                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
+                let _ = std::process::Command::new(&editor).arg(plan_path).status();
+
+                // Re-read and display updated task counts
+                if let Ok(updated) = crate::tasks::count_tasks_by_status(plan_path) {
+                    println!();
+                    terminal::print_colored("  Updated: ", Color::Green);
+                    println!(
+                        "{} done / {} todo / {} blocked (of {} total)",
+                        updated.done, updated.todo, updated.blocked, updated.total
+                    );
+                }
+
+                terminal::log_info("Resuming build with updated plan.");
                 return Ok(BlockDecision::Fix);
             }
             "S" => {

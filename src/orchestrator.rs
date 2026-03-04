@@ -7,7 +7,7 @@ use crate::config::Config;
 
 use crate::git;
 use crate::prompt::{self, Phase};
-use crate::review::{self, BlockDecision, ReviewDecision, ScopeDecision};
+use crate::review::{self, BlockDecision, RefineDecision, ReviewDecision, ScopeDecision};
 use crate::state::{self, PassPhase, SpiralState};
 use crate::tasks;
 use crate::terminal;
@@ -96,10 +96,44 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
         }
+        SpiralState::RefineReview { pass } => {
+            terminal::log_info(&format!("Resuming: refine review gate of pass {}.", pass));
+            match refine_gate_loop(config, project_root, pass)? {
+                RefineDecision::Approve | RefineDecision::Edit => {}
+                RefineDecision::Quit => return Ok(()),
+                RefineDecision::Refine => {
+                    unreachable!("refine_gate_loop handles Refine internally")
+                }
+            }
+            if !run_build_loop(config, project_root, pass, 1)? {
+                return Ok(());
+            }
+            run_validate(config, project_root, pass)?;
+            git::push(config)?;
+            git::create_tag(&format!("lisa/pass-{}", pass))?;
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            match review::review_gate(config, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+            }
+        }
         SpiralState::PassReview { pass } => {
             terminal::log_info(&format!("Resuming: review gate of pass {}.", pass));
             match review::review_gate(config, pass, &lisa_root)? {
                 ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
                 ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
                     config,
                     project_root,
@@ -130,6 +164,13 @@ fn resume_from_phase(
         PassPhase::Refine => {
             terminal::log_info(&format!("Resuming: refine phase at pass {}.", pass));
             run_refine(config, project_root, pass)?;
+            match refine_gate_loop(config, project_root, pass)? {
+                RefineDecision::Approve | RefineDecision::Edit => {}
+                RefineDecision::Quit => return Ok(()),
+                RefineDecision::Refine => {
+                    unreachable!("refine_gate_loop handles Refine internally")
+                }
+            }
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
@@ -158,6 +199,10 @@ fn resume_from_phase(
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
     match review::review_gate(config, pass, &lisa_root)? {
         ReviewDecision::Finalize => finalize(config, project_root, pass),
+        ReviewDecision::Quit => {
+            terminal::log_warn("Stopping after pass review.");
+            Ok(())
+        }
         ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
             config,
             project_root,
@@ -189,6 +234,11 @@ fn run_pass_range(
         }
 
         run_refine(config, project_root, pass)?;
+        match refine_gate_loop(config, project_root, pass)? {
+            RefineDecision::Approve | RefineDecision::Edit => {}
+            RefineDecision::Quit => return Ok(()),
+            RefineDecision::Refine => unreachable!("refine_gate_loop handles Refine internally"),
+        }
         if !run_build_loop(config, project_root, pass, 1)? {
             terminal::log_error(&format!(
                 "Build aborted at pass {}. Run `lisa resume` to retry from the build phase.",
@@ -203,6 +253,10 @@ fn run_pass_range(
         state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
         match review::review_gate(config, pass, &lisa_root)? {
             ReviewDecision::Finalize => return finalize(config, project_root, pass),
+            ReviewDecision::Quit => {
+                terminal::log_warn("Stopping after pass review.");
+                return Ok(());
+            }
             ReviewDecision::Continue | ReviewDecision::Redirect => continue,
         }
     }
@@ -393,6 +447,10 @@ fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
+
+                // Re-display summary after edit
+                display_ddv_edit_summary(&lisa_root);
+
                 terminal::log_success(
                     "DDV scenarios approved (manually edited). Proceeding to Pass 1.",
                 );
@@ -532,6 +590,10 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
+
+                // Re-display summary after edit
+                display_scope_edit_summary(&lisa_root);
+
                 terminal::log_success("Scope approved (manually edited). Proceeding to Pass 1.");
                 break;
             }
@@ -546,6 +608,171 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     git::create_tag("lisa/pass-0")?;
     terminal::log_success("Pass 0 (scoping) complete.");
     Ok(())
+}
+
+/// Post-refine review gate loop. Returns the terminal decision (Approve, Edit, or Quit).
+/// Refine is handled internally by re-running the refine agent with feedback.
+fn refine_gate_loop(config: &Config, project_root: &Path, pass: u32) -> Result<RefineDecision> {
+    let lisa_root = config.lisa_root(project_root);
+
+    state::save_state(&lisa_root, &SpiralState::RefineReview { pass })?;
+    loop {
+        match review::refine_review_gate(config, pass, &lisa_root)? {
+            RefineDecision::Approve => {
+                terminal::log_success("Refine approved. Proceeding to build.");
+                return Ok(RefineDecision::Approve);
+            }
+            RefineDecision::Refine => {
+                // Create feedback template
+                let feedback_path =
+                    lisa_root.join(format!("spiral/pass-{}/refine-feedback.md", pass));
+                if !feedback_path.exists() {
+                    std::fs::create_dir_all(feedback_path.parent().unwrap())?;
+                    std::fs::write(
+                        &feedback_path,
+                        format!(
+                            "# Refine Feedback — Pass {}\n\n\
+                             ## Methodology Issues\n-\n\n\
+                             ## Task Plan Issues\n-\n\n\
+                             ## Scope Issues\n-\n\n\
+                             ## Other\n-\n",
+                            pass
+                        ),
+                    )?;
+                }
+
+                let editor = std::env::var("EDITOR")
+                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
+                let _ = std::process::Command::new(&editor)
+                    .arg(&feedback_path)
+                    .status();
+
+                terminal::log_info("Re-running refine agent with feedback...");
+                let refine_ctx = format!(
+                    "REFINE FEEDBACK: The human has reviewed your refine artifacts and provided feedback.\n\
+                     Read spiral/pass-{}/refine-feedback.md carefully and update all affected artifacts.\n\
+                     Do not discard previous work — refine it based on the feedback.",
+                    pass
+                );
+
+                let mut extra = format!("Current spiral pass: {}\n", pass);
+                let prev_pass = pass - 1;
+                extra.push_str(&format!(
+                    "Previous pass results: {}/spiral/pass-{}/\n",
+                    config.paths.lisa_root, prev_pass
+                ));
+                extra.push_str(&refine_ctx);
+
+                state::save_state(
+                    &lisa_root,
+                    &SpiralState::InPass {
+                        pass,
+                        phase: PassPhase::Refine,
+                    },
+                )?;
+
+                let input = prompt::build_agent_input(
+                    Phase::Refine,
+                    config,
+                    &lisa_root,
+                    pass,
+                    Some(&extra),
+                );
+                let model = Phase::Refine.model_key(config);
+                run_agent_with_tracking(
+                    config,
+                    &lisa_root,
+                    &input,
+                    &model,
+                    &format!("Refine: pass {} (feedback)", pass),
+                    "refine",
+                    pass,
+                )?;
+                git::commit_all(
+                    &format!("refine: pass {} — refined after human feedback", pass),
+                    config,
+                )?;
+                terminal::log_info("Refine updated. Reviewing again...");
+                state::save_state(&lisa_root, &SpiralState::RefineReview { pass })?;
+            }
+            RefineDecision::Edit => {
+                terminal::log_info(
+                    "Edit methodology/plan files directly, then press Enter to approve.",
+                );
+                print!("  Press Enter when done editing...");
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+                let mut _buf = String::new();
+                let _ = std::io::stdin().read_line(&mut _buf);
+
+                // Re-display summary after edit
+                display_refine_edit_summary(&lisa_root);
+
+                terminal::log_success("Refine approved (manually edited). Proceeding to build.");
+                return Ok(RefineDecision::Edit);
+            }
+            RefineDecision::Quit => {
+                terminal::log_warn("Stopping after refine.");
+                return Ok(RefineDecision::Quit);
+            }
+        }
+    }
+}
+
+/// Display a brief summary of scope artifacts after manual editing.
+fn display_scope_edit_summary(lisa_root: &Path) {
+    let plan_path = lisa_root.join("methodology/plan.md");
+    if let Ok(counts) = crate::tasks::count_tasks_by_status(&plan_path) {
+        terminal::print_colored("  Tasks: ", Color::Cyan);
+        println!("{} total", counts.total);
+    }
+    let method_path = lisa_root.join("methodology/methodology.md");
+    if method_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&method_path) {
+            let section_count = content.lines().filter(|l| l.starts_with("## ")).count();
+            terminal::print_colored("  Methodology: ", Color::Cyan);
+            println!("{} sections", section_count);
+        }
+    }
+}
+
+/// Display a brief summary of DDV artifacts after manual editing.
+fn display_ddv_edit_summary(lisa_root: &Path) {
+    let scenarios_path = lisa_root.join("ddv/scenarios.md");
+    if scenarios_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
+            let count = content.lines().filter(|l| l.starts_with("## DDV-")).count();
+            terminal::print_colored("  Scenarios: ", Color::Cyan);
+            println!("{}", count);
+        }
+    }
+    let manifest_path = lisa_root.join("ddv/manifest.md");
+    if manifest_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+            let count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
+            terminal::print_colored("  Manifest: ", Color::Cyan);
+            println!("{} entries", count);
+        }
+    }
+}
+
+/// Display a brief summary of key artifacts after manual editing.
+fn display_refine_edit_summary(lisa_root: &Path) {
+    let plan_path = lisa_root.join("methodology/plan.md");
+    if let Ok(counts) = crate::tasks::count_tasks_by_status(&plan_path) {
+        terminal::print_colored("  Tasks: ", Color::Cyan);
+        println!(
+            "{} total ({} TODO, {} DONE, {} BLOCKED)",
+            counts.total, counts.todo, counts.done, counts.blocked
+        );
+    }
+    let method_path = lisa_root.join("methodology/methodology.md");
+    if method_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&method_path) {
+            let section_count = content.lines().filter(|l| l.starts_with("## ")).count();
+            terminal::print_colored("  Methodology: ", Color::Cyan);
+            println!("{} sections", section_count);
+        }
+    }
 }
 
 fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
@@ -782,6 +1009,14 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         }
         review::FinalizeDecision::Rollback => {
             terminal::log_warn("Rolling back finalization.");
+            if git::has_uncommitted_changes()? {
+                terminal::log_error(
+                    "Uncommitted changes detected. Commit or stash them before rolling back.",
+                );
+                anyhow::bail!(
+                    "Cannot rollback finalization: uncommitted changes would be lost by git reset."
+                );
+            }
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
             git::reset_hard("HEAD~1")?;
             terminal::log_info(

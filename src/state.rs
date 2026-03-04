@@ -13,6 +13,7 @@ pub enum SpiralState {
     DdvAgentReview,
     DdvAgentComplete,
     InPass { pass: u32, phase: PassPhase },
+    RefineReview { pass: u32 },
     PassReview { pass: u32 },
     Complete { final_pass: u32 },
 }
@@ -36,6 +37,7 @@ impl std::fmt::Display for SpiralState {
             SpiralState::DdvAgentReview => write!(f, "DDV Agent review"),
             SpiralState::DdvAgentComplete => write!(f, "DDV Agent complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
+            SpiralState::RefineReview { pass } => write!(f, "Pass {} — Refine review", pass),
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
         }
@@ -178,8 +180,23 @@ mod tests {
     }
 
     #[test]
+    fn test_state_roundtrip_refine_review() {
+        let state = SpiralState::RefineReview { pass: 3 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
     fn test_state_display() {
         assert_eq!(format!("{}", SpiralState::NotStarted), "Not started");
+        assert_eq!(
+            format!("{}", SpiralState::RefineReview { pass: 2 }),
+            "Pass 2 — Refine review"
+        );
         assert_eq!(
             format!(
                 "{}",
