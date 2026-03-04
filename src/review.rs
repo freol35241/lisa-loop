@@ -29,6 +29,13 @@ pub enum BlockDecision {
     Abort,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum DdvDecision {
+    Approve,
+    Edit,
+    Quit,
+}
+
 /// Scope review gate — after Pass 0
 pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecision> {
     if !config.review.pause {
@@ -187,6 +194,79 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
             "e" => return Ok(ScopeDecision::Edit),
             "q" => return Ok(ScopeDecision::Quit),
             _ => println!("  Invalid choice. Enter A, R, E, or Q."),
+        }
+    }
+}
+
+/// DDV Agent review gate — always shown (even when pause = false)
+pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision> {
+    println!();
+    terminal::print_separator();
+    terminal::println_bold("  DDV SCENARIOS COMPLETE — REVIEW REQUIRED");
+    terminal::print_separator();
+    println!();
+
+    // Show scenario summary
+    let scenarios_path = lisa_root.join("ddv/scenarios.md");
+    if scenarios_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
+            let scenario_count = content.lines().filter(|l| l.starts_with("## DDV-")).count();
+            terminal::print_colored("  Scenarios: ", Color::Cyan);
+            println!("{}", scenario_count);
+
+            // Show first few scenario titles
+            let titles: Vec<&str> = content
+                .lines()
+                .filter(|l| l.starts_with("## DDV-"))
+                .take(5)
+                .collect();
+            for title in &titles {
+                println!("    {}", title.trim_start_matches("## "));
+            }
+            if scenario_count > 5 {
+                println!("    ... and {} more", scenario_count - 5);
+            }
+        }
+    }
+
+    // Show manifest summary
+    let manifest_path = lisa_root.join("ddv/manifest.md");
+    if manifest_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+            let entry_count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
+            if entry_count > 0 {
+                terminal::print_colored("  Manifest:  ", Color::Cyan);
+                println!("{} entries", entry_count);
+            }
+        }
+    }
+
+    println!();
+    terminal::print_colored("  Files:\n", Color::Cyan);
+    println!("    Scenarios: {}/ddv/scenarios.md", lisa_root.display());
+    println!("    Manifest:  {}/ddv/manifest.md", lisa_root.display());
+
+    println!();
+    terminal::print_colored("  [A]", Color::Green);
+    println!(" APPROVE  — proceed to Pass 1");
+    terminal::print_colored("  [E]", Color::Cyan);
+    println!(" EDIT     — I'll edit the scenarios directly, then approve");
+    terminal::print_colored("  [Q]", Color::Red);
+    println!(" QUIT     — stop here");
+    println!();
+    terminal::print_separator();
+    println!();
+
+    loop {
+        print!("  Choice: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_lowercase().as_str() {
+            "a" => return Ok(DdvDecision::Approve),
+            "e" => return Ok(DdvDecision::Edit),
+            "q" => return Ok(DdvDecision::Quit),
+            _ => println!("  Invalid choice. Enter A, E, or Q."),
         }
     }
 }

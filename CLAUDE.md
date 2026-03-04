@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 cargo build              # Build the project
-cargo test               # Run all 18 unit tests
+cargo test               # Run all unit tests
 cargo test <test_name>   # Run a single test (e.g., cargo test test_parse_tasks)
 cargo test <mod>::tests  # Run all tests in a module (e.g., cargo test config::tests)
 cargo clippy             # Lint
@@ -23,7 +23,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Core Flow
 
 1. **`lisa init`** scaffolds a `.lisa/` directory with config, templates, and state file
-2. **`lisa run`** drives a spiral: Pass 0 (Scoping) then Passes 1..N (Refine → DDV Red → Build → Execute → Validate)
+2. **`lisa run`** drives a spiral: Pass 0 (Scoping) → DDV Agent (one-time prologue) → Passes 1..N (Refine → DDV Red → Build → Validate)
 3. Each phase: save state → build prompt → spawn `claude` subprocess → parse NDJSON output → git commit → review gate
 4. **Filesystem is shared state** — agents have no memory between invocations; all inter-invocation communication happens through markdown files in `.lisa/`
 
@@ -31,12 +31,12 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 
 - **`cli.rs`** — Clap-derived CLI definition (`Commands` enum)
 - **`main.rs`** — Entry point, dispatches commands
-- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_refine`, `run_ddv_red`, `run_build_loop`, `run_execute`, `run_validate`, `finalize`)
+- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_ddv_agent`, `run_refine`, `run_ddv_red`, `run_build_loop`, `run_validate`, `finalize`)
 - **`state.rs`** — `SpiralState`/`PassPhase` enum state machine, TOML serialized to `.lisa/state.toml`
 - **`agent.rs`** — Spawns `claude` CLI subprocess, pipes prompts to stdin, parses streaming NDJSON, tracks tool calls, renders progress UX with elapsed time ticker thread
 - **`prompt.rs`** — Loads prompts (local `.lisa/prompts/` overrides compiled-in defaults), renders `{{placeholder}}` substitutions, assembles context preamble
 - **`config.rs`** — TOML config from `.lisa/lisa.toml` (project, models, limits, review, git, paths, commands)
-- **`review.rs`** — Three interactive gate types: scope review (A/R/E/Q), pass review (F/C/R), block gate (F/S/X)
+- **`review.rs`** — Four interactive gate types: scope review (A/R/E/Q), DDV review (A/E/Q), pass review (F/C/R), block gate (F/S/X)
 - **`tasks.rs`** — Regex parser for `### Task N` blocks in `plan.md` (status tracking, stall detection)
 - **`git.rs`** — Git commit/push/reset operations respecting config flags
 - **`terminal.rs`** — Colored output utilities via crossterm
@@ -45,6 +45,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Key Design Patterns
 
 - **Compiled-in resources**: Prompts (`prompts/`) and templates (`templates/`) are embedded via `include_str!`. Users can eject prompts with `lisa eject-prompts` for customization without recompiling.
+- **DDV Agent prologue**: After scoping, a one-time DDV Agent writes literature-grounded verification scenarios (markdown, no code) to `.lisa/ddv/scenarios.md`. The Validate phase later converts these into executable tests.
 - **Two-agent DDV separation**: DDV Red (opus) writes failing tests without seeing source. Build (sonnet) implements code without modifying DDV tests. Separation is enforced via prompt guidance (soft enforcement).
 - **Build "Ralph loop"**: The build phase iterates up to `max_ralph_iterations`, with stall detection based on content hashing of `plan.md`. Stalls trigger a block gate.
 - **Model assignment**: Most phases use "opus"; Build uses "sonnet". Configurable in `lisa.toml`.

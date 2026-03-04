@@ -45,6 +45,8 @@ pub enum Commands {
     },
     /// Run only Pass 0 (scoping)
     Scope,
+    /// Run the DDV Agent (write or extend domain verification scenarios)
+    Ddv,
     /// Print current spiral state
     Status,
     /// Check environment and prerequisites

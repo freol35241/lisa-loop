@@ -9,6 +9,9 @@ pub enum SpiralState {
     Scoping,
     ScopeReview,
     ScopeComplete,
+    DdvAgent,
+    DdvAgentReview,
+    DdvAgentComplete,
     InPass { pass: u32, phase: PassPhase },
     PassReview { pass: u32 },
     Complete { final_pass: u32 },
@@ -20,7 +23,6 @@ pub enum PassPhase {
     Refine,
     DdvRed,
     Build { iteration: u32 },
-    Execute,
     Validate,
 }
 
@@ -31,6 +33,9 @@ impl std::fmt::Display for SpiralState {
             SpiralState::Scoping => write!(f, "Scoping"),
             SpiralState::ScopeReview => write!(f, "Scope review"),
             SpiralState::ScopeComplete => write!(f, "Scope complete"),
+            SpiralState::DdvAgent => write!(f, "DDV Agent"),
+            SpiralState::DdvAgentReview => write!(f, "DDV Agent review"),
+            SpiralState::DdvAgentComplete => write!(f, "DDV Agent complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
@@ -44,7 +49,6 @@ impl std::fmt::Display for PassPhase {
             PassPhase::Refine => write!(f, "Refine"),
             PassPhase::DdvRed => write!(f, "DDV Red"),
             PassPhase::Build { iteration } => write!(f, "Build (iteration {})", iteration),
-            PassPhase::Execute => write!(f, "Execute"),
             PassPhase::Validate => write!(f, "Validate"),
         }
     }
@@ -134,6 +138,39 @@ mod tests {
     #[test]
     fn test_state_roundtrip_complete() {
         let state = SpiralState::Complete { final_pass: 4 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_ddv_agent() {
+        let state = SpiralState::DdvAgent;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_ddv_agent_review() {
+        let state = SpiralState::DdvAgentReview;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_ddv_agent_complete() {
+        let state = SpiralState::DdvAgentComplete;
         let file = StateFile {
             state: state.clone(),
         };

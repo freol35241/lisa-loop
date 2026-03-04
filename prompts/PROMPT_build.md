@@ -5,6 +5,9 @@ plan are established. Domain verification tests (DDV) have been written and are 
 FAILING. Your job is to implement code that makes those tests pass, plus ensure software
 quality with your own tests. You implement ONE task per invocation.
 
+You are also responsible for integration/runner code that chains the system together and
+produces the actual answer to the question in ASSIGNMENT.md.
+
 You have no memory of previous invocations. The filesystem is your shared state. Read it carefully.
 
 Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass
@@ -18,7 +21,8 @@ number. Look for `Current spiral pass:` at the top of this prompt.
 4. Read `{{lisa_root}}/methodology/methodology.md` for the equations to implement (relevant section only — the task tells you which section).
 5. Read existing code in `{{source_dirs}}/` (relevant files only).
 6. Read existing derivation docs in `{{lisa_root}}/methodology/derivations/`.
-7. Implement the next TODO task.
+7. Read `{{lisa_root}}/ddv/scenarios.md` for DDV verification scenarios relevant to the current task.
+8. Implement the next TODO task.
 
 ## Pick the Next Task
 
@@ -31,7 +35,9 @@ Mark it `IN_PROGRESS` before starting.
 
 If the next available task is BLOCKED (due to a reconsideration or previous failure), skip it and find the next unblocked TODO task.
 
-If **no TODO tasks remain** for the current pass (all are DONE or BLOCKED), state this clearly in your output and exit.
+If **no TODO tasks remain** for the current pass (all are DONE or BLOCKED), proceed to the
+Integration & Execution step below. If integration/runner code already exists and is current,
+state that all tasks are complete and exit.
 
 ## Implementation Rules
 
@@ -66,6 +72,14 @@ This separation is the core of Domain-Driven Verification: the test author and t
 implementer interpret the same papers independently. Disagreements are valuable signals,
 not bugs to suppress.
 
+### DDV Scenarios
+
+Each task in the plan may have a `**DDV Scenarios:**` field listing scenario IDs from
+`{{lisa_root}}/ddv/scenarios.md`. When implementing a task, read the referenced scenarios
+to understand what physical behaviors your implementation must satisfy. The Validate phase
+will write executable tests from these scenarios — your job is to ensure the code can
+satisfy them.
+
 ### Software Quality Tests
 
 In addition to making DDV tests green, you are responsible for software correctness:
@@ -88,7 +102,7 @@ normal development. The requirement is simply: they must exist and they must pas
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
 - `{{tests_ddv}}/` — Domain-Driven Verification tests (read-only for you — written by DDV Red phase)
 - `{{tests_software}}/` — Software quality tests (written by you)
-- `{{tests_integration}}/` — End-to-end tests (written by Execute phase)
+- `{{tests_integration}}/` — End-to-end / integration tests (written by you)
 
 ### Technology Stack Adherence
 
@@ -126,6 +140,51 @@ After implementing, run verification:
    - One-line description of what it shows
    - Assessment: does it match expected behavior from the methodology?
    - Any anomalies
+
+## Integration and Runner Code
+
+When all tasks for the current pass are DONE (or this is the final build iteration),
+write or update the integration/runner code:
+
+1. Chain the implemented modules together in the correct order
+2. Feed the outputs of earlier computations as inputs to later ones
+3. Handle the data flow from initial conditions to final answer
+4. Produce a clear, quantitative answer to the question in ASSIGNMENT.md
+
+This code lives in `{{source_dirs}}/` (e.g., a main or runner module). It is real, committed
+code that can be re-run — not a one-off script.
+
+You may also write integration tests in `{{tests_integration}}/` that verify the end-to-end
+pipeline produces expected results.
+
+### Execution Report
+
+After running the complete system, create/update `{{lisa_root}}/spiral/pass-N/execution-report.md`:
+
+```markdown
+# Pass N — Execution Report
+
+## Answer
+[The quantitative answer to ASSIGNMENT.md as of this pass]
+
+## Execution
+- Runtime: [time]
+- Warnings: [any]
+- Errors: [any]
+
+## Key Intermediate Values
+[List key intermediate quantities and their values. These are used by the Validate phase
+for engineering judgment checks.]
+
+## System-Level Issues
+- [Issue]: [description, severity, what it affects]
+
+## Integration Test Results
+[Results of any end-to-end tests written in {{tests_integration}}/]
+```
+
+If integration code already exists from a previous pass, update it to incorporate any new
+or changed modules from this pass.
 
 ## Reconsideration Protocol
 
@@ -195,6 +254,7 @@ Before marking a task as `DONE`, verify **all** of the following:
 5. **Code matches the methodology spec.**
 6. **Derivation doc written** (if non-trivial mapping).
 7. **Affected plots regenerated** and `{{lisa_root}}/plots/REVIEW.md` updated for any new or changed plots.
+8. **DDV scenarios** referenced by this task are expected to be satisfiable by the implementation.
 
 Only after confirming all criteria, mark the task as `DONE` in `{{lisa_root}}/methodology/plan.md`.
 

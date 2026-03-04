@@ -27,6 +27,8 @@ const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cas
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
 const PROGRESS_LOG_TEMPLATE: &str = include_str!("../../templates/progress_log.md");
 const PLOTS_REVIEW_TEMPLATE: &str = include_str!("../../templates/plots_review.md");
+const DDV_SCENARIOS_TEMPLATE: &str = include_str!("../../templates/ddv_scenarios.md");
+const DDV_MANIFEST_TEMPLATE: &str = include_str!("../../templates/ddv_manifest.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
     let lisa_root = project_root.join(".lisa");
@@ -87,6 +89,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/validation",
         ".lisa/references/core",
         ".lisa/references/retrieved",
+        ".lisa/ddv",
         ".lisa/plots",
         ".lisa/output",
     ];
@@ -169,6 +172,10 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     // Write plots review
     write_file(&lisa_root.join("plots/REVIEW.md"), PLOTS_REVIEW_TEMPLATE)?;
 
+    // Write DDV templates
+    write_file(&lisa_root.join("ddv/scenarios.md"), DDV_SCENARIOS_TEMPLATE)?;
+    write_file(&lisa_root.join("ddv/manifest.md"), DDV_MANIFEST_TEMPLATE)?;
+
     // Write .gitkeep files
     let lisa_keepdirs = [
         ".lisa/methodology/derivations",
@@ -205,6 +212,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("Spiral state (auto-managed)");
     terminal::print_colored("    .lisa/validation/            ", Color::Cyan);
     println!("V&V artifacts (auto-managed)");
+    terminal::print_colored("    .lisa/ddv/                   ", Color::Cyan);
+    println!("DDV verification scenarios");
     terminal::print_colored("    .lisa/plots/                 ", Color::Cyan);
     println!("Verification plots");
     let source_display: Vec<String> = paths

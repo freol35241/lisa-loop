@@ -21,6 +21,8 @@ Read **all** of the following:
 - `{{lisa_root}}/methodology/methodology.md` — the current methodology
 - `{{lisa_root}}/methodology/plan.md` — the current implementation plan
 - `{{lisa_root}}/methodology/verification-cases.md` — verification case specifications
+- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios
+- `{{lisa_root}}/ddv/manifest.md` — DDV scenario tracking manifest
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression across passes (read this to determine the scope and fidelity target for this pass)
 
@@ -72,7 +74,7 @@ If `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` contains unresolved issue
 **For DDV disagreements** (`ddv-disagreement-*.md`):
 1. Go back to the authoritative source paper cited by both the test and the implementation
 2. Determine which interpretation is correct
-3. If the **test was wrong**: update `{{lisa_root}}/methodology/verification-cases.md` with the correct expected value. The DDV Red phase will rewrite the test this pass.
+3. If the **test was wrong**: update `{{lisa_root}}/methodology/verification-cases.md` with the correct expected value and flag the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` for update.
 4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
 5. Document your adjudication in the refine summary
 
@@ -115,7 +117,17 @@ After any methodology change:
    - Add new entries to `{{lisa_root}}/validation/reference-data.md` (format: `RD-NNN`)
    These documents are checked during every validation phase. Keep them current.
 
-### 5. Update Verification Cases
+### 5. Assign DDV Scenarios to Tasks
+
+Read `{{lisa_root}}/ddv/scenarios.md` and assign relevant scenario IDs to each task's
+`**DDV Scenarios:**` field in the plan. A task should reference scenarios whose physical
+behaviors it is responsible for enabling.
+
+If methodology changes in this pass may invalidate existing DDV scenarios (e.g., changing
+the governing equations or valid parameter ranges), flag this explicitly in the refine
+summary so the human can decide whether to re-run the DDV Agent.
+
+### 6. Update Verification Cases
 
 Update `{{lisa_root}}/methodology/verification-cases.md`:
 - Add verification cases for new/changed methods:
@@ -123,7 +135,7 @@ Update `{{lisa_root}}/methodology/verification-cases.md`:
   - Level 1: Model-level tests (behavior over valid range)
 - Each case must have expected values with sources.
 
-### 6. Update Implementation Plan
+### 7. Update Implementation Plan
 
 Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
 
@@ -134,7 +146,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - Each task references a methodology section
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
-- Tasks do NOT include DDV test items — DDV tests are written separately in the next phase
+- Tasks do NOT include DDV test items — the Validate phase writes executable tests from DDV scenarios
 
 **Task format:**
 ```markdown
@@ -142,6 +154,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
 - **Pass:** N
 - **Methodology:** [section ref]
+- **DDV Scenarios:** DDV-001, DDV-003 (or "none")
 - **Checklist:**
   - [ ] [Implement X]
   - [ ] [Implement Y]
@@ -151,7 +164,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - **Dependencies:** [task refs or "None"]
 ```
 
-Note: no DDV test items in the plan. Those come from the DDV Red phase.
+Note: no DDV test items in the plan. The Validate phase writes executable tests from DDV scenarios.
 
 **Task rules:**
 - Order tasks bottom-up: utilities → core equations → higher-level models → integration
@@ -160,7 +173,7 @@ Note: no DDV test items in the plan. Those come from the DDV Red phase.
 - Infrastructure tasks come first if needed
 - Tag every task with `**Pass:** N` for the current pass
 
-### 7. Produce Refine Summary
+### 8. Produce Refine Summary
 
 Create `{{lisa_root}}/spiral/pass-N/refine-summary.md`:
 

@@ -38,6 +38,7 @@ pub fn run(
     terminal::log_phase(&format!("LISA LOOP — SPIRAL RUN (max {} passes)", max));
 
     ensure_scope_complete(&config, project_root)?;
+    ensure_ddv_complete(&config, project_root)?;
 
     run_pass_range(&config, project_root, 1, max)
 }
@@ -80,8 +81,17 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             run(config, project_root, None, no_pause)
         }
         SpiralState::ScopeComplete => {
-            terminal::log_info("Scope already complete. Running spiral passes.");
+            terminal::log_info("Scope already complete. Running DDV Agent and spiral passes.");
             run(config, project_root, None, no_pause)
+        }
+        SpiralState::DdvAgent | SpiralState::DdvAgentReview => {
+            terminal::log_info("Resuming: DDV Agent was incomplete.");
+            run_ddv_agent(config, project_root)?;
+            run(config, project_root, None, no_pause)
+        }
+        SpiralState::DdvAgentComplete => {
+            terminal::log_info("DDV scenarios already complete. Running spiral passes.");
+            run_pass_range(config, project_root, 1, config.limits.max_spiral_passes)
         }
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
@@ -124,7 +134,6 @@ fn resume_from_phase(
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
-            run_execute(config, project_root, pass)?;
             run_validate(config, project_root, pass)?;
             git::push(config)?;
         }
@@ -134,7 +143,6 @@ fn resume_from_phase(
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
-            run_execute(config, project_root, pass)?;
             run_validate(config, project_root, pass)?;
             git::push(config)?;
         }
@@ -146,13 +154,6 @@ fn resume_from_phase(
             if !run_build_loop(config, project_root, pass, *iteration)? {
                 return Ok(());
             }
-            run_execute(config, project_root, pass)?;
-            run_validate(config, project_root, pass)?;
-            git::push(config)?;
-        }
-        PassPhase::Execute => {
-            terminal::log_info(&format!("Resuming: execute phase at pass {}.", pass));
-            run_execute(config, project_root, pass)?;
             run_validate(config, project_root, pass)?;
             git::push(config)?;
         }
@@ -206,7 +207,6 @@ fn run_pass_range(
             ));
             return Ok(());
         }
-        run_execute(config, project_root, pass)?;
         run_validate(config, project_root, pass)?;
         git::push(config)?;
         git::create_tag(&format!("lisa/pass-{}", pass))?;
@@ -287,6 +287,77 @@ fn ensure_scope_complete(config: &Config, project_root: &Path) -> Result<()> {
         terminal::log_info("Pass 0 already complete.");
     }
     Ok(())
+}
+
+fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+
+    terminal::log_phase("DDV AGENT — Writing verification scenarios");
+
+    if lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
+        terminal::log_success("DDV scenarios already complete.");
+        return Ok(());
+    }
+
+    state::save_state(&lisa_root, &SpiralState::DdvAgent)?;
+    std::fs::create_dir_all(lisa_root.join("ddv"))?;
+
+    let input = prompt::build_agent_input(Phase::DdvAgent, config, &lisa_root, 0, None);
+    let model = Phase::DdvAgent.model_key(config);
+
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        "DDV Agent",
+        "ddv_agent",
+        0,
+    )?;
+    git::commit_all("ddv-agent: verification scenarios written", config)?;
+
+    // DDV review gate — always shown (even when pause = false)
+    state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
+    match review::ddv_review_gate(config, &lisa_root)? {
+        review::DdvDecision::Approve => {
+            terminal::log_success("DDV scenarios approved. Proceeding to Pass 1.");
+        }
+        review::DdvDecision::Edit => {
+            terminal::log_info("Edit DDV scenario files directly, then press Enter to approve.");
+            print!("  Press Enter when done editing...");
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+            let mut _buf = String::new();
+            let _ = std::io::stdin().read_line(&mut _buf);
+            terminal::log_success(
+                "DDV scenarios approved (manually edited). Proceeding to Pass 1.",
+            );
+        }
+        review::DdvDecision::Quit => {
+            terminal::log_warn("Stopping after DDV Agent.");
+            return Ok(());
+        }
+    }
+
+    state::save_state(&lisa_root, &SpiralState::DdvAgentComplete)?;
+    terminal::log_success("DDV Agent complete.");
+    Ok(())
+}
+
+fn ensure_ddv_complete(config: &Config, project_root: &Path) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    if !lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
+        terminal::log_info("DDV scenarios not complete. Running DDV Agent first.");
+        run_ddv_agent(config, project_root)?;
+    } else {
+        terminal::log_info("DDV scenarios already complete.");
+    }
+    Ok(())
+}
+
+/// Public entry point for `lisa ddv` command
+pub fn run_ddv_agent_only(config: &Config, project_root: &Path) -> Result<()> {
+    ensure_scope_complete(config, project_root)?;
+    run_ddv_agent(config, project_root)
 }
 
 fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
@@ -614,35 +685,6 @@ fn run_build_loop(
     Ok(true)
 }
 
-fn run_execute(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
-    let lisa_root = config.lisa_root(project_root);
-    terminal::log_phase(&format!("PASS {} — EXECUTE", pass));
-    state::save_state(
-        &lisa_root,
-        &SpiralState::InPass {
-            pass,
-            phase: PassPhase::Execute,
-        },
-    )?;
-
-    std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
-
-    let extra = format!("Current spiral pass: {}", pass);
-    let input = prompt::build_agent_input(Phase::Execute, config, &lisa_root, pass, Some(&extra));
-    let model = Phase::Execute.model_key(config);
-    run_agent_with_tracking(
-        config,
-        &lisa_root,
-        &input,
-        &model,
-        &format!("Execute: pass {}", pass),
-        "execute",
-        pass,
-    )?;
-    git::commit_all(&format!("execute: pass {}", pass), config)?;
-    Ok(())
-}
-
 fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
     terminal::log_phase(&format!("PASS {} — VALIDATE", pass));
@@ -854,8 +896,8 @@ pub fn continue_spiral(
         std::fs::remove_file(&complete_marker)?;
     }
 
-    // Reset state to ScopeComplete (scope artifacts are still valid)
-    state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
+    // Reset state to DdvAgentComplete (scope + DDV scenarios are still valid)
+    state::save_state(&lisa_root, &SpiralState::DdvAgentComplete)?;
 
     git::commit_all(
         &format!(

@@ -53,6 +53,10 @@ fn main() -> Result<()> {
             let config = load_config()?;
             orchestrator::run_scope_only(&config, &project_root())
         }
+        cli::Commands::Ddv => {
+            let config = load_config()?;
+            orchestrator::run_ddv_agent_only(&config, &project_root())
+        }
         cli::Commands::Status => cmd_status(),
         cli::Commands::Doctor => cmd_doctor(),
         cli::Commands::Finalize => {
@@ -353,8 +357,8 @@ fn cmd_eject_prompts() -> Result<()> {
         ("scope.md", prompt::PROMPT_SCOPE),
         ("refine.md", prompt::PROMPT_REFINE),
         ("ddv_red.md", prompt::PROMPT_DDV_RED),
+        ("ddv_agent.md", prompt::PROMPT_DDV_AGENT),
         ("build.md", prompt::PROMPT_BUILD),
-        ("execute.md", prompt::PROMPT_EXECUTE),
         ("validate.md", prompt::PROMPT_VALIDATE),
         ("finalize.md", prompt::PROMPT_FINALIZE),
     ];
