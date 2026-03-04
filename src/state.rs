@@ -21,7 +21,6 @@ pub enum SpiralState {
 #[serde(tag = "phase")]
 pub enum PassPhase {
     Refine,
-    DdvRed,
     Build { iteration: u32 },
     Validate,
 }
@@ -47,7 +46,6 @@ impl std::fmt::Display for PassPhase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PassPhase::Refine => write!(f, "Refine"),
-            PassPhase::DdvRed => write!(f, "DDV Red"),
             PassPhase::Build { iteration } => write!(f, "Build (iteration {})", iteration),
             PassPhase::Validate => write!(f, "Validate"),
         }
@@ -187,10 +185,10 @@ mod tests {
                 "{}",
                 SpiralState::InPass {
                     pass: 2,
-                    phase: PassPhase::DdvRed
+                    phase: PassPhase::Build { iteration: 1 }
                 }
             ),
-            "Pass 2 — DDV Red"
+            "Pass 2 — Build (iteration 1)"
         );
     }
 }

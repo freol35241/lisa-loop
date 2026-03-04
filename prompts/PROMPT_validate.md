@@ -325,7 +325,7 @@ Do NOT draft deliverables. The finalize phase handles deliverable production aft
 ## Rules
 
 - **Do NOT modify source code or methodology.** This is an audit phase. The only code you write is DDV executable tests in `{{tests_ddv}}/`.
-- **Do NOT modify existing DDV tests** written by the DDV Red phase. You may add NEW tests from DDV scenarios.
+- **Do NOT modify existing DDV tests** written from DDV scenarios in previous validation passes. You may add NEW tests from DDV scenarios.
 - **Do NOT skip any sanity check.** Execute every check in `{{lisa_root}}/validation/sanity-checks.md`.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 

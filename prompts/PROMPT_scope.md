@@ -246,14 +246,14 @@ refine phase will flesh those out once the methodology is complete.
 - Infrastructure tasks (setup, test framework, etc.) come first if needed
 - Tag every task with `**Pass:** 1` for Pass 1 tasks
 - Pass 2+ tasks can be sketched with TODO placeholders
-- Tasks do NOT include DDV test items — DDV tests are written by the DDV Red phase
+- Tasks do NOT include DDV test items — DDV tests are written from scenarios by the Validate phase
 - Do NOT add checklists — the refine phase adds those after completing the methodology
 
 ---
 
 ### 3. `{{lisa_root}}/methodology/verification-cases.md` — Verification Case Specifications
 
-L0 and L1 test specifications. These will be turned into executable tests by the DDV Red phase.
+L0 and L1 test specifications. These will be turned into executable tests by the Validate phase.
 
 ```markdown
 # Verification Cases
@@ -512,7 +512,7 @@ Example for ship resistance (5-25 kn, sea states 1-6):
 - Pass 4: Full scope, refined methods → ±5%
 
 The refine phase reads this plan to scope tasks for the current pass.
-The DDV Red phase writes tests only for the current pass's scope subset.
+The Validate phase writes executable DDV tests only for the current pass's scope subset.
 Acceptance criteria are staged — early passes have wider tolerances.
 
 ---
@@ -573,9 +573,9 @@ one DDV phase, one build loop. The modularity is in the content, not the process
 ### 8. Test Categorization Mechanism
 
 The project uses three test categories that must be runnable independently:
-- **DDV tests** (`{{tests_ddv}}/`) — Domain-Driven Verification tests written by the DDV Red phase
+- **DDV tests** (`{{tests_ddv}}/`) — Domain-Driven Verification tests written by the Validate phase from DDV scenarios
 - **Software tests** (`{{tests_software}}/`) — Software quality tests written by the build phase
-- **Integration tests** (`{{tests_integration}}/`) — End-to-end tests written by the execute phase
+- **Integration tests** (`{{tests_integration}}/`) — End-to-end tests written by the Build phase
 
 Additionally, DDV tests have verification levels (Level 0: individual functions, Level 1: model level) that should be filterable.
 
@@ -602,9 +602,9 @@ Document the code layout in `{{lisa_root}}/STACK.md` (append to the existing fil
 Source code is organized by logical module:
 - `{{source_dirs}}/` — All implementation code, organized by logical grouping
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `{{tests_ddv}}/` — Domain-Driven Verification tests (written by DDV Red phase)
+- `{{tests_ddv}}/` — Domain-Driven Verification tests (written by Validate phase from DDV scenarios)
 - `{{tests_software}}/` — Software quality tests (written by build phase)
-- `{{tests_integration}}/` — End-to-end tests (written by execute phase)
+- `{{tests_integration}}/` — End-to-end tests (written by Build phase)
 ```
 
 If during scoping you identify shared infrastructure needs (e.g., common physical constants, unit conversion, atmospheric models, interpolation utilities), note these in the spiral plan as infrastructure to be created by the first task that needs them.

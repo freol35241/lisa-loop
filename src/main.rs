@@ -356,7 +356,6 @@ fn cmd_eject_prompts() -> Result<()> {
     let prompts = [
         ("scope.md", prompt::PROMPT_SCOPE),
         ("refine.md", prompt::PROMPT_REFINE),
-        ("ddv_red.md", prompt::PROMPT_DDV_RED),
         ("ddv_agent.md", prompt::PROMPT_DDV_AGENT),
         ("build.md", prompt::PROMPT_BUILD),
         ("validate.md", prompt::PROMPT_VALIDATE),

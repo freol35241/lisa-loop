@@ -120,6 +120,12 @@ Sources cited: [count unique sources]
 Earliest pass relevance: Pass [N]
 ```
 
+## DDV Feedback
+
+If `{{lisa_root}}/ddv/ddv-feedback.md` exists, the human has reviewed your scenarios and provided
+feedback. Read it carefully. Update affected scenarios. Do not discard previous work — refine it
+based on the feedback. Address every item in the feedback file.
+
 ## Rules
 
 - **Do NOT write any code.** No test files, no source files, no scripts. Scenarios are markdown only.

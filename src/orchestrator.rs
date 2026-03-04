@@ -130,16 +130,6 @@ fn resume_from_phase(
         PassPhase::Refine => {
             terminal::log_info(&format!("Resuming: refine phase at pass {}.", pass));
             run_refine(config, project_root, pass)?;
-            run_ddv_red(config, project_root, pass)?;
-            if !run_build_loop(config, project_root, pass, 1)? {
-                return Ok(());
-            }
-            run_validate(config, project_root, pass)?;
-            git::push(config)?;
-        }
-        PassPhase::DdvRed => {
-            terminal::log_info(&format!("Resuming: DDV Red phase at pass {}.", pass));
-            run_ddv_red(config, project_root, pass)?;
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
@@ -199,7 +189,6 @@ fn run_pass_range(
         }
 
         run_refine(config, project_root, pass)?;
-        run_ddv_red(config, project_root, pass)?;
         if !run_build_loop(config, project_root, pass, 1)? {
             terminal::log_error(&format!(
                 "Build aborted at pass {}. Run `lisa resume` to retry from the build phase.",
@@ -267,11 +256,33 @@ fn run_agent_with_tracking(
         ));
     }
 
-    usage::check_budget(
+    match usage::check_budget(
         cumulative,
         config.limits.budget_usd,
         config.limits.budget_warn_pct,
-    )?;
+    ) {
+        usage::BudgetStatus::Ok => {}
+        usage::BudgetStatus::Warning => {
+            terminal::log_warn(&format!(
+                "Budget warning: ${:.4} spent of ${:.2} limit ({}% threshold).",
+                cumulative, config.limits.budget_usd, config.limits.budget_warn_pct
+            ));
+        }
+        usage::BudgetStatus::Exceeded => {
+            match review::budget_gate(config, cumulative, config.limits.budget_usd)? {
+                review::BudgetDecision::Continue => {
+                    terminal::log_warn("Budget override — continuing despite exceeded budget.");
+                }
+                review::BudgetDecision::Stop => {
+                    anyhow::bail!(
+                        "Budget exceeded: ${:.4} spent of ${:.2} limit. Halting.",
+                        cumulative,
+                        config.limits.budget_usd
+                    );
+                }
+            }
+        }
+    }
 
     Ok(result)
 }
@@ -318,23 +329,79 @@ fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
 
     // DDV review gate — always shown (even when pause = false)
     state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
-    match review::ddv_review_gate(config, &lisa_root)? {
-        review::DdvDecision::Approve => {
-            terminal::log_success("DDV scenarios approved. Proceeding to Pass 1.");
-        }
-        review::DdvDecision::Edit => {
-            terminal::log_info("Edit DDV scenario files directly, then press Enter to approve.");
-            print!("  Press Enter when done editing...");
-            let _ = std::io::Write::flush(&mut std::io::stdout());
-            let mut _buf = String::new();
-            let _ = std::io::stdin().read_line(&mut _buf);
-            terminal::log_success(
-                "DDV scenarios approved (manually edited). Proceeding to Pass 1.",
-            );
-        }
-        review::DdvDecision::Quit => {
-            terminal::log_warn("Stopping after DDV Agent.");
-            return Ok(());
+    loop {
+        match review::ddv_review_gate(config, &lisa_root)? {
+            review::DdvDecision::Approve => {
+                terminal::log_success("DDV scenarios approved. Proceeding to Pass 1.");
+                break;
+            }
+            review::DdvDecision::Refine => {
+                // Create feedback template if it doesn't exist
+                let feedback_path = lisa_root.join("ddv/ddv-feedback.md");
+                if !feedback_path.exists() {
+                    std::fs::write(
+                        &feedback_path,
+                        "# DDV Feedback\n\n## Coverage Gaps\n-\n\n## Scenario Issues\n-\n\n## Missing Sources\n-\n\n## Other\n-\n",
+                    )?;
+                }
+
+                let editor = std::env::var("EDITOR")
+                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
+                let _ = std::process::Command::new(&editor)
+                    .arg(&feedback_path)
+                    .status();
+
+                // Remove completion marker so agent re-runs
+                let complete_marker = lisa_root.join("ddv/DDV_COMPLETE.md");
+                if complete_marker.exists() {
+                    std::fs::remove_file(&complete_marker)?;
+                }
+
+                terminal::log_info("Re-running DDV Agent with feedback...");
+                state::save_state(&lisa_root, &SpiralState::DdvAgent)?;
+
+                let refine_ctx = "DDV REFINEMENT: The human has reviewed your scenarios and provided feedback.\n\
+                                  Read ddv/ddv-feedback.md carefully and update affected scenarios.\n\
+                                  Do not discard previous work — refine it based on the feedback.";
+
+                let input = prompt::build_agent_input(
+                    Phase::DdvAgent,
+                    config,
+                    &lisa_root,
+                    0,
+                    Some(refine_ctx),
+                );
+
+                run_agent_with_tracking(
+                    config,
+                    &lisa_root,
+                    &input,
+                    &model,
+                    "DDV Agent: refinement",
+                    "ddv_agent",
+                    0,
+                )?;
+                git::commit_all("ddv-agent: scenarios refined after human feedback", config)?;
+                terminal::log_info("DDV scenarios refined. Reviewing again...");
+                state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
+            }
+            review::DdvDecision::Edit => {
+                terminal::log_info(
+                    "Edit DDV scenario files directly, then press Enter to approve.",
+                );
+                print!("  Press Enter when done editing...");
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+                let mut _buf = String::new();
+                let _ = std::io::stdin().read_line(&mut _buf);
+                terminal::log_success(
+                    "DDV scenarios approved (manually edited). Proceeding to Pass 1.",
+                );
+                break;
+            }
+            review::DdvDecision::Quit => {
+                terminal::log_warn("Stopping after DDV Agent.");
+                return Ok(());
+            }
         }
     }
 
@@ -523,42 +590,6 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     Ok(())
 }
 
-fn run_ddv_red(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
-    let lisa_root = config.lisa_root(project_root);
-    terminal::log_phase(&format!(
-        "PASS {} — DDV RED (domain verification tests)",
-        pass
-    ));
-    state::save_state(
-        &lisa_root,
-        &SpiralState::InPass {
-            pass,
-            phase: PassPhase::DdvRed,
-        },
-    )?;
-
-    std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
-
-    let extra = format!("Current spiral pass: {}", pass);
-    let input = prompt::build_agent_input(Phase::DdvRed, config, &lisa_root, pass, Some(&extra));
-    let model = Phase::DdvRed.model_key(config);
-    run_agent_with_tracking(
-        config,
-        &lisa_root,
-        &input,
-        &model,
-        &format!("DDV Red: pass {}", pass),
-        "ddv_red",
-        pass,
-    )?;
-
-    git::commit_all(
-        &format!("ddv-red: pass {} — domain verification tests written", pass),
-        config,
-    )?;
-    Ok(())
-}
-
 fn run_build_loop(
     config: &Config,
     project_root: &Path,
@@ -615,7 +646,7 @@ fn run_build_loop(
         if tasks::all_tasks_done(&plan_path, pass)? {
             if tasks::has_blocked_tasks(&plan_path, pass)? {
                 terminal::log_warn("All non-blocked tasks complete. Some tasks are BLOCKED.");
-                match review::block_gate(config, pass, &plan_path)? {
+                match review::block_gate(config, pass, &plan_path, &lisa_root)? {
                     BlockDecision::Fix => {
                         stall_count = 0;
                         continue;
@@ -665,7 +696,7 @@ fn run_build_loop(
                 config.limits.stall_threshold
             ));
             if tasks::has_blocked_tasks(&plan_path, pass)? {
-                match review::block_gate(config, pass, &plan_path)? {
+                match review::block_gate(config, pass, &plan_path, &lisa_root)? {
                     BlockDecision::Fix => {
                         stall_count = 0;
                         continue;
@@ -743,6 +774,22 @@ pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         pass,
     )?;
     git::commit_all("final: generate output deliverables", config)?;
+
+    // Post-finalize confirmation gate
+    match review::finalize_gate(config, &lisa_root, pass)? {
+        review::FinalizeDecision::Accept => {
+            terminal::log_success("Finalization accepted.");
+        }
+        review::FinalizeDecision::Rollback => {
+            terminal::log_warn("Rolling back finalization.");
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            git::reset_hard("HEAD~1")?;
+            terminal::log_info(
+                "Finalize commit undone. Run `lisa resume` to return to pass review.",
+            );
+            return Ok(());
+        }
+    }
 
     // Create SPIRAL_COMPLETE.md
     let complete_content = format!(

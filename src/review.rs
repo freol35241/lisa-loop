@@ -32,8 +32,21 @@ pub enum BlockDecision {
 #[derive(Debug, PartialEq)]
 pub enum DdvDecision {
     Approve,
+    Refine,
     Edit,
     Quit,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FinalizeDecision {
+    Accept,
+    Rollback,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BudgetDecision {
+    Continue,
+    Stop,
 }
 
 /// Scope review gate — after Pass 0
@@ -249,6 +262,8 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
     println!();
     terminal::print_colored("  [A]", Color::Green);
     println!(" APPROVE  — proceed to Pass 1");
+    terminal::print_colored("  [R]", Color::Yellow);
+    println!(" REFINE   — provide feedback, re-run DDV Agent");
     terminal::print_colored("  [E]", Color::Cyan);
     println!(" EDIT     — I'll edit the scenarios directly, then approve");
     terminal::print_colored("  [Q]", Color::Red);
@@ -264,9 +279,10 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
         io::stdin().read_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "a" => return Ok(DdvDecision::Approve),
+            "r" => return Ok(DdvDecision::Refine),
             "e" => return Ok(DdvDecision::Edit),
             "q" => return Ok(DdvDecision::Quit),
-            _ => println!("  Invalid choice. Enter A, E, or Q."),
+            _ => println!("  Invalid choice. Enter A, R, E, or Q."),
         }
     }
 }
@@ -393,7 +409,12 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
 }
 
 /// Block gate — when build loop stalls or all remaining tasks are blocked
-pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<BlockDecision> {
+pub fn block_gate(
+    config: &Config,
+    pass: u32,
+    plan_path: &Path,
+    lisa_root: &Path,
+) -> Result<BlockDecision> {
     if !config.review.pause {
         terminal::log_warn("Block gate skipped (pause = false) — defaulting to SKIP");
         return Ok(BlockDecision::Skip);
@@ -445,6 +466,25 @@ pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<Block
         }
     }
 
+    // Show reconsideration files if any exist
+    let recon_dir = lisa_root.join(format!("spiral/pass-{}/reconsiderations", pass));
+    if recon_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&recon_dir) {
+            let files: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            if !files.is_empty() {
+                terminal::print_colored("  Reconsiderations:\n", Color::Cyan);
+                for f in &files {
+                    println!("    {}", f);
+                }
+                println!();
+            }
+        }
+    }
+
     terminal::print_colored("  [F]", Color::Green);
     println!(" FIX — resolve blocks, then resume build");
     terminal::print_colored("  [S]", Color::Yellow);
@@ -476,6 +516,111 @@ pub fn block_gate(config: &Config, _pass: u32, plan_path: &Path) -> Result<Block
                 return Ok(BlockDecision::Abort);
             }
             _ => println!("  Please enter F, S, or X."),
+        }
+    }
+}
+
+/// Post-finalize confirmation gate
+pub fn finalize_gate(config: &Config, lisa_root: &Path, pass: u32) -> Result<FinalizeDecision> {
+    if !config.review.pause {
+        terminal::log_warn("Finalize gate skipped (pause = false) — auto-accepting");
+        return Ok(FinalizeDecision::Accept);
+    }
+
+    println!();
+    terminal::print_separator();
+    terminal::println_bold("  FINALIZATION COMPLETE — CONFIRM RESULTS");
+    terminal::print_separator();
+    println!();
+
+    // Show output files
+    let output_dir = lisa_root.join("output");
+    if output_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&output_dir) {
+            let files: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            if !files.is_empty() {
+                terminal::print_colored("  Output files:\n", Color::Cyan);
+                for f in &files {
+                    println!("    {}", f);
+                }
+                println!();
+            }
+        }
+    }
+
+    // Show audit summary preview
+    let audit_path = lisa_root.join("output/audit-summary.md");
+    if audit_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&audit_path) {
+            terminal::print_colored("  Audit summary (first 10 lines):\n", Color::Cyan);
+            for line in content.lines().take(10) {
+                println!("    {}", line);
+            }
+            println!();
+        }
+    }
+
+    terminal::print_colored("  [A]", Color::Green);
+    println!(" ACCEPT   — confirm and complete the spiral");
+    terminal::print_colored("  [R]", Color::Red);
+    println!(" ROLLBACK — undo finalize, return to pass {} review", pass);
+    println!();
+    terminal::print_separator();
+    println!();
+
+    loop {
+        print!("  Choice: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_lowercase().as_str() {
+            "a" => return Ok(FinalizeDecision::Accept),
+            "r" => return Ok(FinalizeDecision::Rollback),
+            _ => println!("  Invalid choice. Enter A or R."),
+        }
+    }
+}
+
+/// Budget exhaustion gate
+pub fn budget_gate(config: &Config, cumulative: f64, budget: f64) -> Result<BudgetDecision> {
+    if !config.review.pause {
+        terminal::log_warn("Budget gate skipped (pause = false) — defaulting to STOP");
+        return Ok(BudgetDecision::Stop);
+    }
+
+    println!();
+    terminal::print_separator();
+    terminal::print_colored("  ", Color::Red);
+    terminal::println_bold("BUDGET EXCEEDED");
+    terminal::print_separator();
+    println!();
+    terminal::print_colored("  Spent:  ", Color::White);
+    terminal::println_colored(&format!("${:.4}", cumulative), Color::Red);
+    terminal::print_colored("  Budget: ", Color::White);
+    println!("${:.2}", budget);
+    println!();
+
+    terminal::print_colored("  [C]", Color::Yellow);
+    println!(" CONTINUE — override budget and keep going");
+    terminal::print_colored("  [S]", Color::Red);
+    println!(" STOP     — halt the spiral");
+    println!();
+    terminal::print_separator();
+    println!();
+
+    loop {
+        print!("  Choice: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_lowercase().as_str() {
+            "c" => return Ok(BudgetDecision::Continue),
+            "s" => return Ok(BudgetDecision::Stop),
+            _ => println!("  Invalid choice. Enter C or S."),
         }
     }
 }
@@ -667,6 +812,66 @@ fn display_review_summary(content: &str, _pass: u32) {
             break;
         }
     }
+
+    // DDV Scenario Coverage
+    if let Some(coverage) = extract_section_first_line(content, "## DDV Scenario Coverage") {
+        terminal::print_bold("  DDV coverage: ");
+        println!("{}", coverage);
+    }
+    // Highlight re-run recommendation
+    for line in content.lines() {
+        if line.contains("Re-run DDV Agent recommended:") {
+            let text = line.trim();
+            if text.to_uppercase().contains("YES") {
+                terminal::print_colored(&format!("  {}\n", text), Color::Yellow);
+            } else {
+                println!("  {}", text);
+            }
+            break;
+        }
+    }
+
+    // Engineering Judgment (HUMAN REVIEW)
+    let judgment_lines = extract_section_lines(content, "## Engineering Judgment", 5);
+    if !judgment_lines.is_empty() {
+        println!();
+        terminal::print_bold("  Engineering Judgment (HUMAN REVIEW):\n");
+        for line in &judgment_lines {
+            println!("    {}", line);
+        }
+    }
+
+    // Status Assessment
+    if let Some(status) = extract_section_first_line(content, "## Status Assessment") {
+        println!();
+        terminal::print_bold("  Status: ");
+        println!("{}", status);
+    }
+}
+
+/// Extract up to `max_lines` non-empty lines from a section, stopping at next `##` heading.
+fn extract_section_lines(content: &str, heading: &str, max_lines: usize) -> Vec<String> {
+    let mut found = false;
+    let mut lines = Vec::new();
+    for line in content.lines() {
+        if line.starts_with(heading) {
+            found = true;
+            continue;
+        }
+        if found {
+            if line.starts_with("## ") {
+                break;
+            }
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                lines.push(trimmed.to_string());
+                if lines.len() >= max_lines {
+                    break;
+                }
+            }
+        }
+    }
+    lines
 }
 
 /// Extract the first non-empty line after a given heading.
@@ -796,5 +1001,35 @@ mod tests {
     fn test_extract_stack_info_unresolved() {
         let content = "# Agents\n\n## Language & Runtime\n\nTo be resolved during scoping\n";
         assert_eq!(extract_stack_info(content), None);
+    }
+
+    #[test]
+    fn test_extract_section_lines() {
+        let content = "## Engineering Judgment\n\n1. Check A\n2. Check B\n3. Check C\n\n## Status Assessment\n\nAll good.\n";
+        let lines = extract_section_lines(content, "## Engineering Judgment", 5);
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0], "1. Check A");
+        assert_eq!(lines[2], "3. Check C");
+    }
+
+    #[test]
+    fn test_extract_section_lines_max_limit() {
+        let content = "## Engineering Judgment\n\n1. A\n2. B\n3. C\n4. D\n5. E\n6. F\n";
+        let lines = extract_section_lines(content, "## Engineering Judgment", 3);
+        assert_eq!(lines.len(), 3);
+    }
+
+    #[test]
+    fn test_extract_section_lines_stops_at_heading() {
+        let content = "## Engineering Judgment\n\n1. A\n2. B\n\n## Next Section\n\n3. C\n";
+        let lines = extract_section_lines(content, "## Engineering Judgment", 10);
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_section_lines_missing() {
+        let content = "## Other\n\nSome text.\n";
+        let lines = extract_section_lines(content, "## Engineering Judgment", 5);
+        assert!(lines.is_empty());
     }
 }

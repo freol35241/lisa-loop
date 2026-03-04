@@ -4,7 +4,6 @@ use std::path::Path;
 // Compiled-in prompts
 pub const PROMPT_SCOPE: &str = include_str!("../prompts/PROMPT_scope.md");
 pub const PROMPT_REFINE: &str = include_str!("../prompts/PROMPT_refine.md");
-pub const PROMPT_DDV_RED: &str = include_str!("../prompts/PROMPT_ddv_red.md");
 pub const PROMPT_DDV_AGENT: &str = include_str!("../prompts/PROMPT_ddv_agent.md");
 pub const PROMPT_BUILD: &str = include_str!("../prompts/PROMPT_build.md");
 pub const PROMPT_VALIDATE: &str = include_str!("../prompts/PROMPT_validate.md");
@@ -14,7 +13,6 @@ pub const PROMPT_FINALIZE: &str = include_str!("../prompts/PROMPT_finalize.md");
 pub enum Phase {
     Scope,
     Refine,
-    DdvRed,
     DdvAgent,
     Build,
     Validate,
@@ -26,7 +24,7 @@ impl Phase {
         match self {
             Phase::Scope => config.models.scope.clone(),
             Phase::Refine => config.models.refine.clone(),
-            Phase::DdvRed | Phase::DdvAgent => config.models.ddv.clone(),
+            Phase::DdvAgent => config.models.ddv.clone(),
             Phase::Build => config.models.build.clone(),
             Phase::Validate | Phase::Finalize => config.models.validate.clone(),
         }
@@ -38,7 +36,6 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     let local_path = match phase {
         Phase::Scope => lisa_root.join("prompts/scope.md"),
         Phase::Refine => lisa_root.join("prompts/refine.md"),
-        Phase::DdvRed => lisa_root.join("prompts/ddv_red.md"),
         Phase::DdvAgent => lisa_root.join("prompts/ddv_agent.md"),
         Phase::Build => lisa_root.join("prompts/build.md"),
         Phase::Validate => lisa_root.join("prompts/validate.md"),
@@ -54,7 +51,6 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     match phase {
         Phase::Scope => PROMPT_SCOPE.to_string(),
         Phase::Refine => PROMPT_REFINE.to_string(),
-        Phase::DdvRed => PROMPT_DDV_RED.to_string(),
         Phase::DdvAgent => PROMPT_DDV_AGENT.to_string(),
         Phase::Build => PROMPT_BUILD.to_string(),
         Phase::Validate => PROMPT_VALIDATE.to_string(),
@@ -158,7 +154,6 @@ pub fn build_agent_input(
     let phase_name = match phase {
         Phase::Scope => "Scope",
         Phase::Refine => "Refine",
-        Phase::DdvRed => "DDV Red",
         Phase::DdvAgent => "DDV Agent",
         Phase::Build => "Build",
         Phase::Validate => "Validate",
@@ -243,7 +238,6 @@ mod tests {
     fn test_compiled_prompts_not_empty() {
         assert!(!PROMPT_SCOPE.is_empty());
         assert!(!PROMPT_REFINE.is_empty());
-        assert!(!PROMPT_DDV_RED.is_empty());
         assert!(!PROMPT_DDV_AGENT.is_empty());
         assert!(!PROMPT_BUILD.is_empty());
         assert!(!PROMPT_VALIDATE.is_empty());

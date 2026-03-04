@@ -100,7 +100,7 @@ normal development. The requirement is simply: they must exist and they must pas
 
 - Create source files in `{{source_dirs}}/` organized by logical module (not by subsystem)
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `{{tests_ddv}}/` — Domain-Driven Verification tests (read-only for you — written by DDV Red phase)
+- `{{tests_ddv}}/` — Domain-Driven Verification tests (read-only for you — written by Validate phase from DDV scenarios)
 - `{{tests_software}}/` — Software quality tests (written by you)
 - `{{tests_integration}}/` — End-to-end / integration tests (written by you)
 

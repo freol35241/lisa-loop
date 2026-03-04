@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::agent::UsageInfo;
-use crate::terminal;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvocationRecord {
@@ -98,30 +97,29 @@ pub fn record_invocation(
     Ok(ledger.total_cost())
 }
 
-/// Check budget. Bail if over budget_usd (when > 0). Warn if over warn threshold.
-pub fn check_budget(cumulative_cost: f64, budget_usd: f64, budget_warn_pct: u32) -> Result<()> {
+#[derive(Debug, PartialEq)]
+pub enum BudgetStatus {
+    Ok,
+    Warning,
+    Exceeded,
+}
+
+/// Check budget status. Returns Ok/Warning/Exceeded based on cumulative cost vs budget.
+pub fn check_budget(cumulative_cost: f64, budget_usd: f64, budget_warn_pct: u32) -> BudgetStatus {
     if budget_usd <= 0.0 {
-        return Ok(()); // unlimited
+        return BudgetStatus::Ok; // unlimited
     }
 
     if cumulative_cost >= budget_usd {
-        anyhow::bail!(
-            "Budget exceeded: ${:.4} spent of ${:.2} limit. \
-             Increase limits.budget_usd in lisa.toml or run `lisa resume` after adjusting.",
-            cumulative_cost,
-            budget_usd
-        );
+        return BudgetStatus::Exceeded;
     }
 
     let warn_threshold = budget_usd * (budget_warn_pct as f64 / 100.0);
     if cumulative_cost >= warn_threshold {
-        terminal::log_warn(&format!(
-            "Budget warning: ${:.4} spent of ${:.2} limit ({}% threshold).",
-            cumulative_cost, budget_usd, budget_warn_pct
-        ));
+        return BudgetStatus::Warning;
     }
 
-    Ok(())
+    BudgetStatus::Ok
 }
 
 #[cfg(test)]
@@ -200,16 +198,21 @@ mod tests {
 
     #[test]
     fn test_check_budget_unlimited() {
-        assert!(check_budget(100.0, 0.0, 80).is_ok());
+        assert_eq!(check_budget(100.0, 0.0, 80), BudgetStatus::Ok);
     }
 
     #[test]
     fn test_check_budget_exceeded() {
-        assert!(check_budget(1.5, 1.0, 80).is_err());
+        assert_eq!(check_budget(1.5, 1.0, 80), BudgetStatus::Exceeded);
     }
 
     #[test]
     fn test_check_budget_under() {
-        assert!(check_budget(0.5, 1.0, 80).is_ok());
+        assert_eq!(check_budget(0.5, 1.0, 80), BudgetStatus::Ok);
+    }
+
+    #[test]
+    fn test_check_budget_warning() {
+        assert_eq!(check_budget(0.85, 1.0, 80), BudgetStatus::Warning);
     }
 }
