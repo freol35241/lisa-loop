@@ -6,6 +6,24 @@ use std::path::Path;
 use crate::config::Config;
 use crate::terminal;
 
+/// Show a file path to the user and wait for them to press Enter after editing.
+///
+/// This replaces the old $EDITOR spawning pattern — users can edit with whatever
+/// tool they prefer (VS Code, vim, nano, a file manager, etc.) and press Enter
+/// when done.
+pub fn wait_for_edit(label: &str, file_path: &Path) {
+    println!();
+    terminal::log_info(label);
+    println!();
+    terminal::print_colored("  File: ", Color::Cyan);
+    println!("{}", file_path.display());
+    println!();
+    print!("  Press Enter when you are done editing...");
+    let _ = io::stdout().flush();
+    let mut _buf = String::new();
+    let _ = io::stdin().read_line(&mut _buf);
+}
+
 #[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum ReviewDecision {
@@ -194,19 +212,19 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
-    println!(" APPROVE  — proceed to Pass 1");
+    println!(" APPROVE  — accept scope artifacts and proceed to Pass 1");
     terminal::print_colored("  [R]", Color::Yellow);
-    println!(" REFINE   — provide feedback, re-run scope agent");
+    println!(" REFINE   — write feedback to a file, then the scope agent re-runs");
     terminal::print_colored("  [E]", Color::Cyan);
-    println!(" EDIT     — I'll edit the files directly, then approve");
+    println!(" EDIT     — edit the scope files yourself with any editor, then approve");
     terminal::print_colored("  [Q]", Color::Red);
-    println!(" QUIT     — stop here");
+    println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
 
     loop {
-        print!("  Choice: ");
+        print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
@@ -270,19 +288,19 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
-    println!(" APPROVE  — proceed to Pass 1");
+    println!(" APPROVE  — accept DDV scenarios and proceed to Pass 1");
     terminal::print_colored("  [R]", Color::Yellow);
-    println!(" REFINE   — provide feedback, re-run DDV Agent");
+    println!(" REFINE   — write feedback to a file, then the DDV agent re-runs");
     terminal::print_colored("  [E]", Color::Cyan);
-    println!(" EDIT     — I'll edit the scenarios directly, then approve");
+    println!(" EDIT     — edit the scenario files yourself with any editor, then approve");
     terminal::print_colored("  [Q]", Color::Red);
-    println!(" QUIT     — stop here");
+    println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
 
     loop {
-        print!("  Choice: ");
+        print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
@@ -364,19 +382,19 @@ pub fn refine_review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Resul
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
-    println!(" APPROVE  — proceed to build phase");
+    println!(" APPROVE  — accept refine artifacts and proceed to build phase");
     terminal::print_colored("  [R]", Color::Yellow);
-    println!(" REFINE   — provide feedback, re-run refine agent");
+    println!(" REFINE   — write feedback to a file, then the refine agent re-runs");
     terminal::print_colored("  [E]", Color::Cyan);
-    println!(" EDIT     — I'll edit the files directly, then approve");
+    println!(" EDIT     — edit the methodology/plan files yourself, then approve");
     terminal::print_colored("  [Q]", Color::Red);
-    println!(" QUIT     — stop here");
+    println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
 
     loop {
-        print!("  Choice: ");
+        print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
@@ -435,13 +453,13 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!();
 
     terminal::print_colored("  [F]", Color::Green);
-    println!(" FINALIZE — produce final report");
+    println!(" FINALIZE — results are satisfactory, produce the final report");
     terminal::print_colored("  [C]", Color::Yellow);
-    println!(" CONTINUE — next spiral pass");
+    println!(" CONTINUE — run another spiral pass to improve results");
     terminal::print_colored("  [R]", Color::Cyan);
-    println!(" REDIRECT — provide guidance (opens $EDITOR)");
+    println!(" REDIRECT — write guidance to a file to steer the next pass");
     terminal::print_colored("  [Q]", Color::Red);
-    println!(" QUIT     — stop here");
+    println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
@@ -478,13 +496,10 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                 );
                 std::fs::write(&redirect_path, &template)?;
 
-                let editor = std::env::var("EDITOR").unwrap_or_else(|_| {
-                    std::env::var("VISUAL").unwrap_or_else(|_| "vi".to_string())
-                });
-
-                let _ = std::process::Command::new(&editor)
-                    .arg(&redirect_path)
-                    .status();
+                wait_for_edit(
+                    "Write your guidance for the next spiral pass in the file below.",
+                    &redirect_path,
+                );
 
                 if redirect_path.exists() {
                     let content = std::fs::read_to_string(&redirect_path).unwrap_or_default();
@@ -595,11 +610,11 @@ pub fn block_gate(
     }
 
     terminal::print_colored("  [F]", Color::Green);
-    println!(" FIX — resolve blocks, then resume build");
+    println!(" FIX   — edit the plan to resolve blocked tasks, then resume build");
     terminal::print_colored("  [S]", Color::Yellow);
-    println!(" SKIP — continue to next phase");
+    println!(" SKIP  — skip blocked tasks and continue to the next phase");
     terminal::print_colored("  [X]", Color::Red);
-    println!(" ABORT — stop this spiral pass");
+    println!(" ABORT — stop this spiral pass (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
@@ -611,11 +626,10 @@ pub fn block_gate(
         io::stdin().read_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "F" => {
-                terminal::log_info("FIX — opening methodology/plan.md in $EDITOR...");
-
-                let editor = std::env::var("EDITOR")
-                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
-                let _ = std::process::Command::new(&editor).arg(plan_path).status();
+                wait_for_edit(
+                    "FIX — Edit the plan to resolve blocked tasks, then press Enter.",
+                    plan_path,
+                );
 
                 // Re-read and display updated task counts
                 if let Ok(updated) = crate::tasks::count_tasks_by_status(plan_path) {
@@ -688,9 +702,12 @@ pub fn finalize_gate(config: &Config, lisa_root: &Path, pass: u32) -> Result<Fin
     }
 
     terminal::print_colored("  [A]", Color::Green);
-    println!(" ACCEPT   — confirm and complete the spiral");
+    println!(" ACCEPT   — confirm results and complete the spiral");
     terminal::print_colored("  [R]", Color::Red);
-    println!(" ROLLBACK — undo finalize, return to pass {} review", pass);
+    println!(
+        " ROLLBACK — undo the finalize and return to pass {} review",
+        pass
+    );
     println!();
     terminal::print_separator();
     println!();
@@ -728,9 +745,9 @@ pub fn budget_gate(config: &Config, cumulative: f64, budget: f64) -> Result<Budg
     println!();
 
     terminal::print_colored("  [C]", Color::Yellow);
-    println!(" CONTINUE — override budget and keep going");
+    println!(" CONTINUE — override the budget limit and keep going");
     terminal::print_colored("  [S]", Color::Red);
-    println!(" STOP     — halt the spiral");
+    println!(" STOP     — halt the spiral (resume later with `lisa resume`)");
     println!();
     terminal::print_separator();
     println!();
@@ -781,8 +798,8 @@ pub fn environment_gate(config: &Config, lisa_root: &Path) -> Result<bool> {
     }
 
     println!();
-    println!("  [F] FIX — I'll install the missing runtimes/tooling. Press Enter when ready.");
-    println!("  [S] SKIP — Proceed anyway. I accept the risk of build failures.");
+    println!("  [F] FIX  — install the missing runtimes/tooling yourself, then press Enter");
+    println!("  [S] SKIP — proceed without fixing (risk of build failures)");
     println!();
     terminal::print_separator();
     println!();

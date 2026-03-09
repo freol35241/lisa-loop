@@ -13,7 +13,10 @@ pub enum SpiralState {
     DdvAgentReview,
     DdvAgentComplete,
     InPass { pass: u32, phase: PassPhase },
+    RefineComplete { pass: u32 },
     RefineReview { pass: u32 },
+    BuildComplete { pass: u32 },
+    ValidateComplete { pass: u32 },
     PassReview { pass: u32 },
     Complete { final_pass: u32 },
 }
@@ -37,7 +40,12 @@ impl std::fmt::Display for SpiralState {
             SpiralState::DdvAgentReview => write!(f, "DDV Agent review"),
             SpiralState::DdvAgentComplete => write!(f, "DDV Agent complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
+            SpiralState::RefineComplete { pass } => write!(f, "Pass {} — Refine complete", pass),
             SpiralState::RefineReview { pass } => write!(f, "Pass {} — Refine review", pass),
+            SpiralState::BuildComplete { pass } => write!(f, "Pass {} — Build complete", pass),
+            SpiralState::ValidateComplete { pass } => {
+                write!(f, "Pass {} — Validate complete", pass)
+            }
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
         }
@@ -191,11 +199,56 @@ mod tests {
     }
 
     #[test]
+    fn test_state_roundtrip_refine_complete() {
+        let state = SpiralState::RefineComplete { pass: 2 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_build_complete() {
+        let state = SpiralState::BuildComplete { pass: 3 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_validate_complete() {
+        let state = SpiralState::ValidateComplete { pass: 1 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
     fn test_state_display() {
         assert_eq!(format!("{}", SpiralState::NotStarted), "Not started");
         assert_eq!(
+            format!("{}", SpiralState::RefineComplete { pass: 2 }),
+            "Pass 2 — Refine complete"
+        );
+        assert_eq!(
             format!("{}", SpiralState::RefineReview { pass: 2 }),
             "Pass 2 — Refine review"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::BuildComplete { pass: 3 }),
+            "Pass 3 — Build complete"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::ValidateComplete { pass: 1 }),
+            "Pass 1 — Validate complete"
         );
         assert_eq!(
             format!(

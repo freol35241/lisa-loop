@@ -96,6 +96,40 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
         }
+        SpiralState::RefineComplete { pass } => {
+            terminal::log_info(&format!(
+                "Resuming: refine complete for pass {}, proceeding to refine review.",
+                pass
+            ));
+            state::save_state(&lisa_root, &SpiralState::RefineReview { pass })?;
+            match refine_gate_loop(config, project_root, pass)? {
+                RefineDecision::Approve | RefineDecision::Edit => {}
+                RefineDecision::Quit => return Ok(()),
+                RefineDecision::Refine => {
+                    unreachable!("refine_gate_loop handles Refine internally")
+                }
+            }
+            if !run_build_loop(config, project_root, pass, 1)? {
+                return Ok(());
+            }
+            run_validate(config, project_root, pass)?;
+            git::push(config)?;
+            git::create_tag(&format!("lisa/pass-{}", pass))?;
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            match review::review_gate(config, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+            }
+        }
         SpiralState::RefineReview { pass } => {
             terminal::log_info(&format!("Resuming: refine review gate of pass {}.", pass));
             match refine_gate_loop(config, project_root, pass)? {
@@ -109,6 +143,35 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                 return Ok(());
             }
             run_validate(config, project_root, pass)?;
+            git::push(config)?;
+            git::create_tag(&format!("lisa/pass-{}", pass))?;
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            match review::review_gate(config, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+            }
+        }
+        SpiralState::BuildComplete { pass } => {
+            terminal::log_info(&format!(
+                "Resuming: build complete for pass {}, proceeding to validate.",
+                pass
+            ));
+            resume_from_phase(config, project_root, pass, &PassPhase::Validate)
+        }
+        SpiralState::ValidateComplete { pass } => {
+            terminal::log_info(&format!(
+                "Resuming: validate complete for pass {}, proceeding to review.",
+                pass
+            ));
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
@@ -399,11 +462,10 @@ fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
                     )?;
                 }
 
-                let editor = std::env::var("EDITOR")
-                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
-                let _ = std::process::Command::new(&editor)
-                    .arg(&feedback_path)
-                    .status();
+                review::wait_for_edit(
+                    "Write your DDV feedback in the file below. Describe coverage gaps, scenario issues, or missing sources.",
+                    &feedback_path,
+                );
 
                 // Remove completion marker so agent re-runs
                 let complete_marker = lisa_root.join("ddv/DDV_COMPLETE.md");
@@ -440,10 +502,16 @@ fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
                 state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
             }
             review::DdvDecision::Edit => {
-                terminal::log_info(
-                    "Edit DDV scenario files directly, then press Enter to approve.",
-                );
-                print!("  Press Enter when done editing...");
+                let scenarios_path = lisa_root.join("ddv/scenarios.md");
+                let manifest_path = lisa_root.join("ddv/manifest.md");
+                terminal::log_info("Edit the DDV scenario files directly with any editor.");
+                println!();
+                terminal::print_colored("  Scenarios: ", Color::Cyan);
+                println!("{}", scenarios_path.display());
+                terminal::print_colored("  Manifest:  ", Color::Cyan);
+                println!("{}", manifest_path.display());
+                println!();
+                print!("  Press Enter when you are done editing...");
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
@@ -553,11 +621,10 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                     )?;
                 }
 
-                let editor = std::env::var("EDITOR")
-                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
-                let _ = std::process::Command::new(&editor)
-                    .arg(&feedback_path)
-                    .status();
+                review::wait_for_edit(
+                    "Write your scope feedback in the file below. Describe issues with acceptance criteria, methodology, scope progression, or validation.",
+                    &feedback_path,
+                );
 
                 terminal::log_info("Re-running scope agent with feedback...");
                 let refine_ctx = "SCOPE REFINEMENT: The human has reviewed your scope artifacts and provided feedback.\n\
@@ -585,8 +652,26 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                 terminal::log_info("Scope refined. Reviewing again...");
             }
             ScopeDecision::Edit => {
-                terminal::log_info("Edit scope files directly, then press Enter to approve.");
-                print!("  Press Enter when done editing...");
+                terminal::log_info("Edit the scope files directly with any editor.");
+                println!();
+                terminal::print_colored("  Methodology:  ", Color::Cyan);
+                println!("{}", lisa_root.join("methodology/methodology.md").display());
+                terminal::print_colored("  Plan:         ", Color::Cyan);
+                println!("{}", lisa_root.join("methodology/plan.md").display());
+                terminal::print_colored("  Criteria:     ", Color::Cyan);
+                println!(
+                    "{}",
+                    lisa_root
+                        .join("spiral/pass-0/acceptance-criteria.md")
+                        .display()
+                );
+                terminal::print_colored("  Spiral plan:  ", Color::Cyan);
+                println!(
+                    "{}",
+                    lisa_root.join("spiral/pass-0/spiral-plan.md").display()
+                );
+                println!();
+                print!("  Press Enter when you are done editing...");
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
@@ -641,11 +726,10 @@ fn refine_gate_loop(config: &Config, project_root: &Path, pass: u32) -> Result<R
                     )?;
                 }
 
-                let editor = std::env::var("EDITOR")
-                    .unwrap_or_else(|_| std::env::var("VISUAL").unwrap_or_else(|_| "vi".into()));
-                let _ = std::process::Command::new(&editor)
-                    .arg(&feedback_path)
-                    .status();
+                review::wait_for_edit(
+                    "Write your refine feedback in the file below. Describe issues with methodology, task plan, or scope.",
+                    &feedback_path,
+                );
 
                 terminal::log_info("Re-running refine agent with feedback...");
                 let refine_ctx = format!(
@@ -696,10 +780,14 @@ fn refine_gate_loop(config: &Config, project_root: &Path, pass: u32) -> Result<R
                 state::save_state(&lisa_root, &SpiralState::RefineReview { pass })?;
             }
             RefineDecision::Edit => {
-                terminal::log_info(
-                    "Edit methodology/plan files directly, then press Enter to approve.",
-                );
-                print!("  Press Enter when done editing...");
+                terminal::log_info("Edit the methodology/plan files directly with any editor.");
+                println!();
+                terminal::print_colored("  Methodology: ", Color::Cyan);
+                println!("{}", lisa_root.join("methodology/methodology.md").display());
+                terminal::print_colored("  Plan:        ", Color::Cyan);
+                println!("{}", lisa_root.join("methodology/plan.md").display());
+                println!();
+                print!("  Press Enter when you are done editing...");
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
@@ -814,6 +902,7 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         pass,
     )?;
     git::commit_all(&format!("refine: pass {}", pass), config)?;
+    state::save_state(&lisa_root, &SpiralState::RefineComplete { pass })?;
     Ok(())
 }
 
@@ -940,6 +1029,7 @@ fn run_build_loop(
         terminal::log_info("Tasks remain — continuing Ralph loop.");
     }
 
+    state::save_state(&lisa_root, &SpiralState::BuildComplete { pass })?;
     Ok(true)
 }
 
@@ -969,6 +1059,7 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         pass,
     )?;
     git::commit_all(&format!("validate: pass {}", pass), config)?;
+    state::save_state(&lisa_root, &SpiralState::ValidateComplete { pass })?;
     Ok(())
 }
 
