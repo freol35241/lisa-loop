@@ -1,23 +1,66 @@
 # Lisa Loop
 
-A methodology and toolbox for solving complex engineering and research problems with AI agents, grounded in peer-reviewed literature, with explicit verification, validation, and progress tracking.
+A CLI tool that orchestrates AI agents through rigorous engineering problem-solving, combining the V-Model (verification before implementation) with the Design Spiral (iterative refinement until human acceptance).
 
-Lisa Loop fuses two established engineering paradigms:
+## How It Works
 
-- **The V-Model** (systems engineering): every level of specification is paired with a corresponding level of verification and validation. V&V criteria are defined *before* implementation, not after.
-- **The Design Spiral** (Evans, 1959): the same problem is revisited iteratively at increasing fidelity and scope until the human accepts the answer.
+```
+  lisa init → scaffold .lisa/ + ASSIGNMENT.md
+                    │
+                    ▼
+  ┌───────────────────────────────────────┐
+  │  Pass 0: SCOPE                        │
+  │  methodology, acceptance, spiral plan │◄── human refine loop
+  └──────────────────┬────────────────────┘
+                     ▼
+  ┌───────────────────────────────────────┐
+  │  DDV Agent (one-time prologue)        │
+  │  literature → verification scenarios  │
+  │  (markdown, no code)                  │
+  └──────────────────┬────────────────────┘
+                     ▼
+  ┌───────────────────────────────────────┐
+  │  Pass 1..N: SPIRAL                    │
+  │                                       │
+  │  ┌─────────┐  ┌─────────┐  ┌───────┐ │
+  │  │ REFINE  │→ │ BUILD   │→ │VALIDATE│ │
+  │  │ (opus)  │  │(sonnet) │  │ (opus) │ │
+  │  └─────────┘  └─────────┘  └───────┘ │
+  │                                       │◄── human review gate
+  └──────────────────┬────────────────────┘
+                     ▼
+  lisa finalize → answer.md + report.md
+```
+
+Each pass increases fidelity and scope. The human reviews after every pass and decides: **accept**, **continue** to the next spiral pass, or **redirect** with guidance.
+
+## Domain-Driven Verification (DDV)
+
+DDV prevents correlated errors by separating *who writes scenarios* from *who writes code* from *who writes tests*:
+
+```
+  DDV Agent (opus)          Build (sonnet)          Validate (opus)
+  ┌───────────────┐        ┌───────────────┐       ┌───────────────┐
+  │ Read papers    │        │ Read scenarios │       │ Read scenarios │
+  │ Write scenarios│───────→│ Write code     │──────→│ Write tests    │
+  │ (no code)      │        │ (no DDV tests) │       │ Run all tests  │
+  └───────────────┘        └───────────────┘       └───────────────┘
+    ▲ independent              ▲ separated              ▲ verified
+```
+
+Works for any domain with authoritative sources and testable expected values: physics, econometrics, regulatory standards, engineering benchmarks.
 
 ## Three Absolute Rules
 
-1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper. No method without a citation.
-2. **Engineering judgment is a first-class, auditable artifact.** "Do these numbers make physical sense?" is always asked, and the checks are written down, versioned, and executed.
-3. **The spiral history is the deliverable, not just the answer.** Every methodological choice, every refinement, every progress step is preserved as a complete record.
+1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper.
+2. **Engineering judgment is a first-class, auditable artifact.** Sanity checks are written down, versioned, and executed.
+3. **The spiral history is the deliverable, not just the answer.** Every refinement is preserved as a complete record.
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated (`npm install -g @anthropic-ai/claude-code && claude auth login`)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 - Git configured with `user.name` and `user.email`
 
 ### Install
@@ -37,123 +80,30 @@ cargo install --path .
 ### Usage
 
 ```bash
-lisa doctor                  # Check environment and prerequisites
-lisa init                    # Scaffold .lisa/ directory and ASSIGNMENT.md
+lisa doctor                  # Check prerequisites
+lisa init                    # Scaffold .lisa/ and ASSIGNMENT.md
 # Edit ASSIGNMENT.md with your problem description
 # Add reference papers to .lisa/references/core/
-lisa run                     # Run the full spiral — scoping through acceptance
+lisa run                     # Run the full spiral
 ```
 
-### All Commands
+## Commands
 
 ```bash
-lisa scope                   # Pass 0: scoping only
+lisa run                     # Full spiral: scope → DDV → passes → finalize
 lisa run --max-passes 3      # Limit spiral passes
-lisa resume                  # Resume from where you left off
-lisa status                  # Check current state
-lisa history                 # Show pass-by-pass history (answer, tests, recommendation)
-lisa rollback <pass>         # Roll back to a previous pass boundary
-lisa continue "<question>"   # Continue with a follow-up question after acceptance
-lisa finalize                # Produce final deliverables
+lisa scope                   # Pass 0 only (scoping)
+lisa resume                  # Resume from saved state
+lisa status                  # Print current spiral state
+lisa history                 # Pass-by-pass history
+lisa rollback <pass>         # Roll back to a pass boundary
+lisa continue "<question>"   # Follow-up question after acceptance
+lisa finalize                # Produce answer.md + report.md
 lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
+lisa doctor                  # Check environment
 ```
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                    PASS 0: SCOPE (with human refinement loop)             │
-│                                                                          │
-│   ┌────────────────┐     ┌────────────────┐     ┌────────────────┐      │
-│   │  SCOPE AGENT    │────→│  HUMAN REVIEW   │────→│  APPROVED       │     │
-│   │  methodology,   │     │  [A]pprove      │     │  proceed to     │     │
-│   │  acceptance,    │  ┌──│  [R]efine       │     │  Pass 1         │     │
-│   │  spiral plan    │  │  │  [E]dit         │     └────────┬───────┘     │
-│   └────────────────┘  │  └────────────────┘               │             │
-│          ↑            │                                    │             │
-│          └── feedback ┘                                    │             │
-└────────────────────────────────────────────────────────────┼─────────────┘
-                                                             ↓
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         OUTER LOOP: SPIRAL                               │
-│                   (progress-tracked, human-gated)                        │
-│                                                                          │
-│   ┌────────────────┐                                                     │
-│   │    REFINE       │  opus + subagents                                  │
-│   │    methodology  │  (literature search, code audit, validation review)│
-│   │    + plan       │  reads spiral-plan.md for scope progression        │
-│   └───────┬────────┘                                                     │
-│           ↓                                                              │
-│   ┌────────────────┐                                                     │
-│   │   BUILD         │  sonnet (Ralph loop)                               │
-│   │   implement     │  code → software tests → keep existing DDV green   │
-│   │   + integrate   │                                                    │
-│   └───────┬────────┘                                                     │
-│           ↓                                                              │
-│   ┌────────────────┐                                                     │
-│   │   VALIDATE      │  opus                                              │
-│   │   DDV tests +   │  write DDV tests from scenarios → V&V → progress   │
-│   │   V&V + progress│                                                    │
-│   └───────┬────────┘                                                     │
-│           ↓                                                              │
-│   ┌───────────────────────────────────────────┐                          │
-│   │           HUMAN REVIEW GATE               │                          │
-│   │  Accept / Continue / Redirect             │                          │
-│   └───────────────────────┬───────────────────┘                          │
-│                           ↓                                              │
-│                    (next spiral pass)                                     │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-## Domain-Driven Verification (DDV)
-
-DDV is the core verification mechanism, using a scenario-then-test separation to prevent correlated domain knowledge errors:
-
-1. **DDV Agent** (opus, one-time prologue): Writes literature-grounded verification scenarios (markdown, no code) to `.lisa/ddv/scenarios.md`. Does NOT read implementation code.
-2. **Build** (sonnet): Implements code guided by DDV scenarios. CANNOT write or modify DDV tests. Disagreements are documented and adjudicated by the next refine phase.
-3. **Validate** (opus, after Build): Converts DDV scenarios into executable tests in `tests/ddv/`. Runs them against the implementation. Reports results.
-
-**DDV is domain-agnostic.** The pattern works for any domain with authoritative sources and testable expected values: physics papers, econometrics studies, regulatory standards, engineering benchmarks.
-
-**Engineering judgment** is a named rigor standard: dimensional analysis, conservation law checks, order-of-magnitude estimation from first principles, and hard bounds. This standard applies regardless of domain.
-
-## Scope Progression
-
-The spiral plan stages both fidelity AND scope per pass. Early passes test the methodology on a subset of the full problem:
-
-| Pass | Pattern | Key question |
-|------|---------|--------------|
-| 1 | Narrow scope, simplest method, wide tolerance | Does the approach work at all? |
-| 2 | Broader scope, add corrections | Does it generalize? |
-| 3 | Full scope, moderate fidelity | Does coupling work? |
-| 4 | Full scope, refined methods | Converged? |
-
-## Subagent Usage
-
-The refine phase uses Claude Code's Task tool to delegate focused research tasks:
-- **Literature subagent:** Search for methods, evaluate alternatives
-- **Code audit subagent:** Audit existing code structure and interfaces
-- **Validation review subagent:** Summarize previous pass results
-
-This manages context without architectural complexity. The build phase stays single-agent.
-
-## Pass 0 — Scoping (with Human Refinement Loop)
-
-The only non-repeating pass. Establishes methodology, acceptance criteria, validation strategy, and scope progression. **No code is written.**
-
-The human can iteratively refine scope artifacts before any code exists:
-- **Approve** — proceed to Pass 1
-- **Refine** — provide feedback, scope agent re-runs with corrections
-- **Edit** — modify files directly, then approve
-- **Quit** — stop
-
-## Pass N — Three-Phase Spiral
-
-| Phase | Agent | Writes code? | Key question |
-|-------|-------|-------------|--------------|
-| Refine | opus + subagents | No | What methodology, what plan? |
-| Build | sonnet (Ralph loop) | Yes | Implement code + software quality + integration |
-| Validate | opus | DDV tests only | Do results match DDV scenarios? Is the answer ready? |
+Configuration lives in `.lisa/lisa.toml` (models, limits, review gates, paths, commands). Run `lisa init` to see the full default config with comments.
 
 ## Human Interaction
 
@@ -171,174 +121,38 @@ The human can iteratively refine scope artifacts before any code exists:
 
   [A] ACCEPT — produce final report
   [C] CONTINUE — next spiral pass
-  [R] REDIRECT — provide guidance (opens $EDITOR)
+  [R] REDIRECT — provide guidance
 ```
 
-### Block Gate (During Build)
+### Scope Review Gate
 
-When tasks are blocked (methodology issues, DDV disagreements), the block gate shows specific task names and reasons, with options to Fix, Skip, or Abort.
-
-## Final Deliverables
-
-When the human accepts:
-
-1. **`.lisa/output/answer.md`** — Direct response to the question in ASSIGNMENT.md
-2. **`.lisa/output/report.md`** — Full development report: problem statement, methodology with citations, spiral history, V&V summaries, progress tables, assumptions, limitations, traceability
+After Pass 0, review methodology and acceptance criteria before any code is written. Options: **Approve**, **Refine** (agent re-runs with feedback), **Edit** (modify files directly), or **Quit**.
 
 ## Traceability Chain
 
 ```
 ASSIGNMENT.md → acceptance criteria
-  → scope (.lisa/spiral/pass-0/) — human-refined scope, fidelity progression, validation strategy
+  → scope (.lisa/spiral/pass-0/)
     → methodology (.lisa/methodology/methodology.md)
-      → authoritative domain source (.lisa/references/)
+      → authoritative source (.lisa/references/)
         → governing equations
-          → DDV tests (tests/ddv/) — domain specification as executable tests
+          → DDV tests (tests/ddv/)
             → implementation (src/)
-              → derivations (.lisa/methodology/derivations/) — non-trivial mappings only
-                → software tests (tests/software/) — edge cases, stability
-                  → execution (src/runner) — end-to-end, engineering judgment audit
-                    → system validation — sanity checks, progress tracking
-                      → human acceptance
-                        → final answer + report
-```
-
-## Configuration
-
-All configuration is in `.lisa/lisa.toml`:
-
-```toml
-[project]
-name = "my-project"
-
-[models]
-scope = "opus"
-refine = "opus"
-ddv = "opus"
-build = "sonnet"
-validate = "opus"
-
-[limits]
-max_spiral_passes = 5
-max_ralph_iterations = 50
-
-[review]
-# Human review gates. When false, loop runs fully autonomously.
-pause = true
-
-[git]
-auto_commit = true
-auto_push = false
-
-[terminal]
-# Collapse agent streaming output to summary lines after completion
-collapse_output = true
-
-[paths]
-# Where process artifacts live (relative to project root)
-lisa_root = ".lisa"
-
-# Where deliverable code goes (relative to project root)
-source = ["src"]
-
-# Test directories (relative to project root)
-tests_ddv = "tests/ddv"
-tests_software = "tests/software"
-tests_integration = "tests/integration"
-
-[commands]
-# These get populated by the scope agent, but can be pre-filled
-setup = ""
-build = ""
-test_all = ""
-test_ddv = ""
-test_software = ""
-test_integration = ""
-lint = ""
-```
-
-## Prompt Customization
-
-Prompts are compiled into the binary by default. To customize them:
-
-```bash
-lisa eject-prompts
-```
-
-This copies all prompts to `.lisa/prompts/`. Edit them freely — the CLI uses local prompts when present, falling back to the compiled-in defaults.
-
-## Directory Structure
-
-```
-project-root/
-├── Cargo.toml                          # Rust project configuration
-├── ASSIGNMENT.md                       # Project description (user writes)
-├── .lisa/                              # Process artifacts root
-│   ├── lisa.toml                       # Configuration
-│   ├── AGENTS.md                       # Build/test/plot commands
-│   │
-│   ├── methodology/
-│   │   ├── methodology.md              # Single methodology document
-│   │   ├── plan.md                     # Single implementation plan
-│   │   ├── verification-cases.md       # L0/L1 test specifications
-│   │   ├── overview.md                 # System description
-│   │   ├── assumptions-register.md     # Cross-cutting assumptions
-│   │   └── derivations/               # Code ↔ equations mapping
-│   │
-│   ├── spiral/
-│   │   ├── state.toml                  # Machine-readable spiral state
-│   │   ├── pass-0/
-│   │   │   ├── acceptance-criteria.md
-│   │   │   ├── validation-strategy.md
-│   │   │   ├── sanity-checks.md
-│   │   │   ├── literature-survey.md
-│   │   │   ├── spiral-plan.md          # Scope + fidelity progression
-│   │   │   └── PASS_COMPLETE.md
-│   │   └── pass-N/
-│   │       ├── refine-summary.md
-│   │       ├── refine-feedback.md
-│   │       ├── execution-report.md
-│   │       ├── system-validation.md
-│   │       ├── progress-tracking.md
-│   │       ├── review-package.md
-│   │       ├── reconsiderations/
-│   │       └── PASS_COMPLETE.md
-│   │
-│   ├── validation/
-│   │   ├── sanity-checks.md
-│   │   ├── limiting-cases.md
-│   │   ├── reference-data.md
-│   │   └── progress-log.md
-│   │
-│   ├── references/
-│   │   ├── core/
-│   │   └── retrieved/
-│   │
-│   ├── plots/
-│   │   └── REVIEW.md
-│   │
-│   └── output/
-│       ├── answer.md
-│       └── report.md
-│
-├── src/                                # Deliverable implementation code (target project)
-├── tests/
-│   ├── ddv/                            # Domain-Driven Verification tests
-│   ├── software/                       # Software quality tests
-│   └── integration/                    # End-to-end tests
-│
-├── prompts/                            # Compiled-in prompt templates
-└── templates/                          # Compiled-in init templates
+              → software tests (tests/software/)
+                → integration tests (tests/integration/)
+                  → system validation
+                    → human acceptance
+                      → final answer + report
 ```
 
 ## Lineage
 
 Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) created by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum) — a bash loop that feeds prompts to an AI agent with filesystem persistence as shared state.
 
-**Lisa Loop v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
+**v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
 
-**Lisa Loop v2** restructured the process into a three-phase spiral architecture with Domain-Driven Verification (DDV).
+**v2** restructured the process into a three-phase spiral architecture with Domain-Driven Verification (DDV).
 
-**Lisa Loop v3** (current) reimplements the orchestrator as a Rust CLI (`lisa`), replacing the bash script with a compiled binary that embeds prompts and templates, uses TOML configuration, and provides enum-based state management with structured serialization.
+**v3** (current) reimplements the orchestrator as a Rust CLI (`lisa`), replacing the bash script with a compiled binary that embeds prompts and templates, uses TOML configuration, and provides enum-based state management with structured serialization.
 
 Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.

@@ -3,7 +3,30 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "lisa",
-    about = "Lisa Loop — Rigorous engineering problem-solving with AI agents"
+    about = "Lisa Loop — Rigorous engineering problem-solving with AI agents",
+    after_long_help = "\
+WORKFLOW:
+
+  lisa init → scaffold .lisa/ + ASSIGNMENT.md
+                    │
+                    ▼
+  ┌───────────────────────────────────────┐
+  │  Pass 0: SCOPE                        │
+  │  methodology, acceptance, spiral plan │◄── refine loop
+  └──────────────────┬────────────────────┘
+                     ▼
+  ┌───────────────────────────────────────┐
+  │  DDV Agent (one-time prologue)        │
+  │  verification scenarios (no code)     │
+  └──────────────────┬────────────────────┘
+                     ▼
+  ┌───────────────────────────────────────┐
+  │  Pass 1..N: SPIRAL                    │
+  │  Refine → Build → Validate           │◄── human gate
+  └──────────────────┬────────────────────┘
+                     ▼
+  lisa finalize → answer.md + report.md
+"
 )]
 #[command(version)]
 pub struct Cli {
