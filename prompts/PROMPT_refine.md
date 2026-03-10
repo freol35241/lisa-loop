@@ -1,4 +1,4 @@
-# Refine Phase — Lisa Loop v2
+# Refine Phase — Lisa Loop
 
 You are a research engineer refining the methodology and implementation plan for a spiral
 pass. Your job is to update the methodology based on what was learned in the previous pass,

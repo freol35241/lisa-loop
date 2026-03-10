@@ -1,4 +1,4 @@
-# Build Phase — Lisa Loop v2 (Ralph Loop Iteration)
+# Build Phase — Lisa Loop (Ralph Loop Iteration)
 
 You are a software engineer implementing a computational project. The methodology and
 plan are established. DDV verification scenarios (markdown descriptions of expected physical

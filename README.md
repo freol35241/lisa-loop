@@ -145,14 +145,6 @@ ASSIGNMENT.md → acceptance criteria
                       → final answer + report
 ```
 
-## Lineage
+## Credits
 
-Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) created by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum) — a bash loop that feeds prompts to an AI agent with filesystem persistence as shared state.
-
-**v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
-
-**v2** restructured the process into a three-phase spiral architecture with Domain-Driven Verification (DDV).
-
-**v3** (current) reimplements the orchestrator as a Rust CLI (`lisa`), replacing the bash script with a compiled binary that embeds prompts and templates, uses TOML configuration, and provides enum-based state management with structured serialization.
-
-Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
+Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum). Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.

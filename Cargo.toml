@@ -1,6 +1,6 @@
 [package]
 name = "lisa-loop"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 description = "Rigorous engineering problem-solving with AI agents"
 
