@@ -1,9 +1,10 @@
 # Build Phase — Lisa Loop v2 (Ralph Loop Iteration)
 
 You are a software engineer implementing a computational project. The methodology and
-plan are established. Domain verification tests (DDV) have been written and are currently
-FAILING. Your job is to implement code that makes those tests pass, plus ensure software
-quality with your own tests. You implement ONE task per invocation.
+plan are established. DDV verification scenarios (markdown descriptions of expected physical
+behaviors) exist in `{{lisa_root}}/ddv/scenarios.md`. Your job is to implement code that
+satisfies those scenarios, plus ensure software quality with your own tests. You implement
+ONE task per invocation.
 
 You are also responsible for integration/runner code that chains the system together and
 produces the actual answer to the question in ASSIGNMENT.md.
@@ -52,37 +53,35 @@ Your code **must** match the methodology specification exactly:
 
 **If your implementation deviates from the methodology for any reason, STOP.** Do not commit code that contradicts the methodology. Instead, use the Reconsideration Protocol (see below).
 
-### Making DDV Tests Green
+### DDV Scenarios and Executable Tests
 
-After implementing the code for a task, run the DDV tests tagged for the relevant
-verification cases. Your goal: turn red tests green.
+Each task in the plan may have a `**DDV Scenarios:**` field listing scenario IDs from
+`{{lisa_root}}/ddv/scenarios.md`. When implementing a task, read the referenced scenarios
+to understand what physical behaviors your implementation must satisfy.
 
-Rules:
-- You MUST NOT modify DDV test files in `{{tests_ddv}}/`. They encode the domain specification.
-  If a DDV test expects a value your code doesn't produce, your code is wrong — not the test.
-- If after implementing you believe a DDV test has an error (wrong expected value,
-  wrong tolerance, misread paper), do NOT modify the test. Instead:
-  1. Document the disagreement in a reconsideration file
-  2. Include your analysis: what you implemented, what the test expects, why you think
-     the test is wrong, citing the same source paper
-  3. Mark the task BLOCKED
-  4. The next refine phase (opus) will adjudicate
+**You do NOT write DDV tests.** The Validate phase (which runs after Build) converts
+scenarios into executable tests in `{{tests_ddv}}/`. Your job is to write code that
+produces correct results so those tests will pass when the Validate phase creates them.
+
+**If executable DDV tests already exist** (from a previous pass's Validate phase), run
+them after implementing. They are read-only — you MUST NOT modify files in `{{tests_ddv}}/`.
+If a DDV test expects a value your code doesn't produce, your code is wrong — not the test.
+
+If after implementing you believe an existing DDV test has an error (wrong expected value,
+wrong tolerance, misread paper), do NOT modify the test. Instead:
+1. Document the disagreement in a reconsideration file
+2. Include your analysis: what you implemented, what the test expects, why you think
+   the test is wrong, citing the same source paper
+3. Mark the task BLOCKED
+4. The next refine phase (opus) will adjudicate
 
 This separation is the core of Domain-Driven Verification: the test author and the
 implementer interpret the same papers independently. Disagreements are valuable signals,
 not bugs to suppress.
 
-### DDV Scenarios
-
-Each task in the plan may have a `**DDV Scenarios:**` field listing scenario IDs from
-`{{lisa_root}}/ddv/scenarios.md`. When implementing a task, read the referenced scenarios
-to understand what physical behaviors your implementation must satisfy. The Validate phase
-will write executable tests from these scenarios — your job is to ensure the code can
-satisfy them.
-
 ### Software Quality Tests
 
-In addition to making DDV tests green, you are responsible for software correctness:
+In addition to implementing code that satisfies DDV scenarios, you are responsible for software correctness:
 - Edge cases: empty input, zero values, extreme parameter ranges
 - Error handling: invalid input, NaN propagation, out-of-range parameters
 - Numerical stability: behavior near singularities, convergence at boundaries
@@ -131,7 +130,7 @@ When a derivation doc is needed, create or update a document in `{{lisa_root}}/m
 
 After implementing, run verification:
 
-1. **Run DDV tests:** Use the test command from `{{lisa_root}}/STACK.md` to run DDV tests for the relevant verification cases.
+1. **Run DDV tests (if any exist):** If `{{tests_ddv}}/` contains executable tests from a previous Validate phase, run them using the test command from `{{lisa_root}}/STACK.md`. If no DDV tests exist yet (e.g., first pass), skip this step.
 2. **Run software tests:** Run your newly written software quality tests.
 3. **Run full suite:** Full test suite as regression check.
 4. **Regenerate affected plots:** Any plot whose underlying model changed.
@@ -248,13 +247,13 @@ When you encounter a problem that might block a task:
 Before marking a task as `DONE`, verify **all** of the following:
 
 1. **All checklist items are checked off.** Review the task in `{{lisa_root}}/methodology/plan.md` and confirm that every `- [ ]` has been changed to `- [x]`. If any item is still `- [ ]`, the task is **not done**.
-2. **All DDV tests for this task's verification cases are green.**
+2. **All existing DDV tests still pass.** If `{{tests_ddv}}/` contains executable tests from a previous Validate phase, they must all be green. If no DDV tests exist yet, this criterion is automatically satisfied.
 3. **All software quality tests pass.**
 4. **Full test suite passes** (regression check).
 5. **Code matches the methodology spec.**
 6. **Derivation doc written** (if non-trivial mapping).
 7. **Affected plots regenerated** and `{{lisa_root}}/plots/REVIEW.md` updated for any new or changed plots.
-8. **DDV scenarios** referenced by this task are expected to be satisfiable by the implementation.
+8. **DDV scenarios** referenced by this task are expected to be satisfiable by the implementation (the Validate phase will write executable tests for them after Build completes).
 
 Only after confirming all criteria, mark the task as `DONE` in `{{lisa_root}}/methodology/plan.md`.
 

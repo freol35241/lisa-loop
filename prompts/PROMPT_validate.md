@@ -23,7 +23,6 @@ Read **all** of the following:
 - `{{lisa_root}}/spiral/pass-0/validation-strategy.md` — validation approach
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
 - `{{lisa_root}}/spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
-- `{{lisa_root}}/spiral/pass-N/ddv-red-manifest.md` — DDV test manifest for this pass
 - `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios
 - `{{lisa_root}}/ddv/manifest.md` — DDV scenario tracking manifest
 - `{{lisa_root}}/validation/sanity-checks.md` — living sanity check document

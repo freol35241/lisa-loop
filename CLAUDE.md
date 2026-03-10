@@ -23,7 +23,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Core Flow
 
 1. **`lisa init`** scaffolds a `.lisa/` directory with config, templates, and state file
-2. **`lisa run`** drives a spiral: Pass 0 (Scoping) → DDV Agent (one-time prologue) → Passes 1..N (Refine → DDV Red → Build → Validate)
+2. **`lisa run`** drives a spiral: Pass 0 (Scoping) → DDV Agent (one-time prologue) → Passes 1..N (Refine → Build → Validate)
 3. Each phase: save state → build prompt → spawn `claude` subprocess → parse NDJSON output → git commit → review gate
 4. **Filesystem is shared state** — agents have no memory between invocations; all inter-invocation communication happens through markdown files in `.lisa/`
 
@@ -31,7 +31,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 
 - **`cli.rs`** — Clap-derived CLI definition (`Commands` enum)
 - **`main.rs`** — Entry point, dispatches commands
-- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_ddv_agent`, `run_refine`, `run_ddv_red`, `run_build_loop`, `run_validate`, `finalize`)
+- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_ddv_agent`, `run_refine`, `run_build_loop`, `run_validate`, `finalize`)
 - **`state.rs`** — `SpiralState`/`PassPhase` enum state machine, TOML serialized to `.lisa/state.toml`
 - **`agent.rs`** — Spawns `claude` CLI subprocess, pipes prompts to stdin, parses streaming NDJSON, tracks tool calls, renders progress UX with elapsed time ticker thread
 - **`prompt.rs`** — Loads prompts (local `.lisa/prompts/` overrides compiled-in defaults), renders `{{placeholder}}` substitutions, assembles context preamble
@@ -46,7 +46,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 
 - **Compiled-in resources**: Prompts (`prompts/`) and templates (`templates/`) are embedded via `include_str!`. Users can eject prompts with `lisa eject-prompts` for customization without recompiling.
 - **DDV Agent prologue**: After scoping, a one-time DDV Agent writes literature-grounded verification scenarios (markdown, no code) to `.lisa/ddv/scenarios.md`. The Validate phase later converts these into executable tests.
-- **Two-agent DDV separation**: DDV Red (opus) writes failing tests without seeing source. Build (sonnet) implements code without modifying DDV tests. Separation is enforced via prompt guidance (soft enforcement).
+- **DDV scenario → test separation**: The DDV Agent (one-time, opus) writes literature-grounded verification scenarios (markdown, not code). The Validate phase (after Build) converts scenarios into executable tests. Build must not write or modify DDV tests — separation is enforced via prompt guidance.
 - **Build "Ralph loop"**: The build phase iterates up to `max_ralph_iterations`, with stall detection based on content hashing of `plan.md`. Stalls trigger a block gate.
 - **Model assignment**: Most phases use "opus"; Build uses "sonnet". Configurable in `lisa.toml`.
 - **Error handling**: `anyhow::Result` throughout, propagated with `?`.

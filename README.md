@@ -85,27 +85,15 @@ lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
 │   └───────┬────────┘                                                     │
 │           ↓                                                              │
 │   ┌────────────────┐                                                     │
-│   │   DDV RED       │  opus (independent of implementation)              │
-│   │   write failing │  tests only for current pass's scope subset        │
-│   │   domain tests  │                                                    │
-│   └───────┬────────┘                                                     │
-│           ↓                                                              │
-│   ┌────────────────┐                                                     │
 │   │   BUILD         │  sonnet (Ralph loop)                               │
-│   │   make tests    │  implement → DDV green → software tests            │
-│   │   green         │                                                    │
-│   └───────┬────────┘                                                     │
-│           ↓                                                              │
-│   ┌────────────────┐                                                     │
-│   │   EXECUTE       │  opus                                              │
-│   │   assemble +    │  integration code → run → engineering judgment     │
-│   │   run + audit   │                                                    │
+│   │   implement     │  code → software tests → keep existing DDV green   │
+│   │   + integrate   │                                                    │
 │   └───────┬────────┘                                                     │
 │           ↓                                                              │
 │   ┌────────────────┐                                                     │
 │   │   VALIDATE      │  opus                                              │
-│   │   V&V +         │  sanity checks → progress → recommendation        │
-│   │   progress      │                                                    │
+│   │   DDV tests +   │  write DDV tests from scenarios → V&V → progress   │
+│   │   V&V + progress│                                                    │
 │   └───────┬────────┘                                                     │
 │           ↓                                                              │
 │   ┌───────────────────────────────────────────┐                          │
@@ -119,10 +107,11 @@ lisa eject-prompts           # Copy prompts to .lisa/prompts/ for customization
 
 ## Domain-Driven Verification (DDV)
 
-DDV is the core verification mechanism, using two-agent separation to prevent correlated domain knowledge errors:
+DDV is the core verification mechanism, using a scenario-then-test separation to prevent correlated domain knowledge errors:
 
-1. **DDV Red** (opus): Writes failing tests from authoritative sources (papers, standards, analytical solutions). Does NOT read implementation code.
-2. **Build** (sonnet): Implements code to make those tests pass. CANNOT modify DDV tests. Disagreements are documented and adjudicated by the next refine phase.
+1. **DDV Agent** (opus, one-time prologue): Writes literature-grounded verification scenarios (markdown, no code) to `.lisa/ddv/scenarios.md`. Does NOT read implementation code.
+2. **Build** (sonnet): Implements code guided by DDV scenarios. CANNOT write or modify DDV tests. Disagreements are documented and adjudicated by the next refine phase.
+3. **Validate** (opus, after Build): Converts DDV scenarios into executable tests in `tests/ddv/`. Runs them against the implementation. Reports results.
 
 **DDV is domain-agnostic.** The pattern works for any domain with authoritative sources and testable expected values: physics papers, econometrics studies, regulatory standards, engineering benchmarks.
 
@@ -158,15 +147,13 @@ The human can iteratively refine scope artifacts before any code exists:
 - **Edit** — modify files directly, then approve
 - **Quit** — stop
 
-## Pass N — Five-Phase Spiral
+## Pass N — Three-Phase Spiral
 
 | Phase | Agent | Writes code? | Key question |
 |-------|-------|-------------|--------------|
 | Refine | opus + subagents | No | What methodology, what plan? |
-| DDV Red | opus | Tests only | What should correct results look like? |
-| Build | sonnet (Ralph loop) | Yes | Make the red tests green + software quality |
-| Execute | opus | Runner + integration tests | Does the system produce an answer? |
-| Validate | opus | No | Is the answer ready for acceptance? |
+| Build | sonnet (Ralph loop) | Yes | Implement code + software quality + integration |
+| Validate | opus | DDV tests only | Do results match DDV scenarios? Is the answer ready? |
 
 ## Human Interaction
 
@@ -229,7 +216,6 @@ scope = "opus"
 refine = "opus"
 ddv = "opus"
 build = "sonnet"
-execute = "opus"
 validate = "opus"
 
 [limits]
@@ -310,7 +296,7 @@ project-root/
 │   │   │   └── PASS_COMPLETE.md
 │   │   └── pass-N/
 │   │       ├── refine-summary.md
-│   │       ├── ddv-red-manifest.md
+│   │       ├── refine-feedback.md
 │   │       ├── execution-report.md
 │   │       ├── system-validation.md
 │   │       ├── progress-tracking.md
@@ -351,7 +337,7 @@ Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) crea
 
 **Lisa Loop v1** added methodology rigor, hierarchical verification, and a reconsideration protocol for engineering/scientific software where "passing tests" is necessary but insufficient — the tests themselves might encode wrong physics.
 
-**Lisa Loop v2** restructured the process into a five-phase spiral architecture with Domain-Driven Verification (DDV).
+**Lisa Loop v2** restructured the process into a three-phase spiral architecture with Domain-Driven Verification (DDV).
 
 **Lisa Loop v3** (current) reimplements the orchestrator as a Rust CLI (`lisa`), replacing the bash script with a compiled binary that embeds prompts and templates, uses TOML configuration, and provides enum-based state management with structured serialization.
 
