@@ -255,6 +255,8 @@ refine phase will flesh those out once the methodology is complete.
 
 L0 and L1 test specifications. These will be turned into executable tests by the Validate phase.
 
+**Visual verification principle:** Every verification case that checks a trend, compares against reference data, validates a limiting case, or verifies model behavior over a parameter range should specify a `**Visual:**` field describing what plot to generate. Plots go in `{{lisa_root}}/plots/` and are documented in `{{lisa_root}}/plots/REVIEW.md`. Omit only for simple numeric spot-checks.
+
 ```markdown
 # Verification Cases
 
@@ -266,6 +268,7 @@ L0 and L1 test specifications. These will be turned into executable tests by the
 - **Expected output:** [Expected result with units]
 - **Source:** [Where the expected value comes from — paper, analytical derivation]
 - **Tolerance:** [Acceptable error and justification]
+- **Visual:** [Optional — what plot would help a reviewer verify this? E.g., "function curve over valid range with test point marked." Omit for simple numeric comparisons.]
 
 ## Level 1 — Model Level
 
@@ -274,7 +277,7 @@ L0 and L1 test specifications. These will be turned into executable tests by the
 - **Description:** [What behavior is being verified]
 - **Expected behavior:** [Quantitative or qualitative expected result]
 - **Source:** [Reference for expected behavior]
-- **Plot:** [What plot to generate for visual verification]
+- **Visual:** [What plot or diagram to generate. Be specific: axes, overlays, expected behavior. E.g., "Plot resistance vs. speed (5-25 kn) overlaid with reference data from [source]. Look for monotonic increase." Every L1 case should have a visual unless it is a pure numeric spot-check.]
 ```
 
 ---
@@ -654,6 +657,10 @@ Create this file **last**, after all other artifacts are complete.
 - **Never fabricate equations from memory.** If you need an equation, find it in a paper in `{{lisa_root}}/references/` or search the web for it. If the full paper is not available, flag it for the human with `[NEEDS_PAPER]`.
 - **Use web search** to find candidate methods and evaluate alternatives. Prefer open-access papers. When you retrieve a useful paper, save a summary to `{{lisa_root}}/references/retrieved/` with the citation and key equations.
 - **Document alternatives considered.** For each method choice, briefly state what other approaches exist and why you chose this one.
+
+### Visual Verification
+
+- **Visuals are the preferred way to surface results for human review.** Every verification case and DDV scenario that checks a trend, comparison, limiting case, or parameter sweep should specify a `**Visual:**` field. Plots go in `{{lisa_root}}/plots/` and are documented in `{{lisa_root}}/plots/REVIEW.md`.
 
 ### Engineering Judgment
 

@@ -50,11 +50,12 @@ DDV prevents correlated errors by separating *who writes scenarios* from *who wr
 
 Works for any domain with authoritative sources and testable expected values: physics, econometrics, regulatory standards, engineering benchmarks.
 
-## Three Absolute Rules
+## Four Absolute Rules
 
 1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper.
 2. **Engineering judgment is a first-class, auditable artifact.** Sanity checks are written down, versioned, and executed.
-3. **The spiral history is the deliverable, not just the answer.** Every refinement is preserved as a complete record.
+3. **Visual evidence is the preferred way to surface results for human review.** Plots, comparison charts, and diagrams — not just tables and numbers.
+4. **The spiral history is the deliverable, not just the answer.** Every refinement is preserved as a complete record.
 
 ## Getting Started
 

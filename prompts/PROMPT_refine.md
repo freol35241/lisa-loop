@@ -147,6 +147,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
 - Tasks do NOT include DDV test items — the Validate phase writes executable tests from DDV scenarios
+- Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. If the task's DDV scenarios have `**Visual:**` fields, the corresponding plots should appear as checklist items. Store plots in `{{lisa_root}}/plots/`.
 
 **Task format:**
 ```markdown
@@ -160,7 +161,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
   - [ ] [Implement Y]
   - [ ] [Derivation doc for Z (only if mapping is non-trivial)]
   - [ ] [Software tests for edge cases / error handling]
-  - [ ] [Plot: description]
+  - [ ] [Visual: description — e.g., "Plot output vs. parameter over valid range with reference data overlaid"]
 - **Dependencies:** [task refs or "None"]
 ```
 

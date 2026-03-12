@@ -69,6 +69,10 @@ based on the scope progression in spiral-plan.md. E.g., "Pass 1+" or "Pass 3+"]
 
 **Category:** [One of: unit-function | model-behavior | system-integration | limiting-case | reference-data]
 
+**Visual:** [What plot or diagram should the Validate phase generate to verify this scenario
+visually? Describe axes, overlays, and what behavior to look for. Write "None" only for
+unit-function scenarios that are simple numeric spot-checks.]
+
 ---
 ```
 
@@ -91,6 +95,16 @@ Write scenarios across these categories:
 5. **Reference-data** — Comparison against published experimental or computational data.
    Source: peer-reviewed experimental measurements, validated computational benchmarks.
 
+### 4b. Visual Verification Guidance
+
+Which scenario categories should include a `**Visual:**` specification:
+
+- **model-behavior** — Always. Plot the expected trend over parameter range with the verification point(s) marked.
+- **system-integration** — Always. Plot end-to-end output against published benchmark data.
+- **limiting-case** — Always. Plot approach to the known analytical value as the parameter moves toward the limit.
+- **reference-data** — Always. Plot computed vs. published data with error bands.
+- **unit-function** — Optional. Include only if the function has interesting behavior over its valid input range (e.g., a non-linear curve). Simple numeric spot-checks (known input → known output) do not need visuals.
+
 ### 5. Write DDV Manifest
 
 Create or update `{{lisa_root}}/ddv/manifest.md`:
@@ -98,10 +112,10 @@ Create or update `{{lisa_root}}/ddv/manifest.md`:
 ```markdown
 # DDV Manifest
 
-| Scenario | Category | Pass Relevance | Source | Status |
-|----------|----------|----------------|--------|--------|
-| DDV-001  | [cat]    | Pass 1+        | [cite] | PENDING |
-| DDV-002  | [cat]    | Pass 1+        | [cite] | PENDING |
+| Scenario | Category | Pass Relevance | Source | Visual | Status |
+|----------|----------|----------------|--------|--------|--------|
+| DDV-001  | [cat]    | Pass 1+        | [cite] | Yes/None | PENDING |
+| DDV-002  | [cat]    | Pass 1+        | [cite] | Yes/None | PENDING |
 ```
 
 All scenarios start as `PENDING`. The Validate phase will update status to `TESTED` or `DEFERRED`
@@ -117,6 +131,7 @@ After writing all scenarios, create `{{lisa_root}}/ddv/DDV_COMPLETE.md`:
 Scenarios written: [count]
 Categories: [count per category]
 Sources cited: [count unique sources]
+Scenarios with visual specifications: [count]/[total]
 Earliest pass relevance: Pass [N]
 ```
 
@@ -128,6 +143,7 @@ based on the feedback. Address every item in the feedback file.
 
 ## Rules
 
+- **Visuals are the preferred way to surface results for human review.** Every scenario that checks a trend, comparison, limiting case, or parameter range should have a `**Visual:**` field. Only simple numeric spot-checks may omit it.
 - **Do NOT write any code.** No test files, no source files, no scripts. Scenarios are markdown only.
 - **Do NOT read implementation code.** Your scenarios must be derived independently from literature and domain knowledge.
 - **Every expected value must have a source.** No "expected: approximately X" without a citation.
@@ -141,4 +157,5 @@ Provide a brief summary of:
 - How many scenarios were written, by category
 - Key sources used
 - Which passes are covered
+- How many scenarios include visual specifications (and which categories lack them)
 - Any gaps where sources could not be found (`[NEEDS_SOURCE]`)
