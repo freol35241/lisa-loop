@@ -136,13 +136,13 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         }
     }
 
-    // DDV cases (from validation-strategy.md)
-    let validation_path = lisa_root.join("spiral/pass-0/validation-strategy.md");
-    if validation_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&validation_path) {
-            let ddv_count = count_verification_cases_from(&content);
+    // DDV scenarios (from ddv/scenarios.md)
+    let scenarios_path = lisa_root.join("ddv/scenarios.md");
+    if scenarios_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
+            let ddv_count = count_ddv_scenarios(&content);
             if ddv_count > 0 {
-                terminal::print_colored("  DDV cases:", Color::Cyan);
+                terminal::print_colored("  DDV scenarios:", Color::Cyan);
                 println!(" {}", ddv_count);
             }
         }
@@ -207,7 +207,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
     println!();
     terminal::print_colored("  Files: ", Color::DarkGrey);
     println!(
-        "methodology.md, plan.md, acceptance-criteria.md, spiral-plan.md, validation-strategy.md"
+        "methodology.md, plan.md, acceptance-criteria.md, spiral-plan.md"
     );
 
     println!();
@@ -269,10 +269,9 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
         }
     }
 
-    // Show manifest summary
-    let manifest_path = lisa_root.join("ddv/manifest.md");
-    if manifest_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+    // Show manifest summary (from ## Manifest section in scenarios.md)
+    if scenarios_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
             let entry_count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
             if entry_count > 0 {
                 terminal::print_colored("  Manifest:  ", Color::Cyan);
@@ -284,7 +283,6 @@ pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision
     println!();
     terminal::print_colored("  Files:\n", Color::Cyan);
     println!("    Scenarios: {}/ddv/scenarios.md", lisa_root.display());
-    println!("    Manifest:  {}/ddv/manifest.md", lisa_root.display());
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
@@ -892,14 +890,11 @@ pub fn extract_methodology_approach_from(content: &str) -> Option<String> {
     None
 }
 
-/// Count `### V0-` and `### V1-` headings in validation-strategy.md.
-pub fn count_verification_cases_from(content: &str) -> u32 {
+/// Count `## DDV-` headings in ddv/scenarios.md.
+pub fn count_ddv_scenarios(content: &str) -> u32 {
     content
         .lines()
-        .filter(|l| {
-            let trimmed = l.trim_start_matches('#').trim();
-            trimmed.starts_with("V0-") || trimmed.starts_with("V1-")
-        })
+        .filter(|l| l.starts_with("## DDV-"))
         .count() as u32
 }
 
@@ -1099,15 +1094,15 @@ mod tests {
     }
 
     #[test]
-    fn test_count_verification_cases_from() {
-        let content = "# Validation\n\n### V0-basic-check\nDetails...\n\n### V0-boundary\nDetails...\n\n### V1-convergence\nDetails...\n\n## Other\n";
-        assert_eq!(count_verification_cases_from(content), 3);
+    fn test_count_ddv_scenarios() {
+        let content = "# DDV Scenarios\n\n## DDV-001: Basic check\nDetails...\n\n## DDV-002: Boundary\nDetails...\n\n## DDV-003: Convergence\nDetails...\n";
+        assert_eq!(count_ddv_scenarios(content), 3);
     }
 
     #[test]
-    fn test_count_verification_cases_none() {
-        let content = "# Validation\n\n## Some Section\n\nNo verification headings.\n";
-        assert_eq!(count_verification_cases_from(content), 0);
+    fn test_count_ddv_scenarios_none() {
+        let content = "# DDV Scenarios\n\n## Manifest\n\nNo scenarios yet.\n";
+        assert_eq!(count_ddv_scenarios(content), 0);
     }
 
     #[test]

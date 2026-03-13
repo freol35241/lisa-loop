@@ -21,16 +21,12 @@ Read **all** of the following:
 - `{{lisa_root}}/STACK.md` — build/test/plot commands
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
-- `{{lisa_root}}/spiral/pass-0/sanity-checks.md` — engineering judgment checks
-- `{{lisa_root}}/spiral/pass-0/validation-strategy.md` — validation approach
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
 - `{{lisa_root}}/spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
-- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios
-- `{{lisa_root}}/ddv/manifest.md` — DDV scenario tracking manifest
+- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios and manifest
 - `{{lisa_root}}/validation/sanity-checks.md` — living sanity check document
 - `{{lisa_root}}/validation/limiting-cases.md` — limiting cases to check
 - `{{lisa_root}}/validation/reference-data.md` — reference data to compare against
-- `{{lisa_root}}/validation/progress-log.md` — progress history
 - `{{lisa_root}}/plots/REVIEW.md` — current plot assessments
 
 If this is **Pass N > 1**:
@@ -65,12 +61,12 @@ Use the run command from `{{lisa_root}}/STACK.md`. Verify:
 Write executable tests from DDV scenarios in `{{lisa_root}}/ddv/scenarios.md`:
 
 1. Read each scenario with `Pass relevance` matching this pass or earlier
-2. For each scenario not yet tested (check `{{lisa_root}}/ddv/manifest.md`):
+2. For each scenario not yet tested (check the `## Manifest` section in `{{lisa_root}}/ddv/scenarios.md`):
    - Write an executable test in `{{tests_ddv}}/` that sets up the scenario's conditions, runs the relevant code, and checks the expected output against the specified tolerance
    - Include the scenario ID (DDV-NNN) in the test name and a comment citing the source
    - If the scenario has a `**Visual:**` field, generate the described plot. Save to `{{lisa_root}}/plots/` with scenario ID in filename (e.g., `ddv-003-drag-vs-speed.png`). Add entry to `{{lisa_root}}/plots/REVIEW.md`.
 3. Run all DDV tests and record results
-4. Update `{{lisa_root}}/ddv/manifest.md` with test status (TESTED/PASS/FAIL/DEFERRED)
+4. Update the `## Manifest` section in `{{lisa_root}}/ddv/scenarios.md` with test status (TESTED/PASS/FAIL/DEFERRED)
 
 If a scenario cannot be tested yet (e.g., the relevant code isn't implemented until a later pass),
 mark it DEFERRED in the manifest with a note explaining why.
@@ -131,14 +127,14 @@ Save all plots to `{{lisa_root}}/plots/` and document each in `{{lisa_root}}/plo
 ### 6. Engineering Judgment Audit
 
 Using the intermediate values and final answer from `{{lisa_root}}/spiral/pass-N/execution-report.md`,
-and the engineering judgment checks from `{{lisa_root}}/spiral/pass-0/sanity-checks.md`, perform an
+and the engineering judgment checks from `{{lisa_root}}/validation/sanity-checks.md`, perform an
 independent engineering judgment audit:
 
 1. **Intermediate values:** Do intermediate quantities fall within the expected ranges
    stated in the methodology? Flag any that don't.
 2. **Dimensional consistency:** Do all quantities have correct units throughout the chain?
 3. **Order of magnitude:** Is the final answer in the right ballpark? Compare against
-   the order-of-magnitude estimates from `{{lisa_root}}/spiral/pass-0/sanity-checks.md`.
+   the order-of-magnitude estimates from `{{lisa_root}}/validation/sanity-checks.md`.
 4. **Conservation:** Are conserved quantities preserved through the computation?
 5. **Hard bounds:** Does the result respect known physical/domain bounds?
 
@@ -316,17 +312,13 @@ Non-visual checks requiring domain expertise:
 - Plots: {{lisa_root}}/plots/REVIEW.md
 ```
 
-#### Update `{{lisa_root}}/validation/progress-log.md`
-
-Append this pass's progress data to the cumulative log.
-
 #### Update `{{lisa_root}}/plots/REVIEW.md`
 
 Ensure all plots have current assessments reflecting this pass's results.
 
-#### Update `{{lisa_root}}/ddv/manifest.md`
+#### Update the `## Manifest` section in `{{lisa_root}}/ddv/scenarios.md`
 
-Update the manifest with test results for any newly written DDV executable tests.
+Update the manifest table with test results for any newly written DDV executable tests.
 
 #### `{{lisa_root}}/spiral/pass-N/PASS_COMPLETE.md`
 

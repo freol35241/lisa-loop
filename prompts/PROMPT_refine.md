@@ -20,9 +20,7 @@ Read **all** of the following:
 - `{{lisa_root}}/STACK.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
 - `{{lisa_root}}/methodology/methodology.md` — the current methodology
 - `{{lisa_root}}/methodology/plan.md` — the current implementation plan
-- `{{lisa_root}}/methodology/verification-cases.md` — verification case specifications
-- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios
-- `{{lisa_root}}/ddv/manifest.md` — DDV scenario tracking manifest
+- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios and manifest
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression across passes (read this to determine the scope and fidelity target for this pass)
 
@@ -74,7 +72,7 @@ If `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` contains unresolved issue
 **For DDV disagreements** (`ddv-disagreement-*.md`):
 1. Go back to the authoritative source paper cited by both the test and the implementation
 2. Determine which interpretation is correct
-3. If the **test was wrong**: update `{{lisa_root}}/methodology/verification-cases.md` with the correct expected value and flag the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` for update.
+3. If the **test was wrong**: update the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` with the correct expected value.
 4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
 5. Document your adjudication in the refine summary
 
@@ -127,13 +125,12 @@ If methodology changes in this pass may invalidate existing DDV scenarios (e.g.,
 the governing equations or valid parameter ranges), flag this explicitly in the refine
 summary so the human can decide whether to re-run the DDV Agent.
 
-### 6. Update Verification Cases
+### 6. Update DDV Scenarios
 
-Update `{{lisa_root}}/methodology/verification-cases.md`:
-- Add verification cases for new/changed methods:
-  - Level 0: Individual function tests (known input → known output)
-  - Level 1: Model-level tests (behavior over valid range)
-- Each case must have expected values with sources.
+If methodology changes affect expected values or valid ranges, update the corresponding
+DDV scenarios in `{{lisa_root}}/ddv/scenarios.md`. For new methods that need verification,
+add new scenario sketches (the DDV Agent will fully ground them if re-run). Each scenario
+should have expected values with sources.
 
 ### 7. Update Implementation Plan
 

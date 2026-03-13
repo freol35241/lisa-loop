@@ -503,13 +503,10 @@ fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
             }
             review::DdvDecision::Edit => {
                 let scenarios_path = lisa_root.join("ddv/scenarios.md");
-                let manifest_path = lisa_root.join("ddv/manifest.md");
                 terminal::log_info("Edit the DDV scenario files directly with any editor.");
                 println!();
                 terminal::print_colored("  Scenarios: ", Color::Cyan);
                 println!("{}", scenarios_path.display());
-                terminal::print_colored("  Manifest:  ", Color::Cyan);
-                println!("{}", manifest_path.display());
                 println!();
                 print!("  Press Enter when you are done editing...");
                 let _ = std::io::Write::flush(&mut std::io::stdout());
@@ -831,14 +828,11 @@ fn display_ddv_edit_summary(lisa_root: &Path) {
             let count = content.lines().filter(|l| l.starts_with("## DDV-")).count();
             terminal::print_colored("  Scenarios: ", Color::Cyan);
             println!("{}", count);
-        }
-    }
-    let manifest_path = lisa_root.join("ddv/manifest.md");
-    if manifest_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-            let count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
-            terminal::print_colored("  Manifest: ", Color::Cyan);
-            println!("{} entries", count);
+            let manifest_count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
+            if manifest_count > 0 {
+                terminal::print_colored("  Manifest: ", Color::Cyan);
+                println!("{} entries", manifest_count);
+            }
         }
     }
 }

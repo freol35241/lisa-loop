@@ -19,16 +19,12 @@ const ASSIGNMENT_TEMPLATE: &str = include_str!("../../templates/assignment.md");
 const STACK_TEMPLATE: &str = include_str!("../../templates/stack.md");
 const METHODOLOGY_TEMPLATE: &str = include_str!("../../templates/methodology.md");
 const PLAN_TEMPLATE: &str = include_str!("../../templates/plan.md");
-const VERIFICATION_CASES_TEMPLATE: &str = include_str!("../../templates/verification_cases.md");
-const OVERVIEW_TEMPLATE: &str = include_str!("../../templates/overview.md");
 const ASSUMPTIONS_REGISTER_TEMPLATE: &str = include_str!("../../templates/assumptions_register.md");
 const SANITY_CHECKS_TEMPLATE: &str = include_str!("../../templates/sanity_checks.md");
 const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cases.md");
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
-const PROGRESS_LOG_TEMPLATE: &str = include_str!("../../templates/progress_log.md");
 const PLOTS_REVIEW_TEMPLATE: &str = include_str!("../../templates/plots_review.md");
 const DDV_SCENARIOS_TEMPLATE: &str = include_str!("../../templates/ddv_scenarios.md");
-const DDV_MANIFEST_TEMPLATE: &str = include_str!("../../templates/ddv_manifest.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
     let lisa_root = project_root.join(".lisa");
@@ -139,14 +135,6 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     )?;
     write_file(&lisa_root.join("methodology/plan.md"), PLAN_TEMPLATE)?;
     write_file(
-        &lisa_root.join("methodology/verification-cases.md"),
-        VERIFICATION_CASES_TEMPLATE,
-    )?;
-    write_file(
-        &lisa_root.join("methodology/overview.md"),
-        OVERVIEW_TEMPLATE,
-    )?;
-    write_file(
         &lisa_root.join("methodology/assumptions-register.md"),
         ASSUMPTIONS_REGISTER_TEMPLATE,
     )?;
@@ -164,17 +152,11 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         &lisa_root.join("validation/reference-data.md"),
         REFERENCE_DATA_TEMPLATE,
     )?;
-    write_file(
-        &lisa_root.join("validation/progress-log.md"),
-        PROGRESS_LOG_TEMPLATE,
-    )?;
-
     // Write plots review
     write_file(&lisa_root.join("plots/REVIEW.md"), PLOTS_REVIEW_TEMPLATE)?;
 
     // Write DDV templates
     write_file(&lisa_root.join("ddv/scenarios.md"), DDV_SCENARIOS_TEMPLATE)?;
-    write_file(&lisa_root.join("ddv/manifest.md"), DDV_MANIFEST_TEMPLATE)?;
 
     // Write .gitkeep files
     let lisa_keepdirs = [

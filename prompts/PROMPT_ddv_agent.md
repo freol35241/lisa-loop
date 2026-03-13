@@ -16,11 +16,10 @@ Read **all** of the following:
 
 - `ASSIGNMENT.md` — the question we're answering
 - `{{lisa_root}}/methodology/methodology.md` — the methods being used
-- `{{lisa_root}}/methodology/verification-cases.md` — existing verification case specs
+- `{{lisa_root}}/ddv/scenarios.md` — may already contain initial scenario sketches from Scope; refine and expand them
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression across passes
 - `{{lisa_root}}/spiral/pass-0/literature-survey.md` — method candidates and sources
-- `{{lisa_root}}/spiral/pass-0/validation-strategy.md` — validation approach
 - `{{lisa_root}}/validation/sanity-checks.md` — engineering judgment checks
 - `{{lisa_root}}/validation/limiting-cases.md` — limiting cases
 - `{{lisa_root}}/validation/reference-data.md` — reference data
@@ -105,12 +104,13 @@ Which scenario categories should include a `**Visual:**` specification:
 - **reference-data** — Always. Plot computed vs. published data with error bands.
 - **unit-function** — Optional. Include only if the function has interesting behavior over its valid input range (e.g., a non-linear curve). Simple numeric spot-checks (known input → known output) do not need visuals.
 
-### 5. Write DDV Manifest
+### 5. Update DDV Manifest
 
-Create or update `{{lisa_root}}/ddv/manifest.md`:
+Create or update the `## Manifest` section at the top of `{{lisa_root}}/ddv/scenarios.md`.
+The manifest table tracks all scenarios and their status:
 
 ```markdown
-# DDV Manifest
+## Manifest
 
 | Scenario | Category | Pass Relevance | Source | Visual | Status |
 |----------|----------|----------------|--------|--------|--------|

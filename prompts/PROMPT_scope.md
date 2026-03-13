@@ -15,7 +15,6 @@ Spawn the **Literature Survey** and **Environment Probe** subagents (they are in
 ### Phase 3: FIRST SYNTHESIS
 Synthesize subagent results. Select methodology and technology stack. Write:
 - `{{lisa_root}}/methodology/methodology.md`
-- `{{lisa_root}}/methodology/overview.md`
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
 - Update `{{lisa_root}}/STACK.md` with resolved technology stack
 
@@ -24,12 +23,11 @@ Spawn the **Validation Research** and **Test Framework Research** subagents (the
 
 ### Phase 5: FINAL SYNTHESIS
 Synthesize subagent results. Write all remaining artifacts:
-- `{{lisa_root}}/methodology/verification-cases.md`
 - `{{lisa_root}}/methodology/plan.md`
-- `{{lisa_root}}/spiral/pass-0/validation-strategy.md`
-- `{{lisa_root}}/spiral/pass-0/sanity-checks.md` (+ copy to `{{lisa_root}}/validation/sanity-checks.md`)
+- `{{lisa_root}}/ddv/scenarios.md` — initial DDV scenario sketches (the DDV Agent will refine these)
 - `{{lisa_root}}/spiral/pass-0/literature-survey.md` (review/augment subagent output)
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md`
+- `{{lisa_root}}/validation/sanity-checks.md`
 - `{{lisa_root}}/validation/limiting-cases.md`
 - `{{lisa_root}}/validation/reference-data.md`
 - Create or update the project root `.gitignore` with patterns appropriate for the resolved
@@ -251,34 +249,29 @@ refine phase will flesh those out once the methodology is complete.
 
 ---
 
-### 3. `{{lisa_root}}/methodology/verification-cases.md` — Verification Case Specifications
+### 3. Initial DDV Scenario Sketches — `{{lisa_root}}/ddv/scenarios.md`
 
-L0 and L1 test specifications. These will be turned into executable tests by the Validate phase.
+Write initial DDV scenario sketches directly into `{{lisa_root}}/ddv/scenarios.md`. These are preliminary
+verification scenarios that the DDV Agent will later refine and expand with full literature grounding.
+Place scenarios after the `## Scenarios` heading (the `## Manifest` section at the top is managed by later phases).
 
-**Visual verification principle:** Every verification case that checks a trend, compares against reference data, validates a limiting case, or verifies model behavior over a parameter range should specify a `**Visual:**` field describing what plot to generate. Plots go in `{{lisa_root}}/plots/` and are documented in `{{lisa_root}}/plots/REVIEW.md`. Omit only for simple numeric spot-checks.
+Use this simplified format for each scenario:
 
 ```markdown
-# Verification Cases
+## DDV-001: [Short descriptive title]
 
-## Level 0 — Individual Functions
-
-### V0-[NNN]: [Short description]
-- **Function:** [What function/equation this tests]
-- **Input:** [Specific input values with units]
-- **Expected output:** [Expected result with units]
-- **Source:** [Where the expected value comes from — paper, analytical derivation]
-- **Tolerance:** [Acceptable error and justification]
-- **Visual:** [Optional — what plot would help a reviewer verify this? E.g., "function curve over valid range with test point marked." Omit for simple numeric comparisons.]
-
-## Level 1 — Model Level
-
-### V1-[NNN]: [Short description]
-- **Test type:** [Analytical solution / MMS / benchmark / conservation / limiting case / convergence]
-- **Description:** [What behavior is being verified]
-- **Expected behavior:** [Quantitative or qualitative expected result]
-- **Source:** [Reference for expected behavior]
-- **Visual:** [What plot or diagram to generate. Be specific: axes, overlays, expected behavior. E.g., "Plot resistance vs. speed (5-25 kn) overlaid with reference data from [source]. Look for monotonic increase." Every L1 case should have a visual unless it is a pure numeric spot-check.]
+**Physical behavior:** [What physical/domain behavior this tests]
+**Level:** L0 | L1
+**Conditions:** [Input parameters with units]
+**Expected output:** [Expected result with units and tolerance]
+**Source:** [Citation or reasoning for expected value]
+**Category:** [unit-function | model-behavior | system-integration | limiting-case | reference-data]
+**Visual:** [What plot to generate, or "None" for simple spot-checks]
 ```
+
+L0 = individual function tests (known input → known output). L1 = model-level tests (behavior over valid range).
+These sketches do not need the full rigor of DDV Agent scenarios — they establish the verification
+intent that the DDV Agent will ground in authoritative literature.
 
 ---
 
@@ -366,40 +359,7 @@ Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, t
 [What decisions will be made based on this answer? What accuracy is needed for those decisions?]
 ```
 
-#### `{{lisa_root}}/spiral/pass-0/validation-strategy.md`
-
-```markdown
-# Validation Strategy
-
-## Known Limiting Cases
-[Cases where the answer is known analytically or from first principles.]
-- [Case 1]: When [condition], result should be [value] because [reason].
-
-## Reference Data
-[Published experimental or computational data for comparison.]
-- [Dataset 1]: [Source citation], [what it measures], [how to compare].
-
-## Conservation Laws
-[Physical conservation laws that must be satisfied.]
-- [Law 1]: [Statement], [how to check in our system].
-
-## Dimensional Constraints
-[Dimensional analysis checks.]
-- [Output 1]: Must have dimensions of [X]. Verify by [method].
-
-## Order-of-Magnitude Estimates
-[Back-of-envelope calculations from first principles.]
-- [Quantity 1]: Estimate [value] [units] based on [reasoning].
-
-## Cross-Validation Opportunities
-[Independent methods or data that can corroborate results.]
-
-## Integration Tests
-[Full system tests:]
-- [Test description]: [Expected behavior, source]
-```
-
-#### `{{lisa_root}}/spiral/pass-0/sanity-checks.md`
+#### `{{lisa_root}}/validation/sanity-checks.md`
 
 ```markdown
 # Sanity Checks
@@ -431,11 +391,13 @@ A failure on any check indicates a likely error and should block acceptance.
 - [ ] [Specific condition that would indicate a clearly wrong answer]
 ```
 
-After creating this file, also write the same content to `{{lisa_root}}/validation/sanity-checks.md` as the living validation document that will be updated in subsequent passes.
+#### `{{lisa_root}}/validation/limiting-cases.md`
 
-After creating the validation strategy, also populate:
-- `{{lisa_root}}/validation/limiting-cases.md` — Extract the limiting cases from your validation strategy and format them using the `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
-- `{{lisa_root}}/validation/reference-data.md` — Extract the reference datasets from your validation strategy and format them using the `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
+Extract the limiting cases from your validation research and format them using the `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
+
+#### `{{lisa_root}}/validation/reference-data.md`
+
+Extract the reference datasets from your validation research and format them using the `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
 
 These are the living validation documents that will be checked during every validation phase and refined during methodology refinement phases.
 
@@ -520,27 +482,7 @@ Acceptance criteria are staged — early passes have wider tolerances.
 
 ---
 
-### 6. Methodology Overview and Assumptions
-
-#### `{{lisa_root}}/methodology/overview.md`
-
-Populate with system description and modeling approach:
-
-```markdown
-# Methodology Overview
-
-## System Description
-[What physical system is being modeled, from ASSIGNMENT.md]
-
-## Modeling Approach
-[High-level description of the recommended approach, from literature survey]
-
-## Key Assumptions
-[System-level assumptions identified so far — details in assumptions-register.md]
-
-## Scope and Limitations
-[What this model will and won't cover]
-```
+### 6. Assumptions Register
 
 #### `{{lisa_root}}/methodology/assumptions-register.md`
 
@@ -628,11 +570,8 @@ Create this file **last**, after all other artifacts are complete.
 - {{lisa_root}}/STACK.md (resolved technology stack, concrete commands)
 - {{lisa_root}}/methodology/methodology.md
 - {{lisa_root}}/methodology/plan.md
-- {{lisa_root}}/methodology/verification-cases.md
-- {{lisa_root}}/methodology/overview.md
+- {{lisa_root}}/ddv/scenarios.md (initial DDV scenario sketches)
 - {{lisa_root}}/spiral/pass-0/acceptance-criteria.md
-- {{lisa_root}}/spiral/pass-0/validation-strategy.md
-- {{lisa_root}}/spiral/pass-0/sanity-checks.md
 - {{lisa_root}}/spiral/pass-0/literature-survey.md
 - {{lisa_root}}/spiral/pass-0/spiral-plan.md
 - {{lisa_root}}/spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)

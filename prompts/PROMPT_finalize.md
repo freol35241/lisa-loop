@@ -51,7 +51,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 ## Key Evidence
 - Methodology: {{lisa_root}}/methodology/methodology.md
 - **Visual verification evidence: {{lisa_root}}/plots/REVIEW.md** (primary review artifact)
-- Progress history: {{lisa_root}}/validation/progress-log.md
+- Progress history: {{lisa_root}}/spiral/pass-*/progress-tracking.md
 - Full spiral history: {{lisa_root}}/spiral/
 
 ## Assumptions and Limitations
