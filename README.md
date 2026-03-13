@@ -1,6 +1,8 @@
 # Lisa Loop
 
-A CLI tool that orchestrates AI agents through rigorous engineering problem-solving, combining the V-Model (verification before implementation) with the Design Spiral (iterative refinement until human acceptance).
+Without structure, AI agents vibe-code. They write code and tests from the same understanding, so bugs and tests share the same blind spots. There's no audit trail, no review gate, no way to tell if the answer is trustworthy or just plausible.
+
+Lisa is a CLI tool that orchestrates [Claude Code](https://docs.anthropic.com/en/docs/claude-code) through a structured engineering process — scoping before coding, independent verification, iterative refinement, and human review at every stage.
 
 ## How It Works
 
@@ -8,35 +10,49 @@ A CLI tool that orchestrates AI agents through rigorous engineering problem-solv
   lisa init → scaffold .lisa/ + ASSIGNMENT.md
                     │
                     ▼
-  ┌───────────────────────────────────────┐
-  │  Pass 0: SCOPE                        │
-  │  methodology, acceptance, spiral plan │◄── human refine loop
-  └──────────────────┬────────────────────┘
+  ┌───────────────────────────────────────────────┐
+  │  SCOPE (Pass 0)                               │
+  │  Define methods, acceptance criteria, staged   │
+  │  plan — no code yet                           │◄── human refine loop
+  └──────────────────┬────────────────────────────┘
                      ▼
-  ┌───────────────────────────────────────┐
-  │  DDV Agent (one-time prologue)        │
-  │  literature → verification scenarios  │
-  │  (markdown, no code)                  │
-  └──────────────────┬────────────────────┘
+  ┌───────────────────────────────────────────────┐
+  │  INDEPENDENT VERIFICATION (one-time prologue) │
+  │  Test criteria from literature, before code    │
+  └──────────────────┬────────────────────────────┘
                      ▼
-  ┌───────────────────────────────────────┐
-  │  Pass 1..N: SPIRAL                    │
-  │                                       │
-  │  ┌─────────┐  ┌─────────┐  ┌───────┐ │
-  │  │ REFINE  │→ │ BUILD   │→ │VALIDATE│ │
-  │  │ (opus)  │  │(sonnet) │  │ (opus) │ │
-  │  └─────────┘  └─────────┘  └───────┘ │
-  │                                       │◄── human review gate
-  └──────────────────┬────────────────────┘
+  ┌───────────────────────────────────────────────┐
+  │  SPIRAL PASSES (Pass 1..N)                    │
+  │                                               │
+  │  ┌─────────┐  ┌─────────┐  ┌────────┐        │
+  │  │ REFINE  │→ │  BUILD  │→ │VALIDATE│        │
+  │  └─────────┘  └─────────┘  └────────┘        │
+  │                                               │
+  │  Each pass widens scope & tightens tolerances │◄── human review gate
+  └──────────────────┬────────────────────────────┘
                      ▼
   lisa finalize → answer.md + report.md
 ```
 
-Each pass increases fidelity and scope. The human reviews after every pass and decides: **accept**, **continue** to the next spiral pass, or **redirect** with guidance.
+**Scope** locks down the methodology, acceptance criteria, and a staged plan — before any code is written. A human reviews and refines until satisfied.
 
-## Domain-Driven Verification (DDV)
+**Independent Verification** runs once after scoping. A separate agent reads reference literature and writes verification scenarios (markdown, not code) that define what "correct" looks like — independently from the agent that will write the implementation.
 
-DDV prevents correlated errors by separating *who writes scenarios* from *who writes code* from *who writes tests*:
+**Spiral Passes** iterate through Refine → Build → Validate. Each pass increases fidelity: early passes get the structure right, later passes tighten tolerances and handle edge cases. After every pass, the human decides: **accept**, **continue** to the next pass, or **redirect** with guidance.
+
+## Grounded in Engineering Practice
+
+Lisa combines two established frameworks, adapted for AI-assisted work.
+
+**The V-Model** says: define what "correct" means before you write code, then validate against those pre-defined criteria. In Lisa, the left arm of the V is the scoping phase (acceptance criteria) and the independent verification prologue (test scenarios from literature). The right arm is the Validate phase, which executes those pre-defined scenarios against the implementation. The criteria exist before the code does — so they can't be shaped by implementation assumptions.
+
+**The Design Spiral** says: iterate with increasing fidelity, with human control at each turn. Lisa's spiral passes do exactly this — each pass refines the approach, builds with more detail, and validates against tighter standards. The human reviews every pass and controls when to stop.
+
+## Independent Verification
+
+When the same agent writes both code and tests, errors correlate — the tests pass because they share the code's assumptions, not because the code is correct.
+
+Lisa breaks this correlation by separating three roles:
 
 ```
   DDV Agent (opus)          Build (sonnet)          Validate (opus)
@@ -48,14 +64,21 @@ DDV prevents correlated errors by separating *who writes scenarios* from *who wr
     ▲ independent              ▲ separated              ▲ verified
 ```
 
-Works for any domain with authoritative sources and testable expected values: physics, econometrics, regulatory standards, engineering benchmarks.
+The **DDV Agent** reads authoritative sources and writes verification scenarios — expected values, edge cases, domain constraints — as markdown. The **Builder** writes implementation code but never touches the verification tests. The **Validator** converts scenarios into executable tests and runs the full suite.
 
-## Four Absolute Rules
+Disagreements between the DDV scenarios and the implementation are signals, not bugs to suppress. They surface misunderstandings that would otherwise hide until production.
 
-1. **Every methodological choice must trace to a peer-reviewed source.** No equation without a paper.
-2. **Engineering judgment is a first-class, auditable artifact.** Sanity checks are written down, versioned, and executed.
-3. **Visual evidence is the preferred way to surface results for human review.** Plots, comparison charts, and diagrams — not just tables and numbers.
-4. **The spiral history is the deliverable, not just the answer.** Every refinement is preserved as a complete record.
+This works for any domain with authoritative sources and testable expected values: physics, econometrics, regulatory standards, engineering benchmarks.
+
+## Cornerstones
+
+1. **Traceable methodology.** Every methodological choice traces to an authoritative source. No equation without a paper. This makes results defensible and reviewable — not just plausible.
+
+2. **Auditable engineering judgment.** Assumptions, sanity checks, and parameter choices are written down, versioned, and executed — not left as implicit decisions buried in code comments.
+
+3. **Visual evidence for review.** Plots, comparison charts, and diagrams surface problems that tables and numbers hide. Visual artifacts are the preferred way to present results for human review.
+
+4. **The history is the deliverable.** The refinement record across spiral passes — not just the final answer — is evidence of trustworthiness. Every pass is preserved as a complete record of how the solution evolved.
 
 ## Getting Started
 
@@ -129,23 +152,6 @@ Configuration lives in `.lisa/lisa.toml` (models, limits, review gates, paths, c
 
 After Pass 0, review methodology and acceptance criteria before any code is written. Options: **Approve**, **Refine** (agent re-runs with feedback), **Edit** (modify files directly), or **Quit**.
 
-## Traceability Chain
-
-```
-ASSIGNMENT.md → acceptance criteria
-  → scope (.lisa/spiral/pass-0/)
-    → methodology (.lisa/methodology/methodology.md)
-      → authoritative source (.lisa/references/)
-        → governing equations
-          → DDV tests (tests/ddv/)
-            → implementation (src/)
-              → software tests (tests/software/)
-                → integration tests (tests/integration/)
-                  → system validation
-                    → human acceptance
-                      → final answer + report
-```
-
 ## Credits
 
-Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum). Named after Lisa Simpson — the rigorous counterpart to Ralph Wiggum.
+Lisa Loop extends the [Ralph Wiggum technique](https://ghuntley.com/ralph/) by [Geoffrey Huntley](https://github.com/ghuntley/how-to-ralph-wiggum) — an approach to iterative AI coding where an outer agent loop drives Claude Code through repeated build-test cycles. Lisa adds scoping, independent verification, human review gates, and structured methodology on top of that foundation. Named after Lisa Simpson, the rigorous counterpart to Ralph Wiggum.
