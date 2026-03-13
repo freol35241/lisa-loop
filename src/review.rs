@@ -111,6 +111,19 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         }
     }
 
+    // Approach philosophy (from spiral-plan.md)
+    let spiral_plan_path = lisa_root.join("spiral/pass-0/spiral-plan.md");
+    if spiral_plan_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&spiral_plan_path) {
+            if let Some(philosophy) =
+                extract_section_first_line(&content, "## Approach Philosophy")
+            {
+                terminal::print_colored("  Ambition: ", Color::Cyan);
+                println!("{}", philosophy);
+            }
+        }
+    }
+
     // Stack (from STACK.md)
     let agents_path = lisa_root.join("STACK.md");
     if agents_path.exists() {

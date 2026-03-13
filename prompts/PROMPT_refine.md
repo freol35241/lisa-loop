@@ -16,7 +16,7 @@ number. Look for lines starting with `Current spiral pass:` and `Previous pass r
 
 Read **all** of the following:
 
-- `ASSIGNMENT.md` — project goals
+- `ASSIGNMENT.md` — project goals and approach preference (check the "Approach" section for the human's methodological ambition — this guides whether to keep methods simple or escalate sophistication)
 - `{{lisa_root}}/STACK.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
 - `{{lisa_root}}/methodology/methodology.md` — the current methodology
 - `{{lisa_root}}/methodology/plan.md` — the current implementation plan
@@ -90,7 +90,7 @@ Every reconsideration must be explicitly resolved — do not carry BLOCKED tasks
 
 ### 3. Refine Methodology
 
-Based on what you've read, identify what methodology needs to be added, changed, or refined for this pass's fidelity level.
+Based on what you've read, identify what methodology needs to be added, changed, or refined for this pass's fidelity level. Respect the human's approach preference from the "Approach" section of `ASSIGNMENT.md` and the "Approach Philosophy" in `spiral-plan.md` — if they asked for simplicity, do not escalate method complexity beyond what the spiral plan calls for. If they asked for state of the art, ensure the methodology progression reaches the sophistication ceiling planned in the spiral.
 
 **Update `{{lisa_root}}/methodology/methodology.md`:**
 - **Method name and source** — Full citation (author(s), year, title, DOI/URL).

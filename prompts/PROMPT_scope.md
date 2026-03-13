@@ -9,6 +9,12 @@ You are a research engineer establishing the scope, acceptance criteria, methodo
 ### Phase 1: READ INPUTS
 Read `ASSIGNMENT.md`, `{{lisa_root}}/STACK.md`, and skim `{{lisa_root}}/references/core/`.
 
+Pay particular attention to the **"Approach"** section of `ASSIGNMENT.md`. If the human has
+stated a methodological preference (e.g., "simplest method possible," "state of the art,"
+or a specific method/paper to follow), respect it throughout all subsequent phases. If the
+section is blank, choose a balanced approach that targets the acceptance criteria with
+reasonable implementation effort.
+
 ### Phase 2: DELEGATE RESEARCH
 Spawn the **Literature Survey** and **Environment Probe** subagents (they are independent — delegate back-to-back). Wait for results.
 
@@ -196,7 +202,10 @@ Populate `{{lisa_root}}/methodology/methodology.md`:
 ...
 
 ## Recommended Approach
-[Which method and why, considering spiral progression]
+[Which method and why, considering spiral progression and the human's approach preference from ASSIGNMENT.md]
+[If the human asked for simplicity, justify why this method is the simplest that can meet the acceptance criteria]
+[If the human asked for state of the art, justify why this is the best available method]
+[If there is a mismatch between the requested approach and the acceptance criteria, flag it explicitly]
 
 ## Key Equations
 [Identify by name and equation number from the source paper — e.g., "Eq. 12 in Faltinsen (1990)" or "ITTC-57 friction line." Do NOT write out the full mathematical expressions here — that is the refine phase's job. If a specific paper is needed but not yet available, flag with [NEEDS_PAPER].]
@@ -451,8 +460,21 @@ own judgment if needed, and ensure it meets the template above. Verify that:
 The spiral plan MUST define how scope and fidelity increase per pass. Early passes test
 the methodology on a SUBSET of the full problem — not the full scope at low fidelity.
 
+**Calibrate the spiral plan to the human's approach preference** from `ASSIGNMENT.md`:
+- If they want simplicity/minimum viable: plan fewer passes, stay with one method, widen
+  tolerances. The spiral may converge in 1-2 passes.
+- If they want state of the art: plan for progressive method upgrades across passes,
+  tighter final tolerances, more validation.
+- If they specified a particular method: build the spiral around that method's scope
+  progression (narrow → broad), not around method upgrades.
+- If no preference stated: use balanced judgment.
+
 ```markdown
 # Spiral Plan
+
+## Approach Philosophy
+[Summarize the human's approach preference from ASSIGNMENT.md, or state "balanced (default)"
+if none was given. Note any tension between the requested approach and the acceptance criteria.]
 
 ## Scope Progression
 
@@ -470,11 +492,16 @@ the methodology on a SUBSET of the full problem — not the full scope at low fi
 [Where methodology might need reconsideration, known difficult aspects]
 ```
 
-Example for ship resistance (5-25 kn, sea states 1-6):
+Example for ship resistance (5-25 kn, sea states 1-6), **balanced** approach:
 - Pass 1: 12 kn, calm water, simplest method → ±50%
 - Pass 2: 5-25 kn, calm water, add corrections → ±20%
 - Pass 3: Full range + sea states 1-3 → ±10%
 - Pass 4: Full scope, refined methods → ±5%
+
+Same problem, **minimum viable** approach:
+- Pass 1: Full speed range, calm water, Holtrop-Mennen → ±15%
+- Pass 2: Add sea state corrections → ±10%
+(Fewer passes, simpler method, acceptance tolerances widened to match method capability)
 
 The refine phase reads this plan to scope tasks for the current pass.
 The Validate phase writes executable DDV tests only for the current pass's scope subset.

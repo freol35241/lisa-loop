@@ -27,6 +27,24 @@
 ## Context
 [How will this be used? By whom? What decisions depend on it?]
 
+## Approach (Optional)
+
+<!-- Guide the scope agent on how sophisticated the methodology should be.
+     This is free-form — describe your intent in whatever way makes sense.
+
+     Examples:
+       "Start with the simplest empirical correlation. Only go more complex if it
+        can't meet the acceptance criteria."
+       "I need this for a preliminary design review, not final analysis."
+       "Use the same approach as Smith & Jones (2019), Section 4."
+       "State of the art — I want the most accurate method available, even if it
+        takes more passes to implement."
+       "Quick engineering estimate is fine. Prioritize simplicity over accuracy."
+       "Balance accuracy and effort. Standard textbook methods are fine."
+
+     If left blank, the scope agent will choose a balanced approach that targets the
+     acceptance criteria with reasonable implementation effort. -->
+
 ## Technology Preferences (Optional)
 
 <!-- State your technology preferences here BEFORE running scope.
