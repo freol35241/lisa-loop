@@ -14,9 +14,9 @@ Read **all** of the following:
 
 - `ASSIGNMENT.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
 - `{{lisa_root}}/STACK.md` — project-specific operational guidance
-- The review package for the final pass: `{{lisa_root}}/spiral/pass-N/review-package.md` (where N is the current pass)
-- `{{lisa_root}}/spiral/pass-N/progress-tracking.md` — progress tracking
-- `{{lisa_root}}/spiral/pass-N/system-validation.md` — validation results
+- The review package for the final pass: `{{lisa_root}}/spiral/pass-{{pass}}/review-package.md` (where N is the current pass)
+- `{{lisa_root}}/spiral/pass-{{pass}}/progress-tracking.md` — progress tracking
+- `{{lisa_root}}/spiral/pass-{{pass}}/system-validation.md` — validation results
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/methodology/assumptions-register.md` — assumptions and limitations
 

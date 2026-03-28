@@ -167,7 +167,7 @@ pipeline produces expected results.
 
 ### Execution Report
 
-After running the complete system, create/update `{{lisa_root}}/spiral/pass-N/execution-report.md`:
+After running the complete system, create/update `{{lisa_root}}/spiral/pass-{{pass}}/execution-report.md`:
 
 ```markdown
 # Pass N — Execution Report
@@ -198,7 +198,7 @@ or changed modules from this pass.
 
 If the methodology specification does not work in practice, **do not silently change the approach.** Instead:
 
-1. Create `{{lisa_root}}/spiral/pass-N/reconsiderations/[issue].md` (create the directory if it doesn't exist):
+1. Create `{{lisa_root}}/spiral/pass-{{pass}}/reconsiderations/[issue].md` (create the directory if it doesn't exist):
 
 ```markdown
 # Reconsideration: [Issue]
@@ -227,7 +227,7 @@ If the methodology specification does not work in practice, **do not silently ch
 If a DDV test appears to encode wrong domain knowledge (your implementation is correct but the test
 expects wrong values), this is a SPECIAL reconsideration:
 
-Create `{{lisa_root}}/spiral/pass-N/reconsiderations/ddv-disagreement-[test-name].md`:
+Create `{{lisa_root}}/spiral/pass-{{pass}}/reconsiderations/ddv-disagreement-[test-name].md`:
 
 ```markdown
 ## DDV Disagreement: [test name]

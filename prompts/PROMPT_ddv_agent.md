@@ -68,6 +68,8 @@ based on the scope progression in spiral-plan.md. E.g., "Pass 1+" or "Pass 3+"]
 
 **Category:** [One of: unit-function | model-behavior | system-integration | limiting-case | reference-data]
 
+**Level:** L0 | L1 — L0 = individual function tests (known input → known output). L1 = model-level tests (behavior over valid range). Typically: unit-function → L0, all others → L1.
+
 **Visual:** [What plot or diagram should the Validate phase generate to verify this scenario
 visually? Describe axes, overlays, and what behavior to look for. Write "None" only for
 unit-function scenarios that are simple numeric spot-checks.]
@@ -79,19 +81,19 @@ unit-function scenarios that are simple numeric spot-checks.]
 
 Write scenarios across these categories:
 
-1. **Unit-function** — Known input → known output for individual computations.
+1. **Unit-function** (Level: **L0**) — Known input → known output for individual computations.
    Source: textbook examples, analytical solutions, hand calculations.
 
-2. **Model-behavior** — Expected trends and relationships over parameter ranges.
+2. **Model-behavior** (Level: **L1**) — Expected trends and relationships over parameter ranges.
    Source: published parametric studies, physical laws (monotonicity, conservation).
 
-3. **System-integration** — End-to-end behavior of the composed system.
+3. **System-integration** (Level: **L1**) — End-to-end behavior of the composed system.
    Source: published benchmark problems, experimental datasets.
 
-4. **Limiting-case** — Behavior at extreme or degenerate parameter values.
+4. **Limiting-case** (Level: **L1**) — Behavior at extreme or degenerate parameter values.
    Source: analytical solutions for simplified cases, asymptotic analysis.
 
-5. **Reference-data** — Comparison against published experimental or computational data.
+5. **Reference-data** (Level: **L1**) — Comparison against published experimental or computational data.
    Source: peer-reviewed experimental measurements, validated computational benchmarks.
 
 ### 4b. Visual Verification Guidance
@@ -112,10 +114,10 @@ The manifest table tracks all scenarios and their status:
 ```markdown
 ## Manifest
 
-| Scenario | Category | Pass Relevance | Source | Visual | Status |
-|----------|----------|----------------|--------|--------|--------|
-| DDV-001  | [cat]    | Pass 1+        | [cite] | Yes/None | PENDING |
-| DDV-002  | [cat]    | Pass 1+        | [cite] | Yes/None | PENDING |
+| Scenario | Category | Level | Pass Relevance | Source | Visual | Status |
+|----------|----------|-------|----------------|--------|--------|--------|
+| DDV-001  | [cat]    | L0/L1 | Pass 1+        | [cite] | Yes/None | PENDING |
+| DDV-002  | [cat]    | L0/L1 | Pass 1+        | [cite] | Yes/None | PENDING |
 ```
 
 All scenarios start as `PENDING`. The Validate phase will update status to `TESTED` or `DEFERRED`

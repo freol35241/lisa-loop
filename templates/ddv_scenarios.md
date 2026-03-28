@@ -5,8 +5,8 @@
 <!-- Tracks which DDV scenarios have been converted to executable tests and their status.
      Updated by the Validate phase after each pass. -->
 
-| Scenario | Category | Pass Relevance | Source | Visual | Status |
-|----------|----------|----------------|--------|--------|--------|
+| Scenario | Category | Level | Pass Relevance | Source | Visual | Status |
+|----------|----------|-------|----------------|--------|--------|--------|
 
 ## Scenarios
 

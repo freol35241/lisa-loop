@@ -22,7 +22,7 @@ Read **all** of the following:
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression (staged acceptance per pass)
-- `{{lisa_root}}/spiral/pass-N/execution-report.md` — this pass's execution results and intermediate values
+- `{{lisa_root}}/spiral/pass-{{pass}}/execution-report.md` — this pass's execution results and intermediate values
 - `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios and manifest
 - `{{lisa_root}}/validation/sanity-checks.md` — living sanity check document
 - `{{lisa_root}}/validation/limiting-cases.md` — limiting cases to check
@@ -53,7 +53,7 @@ In the review package, report BOTH:
 Run the complete system using the runner/integration code that Build implemented.
 Use the run command from `{{lisa_root}}/STACK.md`. Verify:
 - The system executes without errors
-- Output matches what's in `{{lisa_root}}/spiral/pass-N/execution-report.md`
+- Output matches what's in `{{lisa_root}}/spiral/pass-{{pass}}/execution-report.md`
 - If the execution report is missing or stale, produce a fresh one
 
 ### 3. DDV Executable Tests
@@ -61,8 +61,9 @@ Use the run command from `{{lisa_root}}/STACK.md`. Verify:
 Write executable tests from DDV scenarios in `{{lisa_root}}/ddv/scenarios.md`:
 
 1. Read each scenario with `Pass relevance` matching this pass or earlier
-2. For each scenario not yet tested (check the `## Manifest` section in `{{lisa_root}}/ddv/scenarios.md`):
-   - Write an executable test in `{{tests_ddv}}/` that sets up the scenario's conditions, runs the relevant code, and checks the expected output against the specified tolerance
+2. For each scenario with Status **PENDING** in the `## Manifest` section of `{{lisa_root}}/ddv/scenarios.md`:
+   - If no executable test exists yet: write a new test in `{{tests_ddv}}/` that sets up the scenario's conditions, runs the relevant code, and checks the expected output against the specified tolerance
+   - If an executable test already exists (scenario was updated by Refine): **update** the existing test to match the revised expected values, tolerances, and conditions
    - Include the scenario ID (DDV-NNN) in the test name and a comment citing the source
    - If the scenario has a `**Visual:**` field, generate the described plot. Save to `{{lisa_root}}/spiral/pass-{{pass}}/plots/` with scenario ID in filename (e.g., `ddv-003-drag-vs-speed.png`). Add entry to `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
 3. Run all DDV tests and record results
@@ -126,7 +127,7 @@ Save all plots to `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and document each 
 
 ### 6. Engineering Judgment Audit
 
-Using the intermediate values and final answer from `{{lisa_root}}/spiral/pass-N/execution-report.md`,
+Using the intermediate values and final answer from `{{lisa_root}}/spiral/pass-{{pass}}/execution-report.md`,
 and the engineering judgment checks from `{{lisa_root}}/validation/sanity-checks.md`, perform an
 independent engineering judgment audit:
 
@@ -175,7 +176,7 @@ If this is **Pass N > 1:**
 
 Create **all** of the following:
 
-#### `{{lisa_root}}/spiral/pass-N/system-validation.md`
+#### `{{lisa_root}}/spiral/pass-{{pass}}/system-validation.md`
 
 Detailed validation report. Be concise: one line per passing check, detailed analysis only for failures.
 
@@ -241,7 +242,7 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 - Re-run DDV Agent: [YES/NO] — [justification]
 ```
 
-#### `{{lisa_root}}/spiral/pass-N/progress-tracking.md`
+#### `{{lisa_root}}/spiral/pass-{{pass}}/progress-tracking.md`
 
 ```markdown
 # Spiral Pass N — Progress Tracking
@@ -255,7 +256,7 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 [What is driving changes between passes. Which quantities are stabilizing, which are still shifting.]
 ```
 
-#### `{{lisa_root}}/spiral/pass-N/review-package.md`
+#### `{{lisa_root}}/spiral/pass-{{pass}}/review-package.md`
 
 This is the primary artifact for human review. Use this **exact format**:
 
@@ -306,9 +307,9 @@ Non-visual checks requiring domain expertise:
 - [What to change and why]
 
 ## Details
-- Execution report: {{lisa_root}}/spiral/pass-N/execution-report.md
-- Full validation: {{lisa_root}}/spiral/pass-N/system-validation.md
-- Progress: {{lisa_root}}/spiral/pass-N/progress-tracking.md
+- Execution report: {{lisa_root}}/spiral/pass-{{pass}}/execution-report.md
+- Full validation: {{lisa_root}}/spiral/pass-{{pass}}/system-validation.md
+- Progress: {{lisa_root}}/spiral/pass-{{pass}}/progress-tracking.md
 - Plots: {{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md
 ```
 
@@ -320,7 +321,7 @@ Ensure all plots have current assessments reflecting this pass's results.
 
 Update the manifest table with test results for any newly written DDV executable tests.
 
-#### `{{lisa_root}}/spiral/pass-N/PASS_COMPLETE.md`
+#### `{{lisa_root}}/spiral/pass-{{pass}}/PASS_COMPLETE.md`
 
 Create this file **last**:
 
@@ -343,7 +344,7 @@ Do NOT draft deliverables. The finalize phase handles deliverable production aft
 
 - **Visuals are the preferred way to surface results for human review.** Generate plots for every verification check that can benefit from one. The review package should lead with visual evidence.
 - **Do NOT modify source code or methodology.** This is an audit phase. The only code you write is DDV executable tests in `{{tests_ddv}}/`.
-- **Do NOT modify existing DDV tests** written from DDV scenarios in previous validation passes. You may add NEW tests from DDV scenarios.
+- **Do NOT modify existing DDV tests** UNLESS the corresponding scenario has been reset to PENDING status (indicating updated expected values). For PENDING scenarios with existing tests, update the test to match the revised scenario. For scenarios with TESTED/PASS status, do not modify the test.
 - **Do NOT skip any sanity check.** Execute every check in `{{lisa_root}}/validation/sanity-checks.md`.
 - **If you cannot verify something** (e.g., paper not available, test infrastructure missing), flag it explicitly — do not silently skip it.
 

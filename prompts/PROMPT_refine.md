@@ -72,7 +72,7 @@ If `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` contains unresolved issue
 **For DDV disagreements** (`ddv-disagreement-*.md`):
 1. Go back to the authoritative source paper cited by both the test and the implementation
 2. Determine which interpretation is correct
-3. If the **test was wrong**: update the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` with the correct expected value.
+3. If the **test was wrong**: update the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` with the correct expected value, and reset that scenario's Status to **PENDING** in the `## Manifest` table. This signals the Validate phase to rewrite the executable test.
 4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
 5. Document your adjudication in the refine summary
 
@@ -132,6 +132,11 @@ DDV scenarios in `{{lisa_root}}/ddv/scenarios.md`. For new methods that need ver
 add new scenario sketches (the DDV Agent will fully ground them if re-run). Each scenario
 should have expected values with sources.
 
+When modifying an existing scenario's expected values, tolerances, or conditions, reset its
+Status to **PENDING** in the `## Manifest` table of `{{lisa_root}}/ddv/scenarios.md`. This
+ensures the Validate phase will update the corresponding executable test to match the
+revised scenario.
+
 ### 7. Update Implementation Plan
 
 Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
@@ -178,7 +183,7 @@ Note: no DDV test items in the plan. The Validate phase writes executable tests 
 
 ### 8. Produce Refine Summary
 
-Create `{{lisa_root}}/spiral/pass-N/refine-summary.md`:
+Create `{{lisa_root}}/spiral/pass-{{pass}}/refine-summary.md`:
 
 If nothing changed: write only "No methodology changes this pass."
 

@@ -244,10 +244,23 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                 explore_id, pass
             ));
             // The exploration was interrupted mid-agent. We're on the explore branch.
-            // Re-run the explore agent. Since the question is lost, ask again.
+            // Re-run the explore agent (question is preserved in explore dir if available).
             run_explore(config, project_root, pass, explore_id)?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            Ok(())
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
+            }
         }
         SpiralState::ExploreReview { pass, explore_id } => {
             terminal::log_info(&format!(
@@ -278,7 +291,20 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                 }
             }
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            Ok(())
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
+            }
         }
         SpiralState::Complete { final_pass } => {
             terminal::log_success(&format!(
@@ -523,6 +549,10 @@ fn ensure_scope_complete(config: &Config, project_root: &Path) -> Result<()> {
     if !lisa_root.join("spiral/pass-0/PASS_COMPLETE.md").exists() {
         terminal::log_info("Pass 0 (scoping) not complete. Running scope first.");
         run_scope(config, project_root)?;
+        if !lisa_root.join("spiral/pass-0/PASS_COMPLETE.md").exists() {
+            terminal::log_warn("Scope not completed. Run `lisa run` to try again.");
+            anyhow::bail!("Scope phase did not complete (user quit or agent failed).");
+        }
     } else {
         terminal::log_info("Pass 0 already complete.");
     }
@@ -650,6 +680,10 @@ fn ensure_ddv_complete(config: &Config, project_root: &Path) -> Result<()> {
     if !lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
         terminal::log_info("DDV scenarios not complete. Running DDV Agent first.");
         run_ddv_agent(config, project_root)?;
+        if !lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
+            terminal::log_warn("DDV Agent not completed. Run `lisa run` to try again.");
+            anyhow::bail!("DDV Agent phase did not complete (user quit or agent failed).");
+        }
     } else {
         terminal::log_info("DDV scenarios already complete.");
     }
@@ -1007,7 +1041,7 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     // Advisory warning if task count exceeds max_tasks_per_pass
     let plan_path = lisa_root.join("methodology/plan.md");
     if plan_path.exists() {
-        if let Ok(counts) = tasks::count_tasks_by_status(&plan_path) {
+        if let Ok(counts) = tasks::count_tasks_by_status_for_pass(&plan_path, pass) {
             if counts.total > config.limits.max_tasks_per_pass {
                 terminal::log_warn(&format!(
                     "Pass {} has {} tasks (limit: {}). Consider refining further to shrink scope.",
@@ -1241,11 +1275,26 @@ fn run_explore(config: &Config, project_root: &Path, pass: u32, explore_id: u32)
     // Save state
     state::save_state(&lisa_root, &SpiralState::Exploring { pass, explore_id })?;
 
-    // Prompt the user for the exploration question
-    let question: String = if std::io::stdin().is_terminal() {
-        dialoguer::Input::new()
+    // Check for saved question (resume case) or prompt interactively
+    let question_path = explore_dir.join("question.md");
+    let question: String = if question_path.exists() {
+        let saved = std::fs::read_to_string(&question_path)?.trim().to_string();
+        if !saved.is_empty() {
+            terminal::log_info(&format!("Resumed exploration question: {}", saved));
+            saved
+        } else if std::io::stdin().is_terminal() {
+            dialoguer::Input::new()
+                .with_prompt("  Exploration question")
+                .interact_text()?
+        } else {
+            anyhow::bail!("Exploration requires an interactive terminal for the question prompt");
+        }
+    } else if std::io::stdin().is_terminal() {
+        let q: String = dialoguer::Input::new()
             .with_prompt("  Exploration question")
-            .interact_text()?
+            .interact_text()?;
+        std::fs::write(&question_path, &q)?;
+        q
     } else {
         anyhow::bail!("Exploration requires an interactive terminal for the question prompt");
     };
