@@ -28,6 +28,12 @@ WORKFLOW:
   └──────────────────┬────────────────────────────┘
                      ▼
   Finalize at review gate → answer.md + report.md
+
+ARTIFACTS:
+
+  All process artifacts live in .lisa/ — methodology, plans, DDV
+  scenarios, validation results, plots, and per-pass summaries.
+  See .lisa/CLAUDE.md for a full map of what's where.
 "
 )]
 #[command(version)]

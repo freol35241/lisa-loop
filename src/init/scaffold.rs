@@ -18,6 +18,7 @@ const SANITY_CHECKS_TEMPLATE: &str = include_str!("../../templates/sanity_checks
 const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cases.md");
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
 const DDV_SCENARIOS_TEMPLATE: &str = include_str!("../../templates/ddv_scenarios.md");
+const LISA_CLAUDE_MD: &str = include_str!("../../templates/lisa_claude.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
     let lisa_root = project_root.join(".lisa");
@@ -135,6 +136,9 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     // Write DDV templates
     write_file(&lisa_root.join("ddv/scenarios.md"), DDV_SCENARIOS_TEMPLATE)?;
 
+    // Write CLAUDE.md inside .lisa/ so agents can discover artifacts
+    write_file(&lisa_root.join("CLAUDE.md"), LISA_CLAUDE_MD)?;
+
     // Write .gitkeep files for empty .lisa/ subdirectories
     let keepdirs = [
         ".lisa/methodology/derivations",
@@ -169,6 +173,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("V&V artifacts (auto-managed)");
     terminal::print_colored("    .lisa/ddv/                   ", Color::Cyan);
     println!("DDV verification scenarios");
+    terminal::print_colored("    .lisa/CLAUDE.md               ", Color::Cyan);
+    println!("Artifact guide for AI agents");
     println!();
 
     // Phase 2: Run the init agent to examine the codebase and resolve paths
