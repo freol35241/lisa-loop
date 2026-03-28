@@ -6,12 +6,14 @@ behaviors) exist in `{{lisa_root}}/ddv/scenarios.md`. Your job is to implement c
 satisfies those scenarios, plus ensure software quality with your own tests. You implement
 ONE task per invocation.
 
-**Visual verification principle:** Plots, diagrams, and comparison charts are the preferred way to present results for human review. Generate visual evidence for every behavior a reviewer would benefit from seeing. If a DDV scenario has a `**Visual:**` field, generate that plot. If the methodology describes expected trends, plot them. Store all visuals in `{{lisa_root}}/plots/` and document each in `{{lisa_root}}/plots/REVIEW.md`.
+**Visual verification principle:** Plots, diagrams, and comparison charts are the preferred way to present results for human review. Generate visual evidence for every behavior a reviewer would benefit from seeing. If a DDV scenario has a `**Visual:**` field, generate that plot. If the methodology describes expected trends, plot them. Store all visuals in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and document each in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
 
 You are also responsible for integration/runner code that chains the system together and
 produces the actual answer to the question in ASSIGNMENT.md.
 
 You have no memory of previous invocations. The filesystem is your shared state. Read it carefully.
+
+If `{{lisa_root}}/CODEBASE.md` exists, read it. You are modifying an existing codebase — respect the existing architecture. New code should integrate with the existing module structure, not create parallel structures.
 
 Dynamic context is prepended above this prompt by the Lisa Loop CLI. It tells you the current pass
 number. Look for `Current spiral pass:` at the top of this prompt.
@@ -140,7 +142,7 @@ After implementing, run verification:
    - **Regenerate existing plots** whose underlying model or data changed
    - If DDV scenarios referenced by this task specify a `**Visual:**` field, generate the described plot
    - Types of visual evidence: comparison charts, parameter sweeps, convergence curves, residual plots, overlay diagrams
-5. **Update `{{lisa_root}}/plots/REVIEW.md`:** For every new or updated plot, add:
+5. **Update `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`:** For every new or updated plot, add:
    - Path to the plot
    - One-line description of what it shows
    - What the reviewer should look for (expected behavior, trends, acceptable ranges)
@@ -259,7 +261,7 @@ Before marking a task as `DONE`, verify **all** of the following:
 4. **Full test suite passes** (regression check).
 5. **Code matches the methodology spec.**
 6. **Derivation doc written** (if non-trivial mapping).
-7. **All visual verification plots generated** (both new from `[Visual: ...]` items and regenerated for changed models) and `{{lisa_root}}/plots/REVIEW.md` updated.
+7. **All visual verification plots generated** (both new from `[Visual: ...]` items and regenerated for changed models) and `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md` updated.
 8. **DDV scenarios** referenced by this task are expected to be satisfiable by the implementation (the Validate phase will write executable tests for them after Build completes).
 
 Only after confirming all criteria, mark the task as `DONE` in `{{lisa_root}}/methodology/plan.md`.

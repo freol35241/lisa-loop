@@ -30,7 +30,14 @@ pub enum ReviewDecision {
     Finalize,
     Continue,
     Redirect,
+    Explore,
     Quit,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExploreDecision {
+    Merge,
+    Discard,
 }
 
 #[derive(Debug, PartialEq)]
@@ -115,8 +122,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
     let spiral_plan_path = lisa_root.join("spiral/pass-0/spiral-plan.md");
     if spiral_plan_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&spiral_plan_path) {
-            if let Some(philosophy) =
-                extract_section_first_line(&content, "## Approach Philosophy")
+            if let Some(philosophy) = extract_section_first_line(&content, "## Approach Philosophy")
             {
                 terminal::print_colored("  Ambition: ", Color::Cyan);
                 println!("{}", philosophy);
@@ -219,9 +225,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
     // File paths (compact, at bottom)
     println!();
     terminal::print_colored("  Files: ", Color::DarkGrey);
-    println!(
-        "methodology.md, plan.md, acceptance-criteria.md, spiral-plan.md"
-    );
+    println!("methodology.md, plan.md, acceptance-criteria.md, spiral-plan.md");
 
     println!();
     terminal::print_colored("  [A]", Color::Green);
@@ -460,7 +464,11 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
         lisa_root.display(),
         pass
     );
-    println!("    Plots:      {}/plots/REVIEW.md", lisa_root.display());
+    println!(
+        "    Plots:      {}/spiral/pass-{}/plots/REVIEW.md",
+        lisa_root.display(),
+        pass
+    );
     println!();
 
     terminal::print_colored("  [F]", Color::Green);
@@ -469,6 +477,8 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!(" CONTINUE — run another spiral pass to improve results");
     terminal::print_colored("  [R]", Color::Cyan);
     println!(" REDIRECT — write guidance to a file to steer the next pass");
+    terminal::print_colored("  [E]", Color::Magenta);
+    println!(" EXPLORE  — create a side-branch to investigate an alternative approach");
     terminal::print_colored("  [Q]", Color::Red);
     println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
     println!();
@@ -476,7 +486,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
     println!();
 
     loop {
-        print!("  Your choice [F/C/R/Q]: ");
+        print!("  Your choice [F/C/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
         io::stdin().read_line(&mut choice)?;
@@ -538,7 +548,70 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
                 }
                 return Ok(ReviewDecision::Continue);
             }
-            _ => println!("  Please enter F, C, R, or Q."),
+            "E" => {
+                terminal::log_info("EXPLORE — creating a side-branch for investigation.");
+                return Ok(ReviewDecision::Explore);
+            }
+            _ => println!("  Please enter F, C, R, E, or Q."),
+        }
+    }
+}
+
+/// Gate shown after an exploration completes. User decides to merge findings or discard.
+pub fn explore_review_gate(
+    pass: u32,
+    explore_id: u32,
+    lisa_root: &Path,
+) -> Result<ExploreDecision> {
+    let findings_path = lisa_root.join(format!(
+        "spiral/pass-{}/explore-{}/findings.md",
+        pass, explore_id
+    ));
+
+    println!();
+    terminal::print_separator();
+    terminal::println_bold("  EXPLORATION REVIEW");
+    println!();
+
+    if findings_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&findings_path) {
+            let lines: Vec<&str> = content.lines().take(15).collect();
+            for line in &lines {
+                println!("    {}", line);
+            }
+            if content.lines().count() > 15 {
+                println!("    ...");
+            }
+        }
+    } else {
+        println!("  No findings file produced.");
+    }
+
+    println!();
+    println!("  Findings: {}", findings_path.display());
+    println!();
+
+    terminal::print_colored("  [M]", Color::Green);
+    println!(" MERGE   — merge exploration findings back into the main branch");
+    terminal::print_colored("  [D]", Color::Red);
+    println!(" DISCARD — discard the exploration branch");
+    println!();
+
+    loop {
+        print!("  Your choice [M/D]: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_uppercase().as_str() {
+            "M" => {
+                terminal::log_success("MERGE — folding exploration into main branch.");
+                return Ok(ExploreDecision::Merge);
+            }
+            "D" => {
+                terminal::log_warn("DISCARD — abandoning exploration branch.");
+                return Ok(ExploreDecision::Discard);
+            }
+            _ => println!("  Please enter M or D."),
         }
     }
 }
@@ -905,10 +978,7 @@ pub fn extract_methodology_approach_from(content: &str) -> Option<String> {
 
 /// Count `## DDV-` headings in ddv/scenarios.md.
 pub fn count_ddv_scenarios(content: &str) -> u32 {
-    content
-        .lines()
-        .filter(|l| l.starts_with("## DDV-"))
-        .count() as u32
+    content.lines().filter(|l| l.starts_with("## DDV-")).count() as u32
 }
 
 fn extract_stack_info(agents_content: &str) -> Option<String> {

@@ -18,6 +18,8 @@ pub enum SpiralState {
     BuildComplete { pass: u32 },
     ValidateComplete { pass: u32 },
     PassReview { pass: u32 },
+    Exploring { pass: u32, explore_id: u32 },
+    ExploreReview { pass: u32, explore_id: u32 },
     Complete { final_pass: u32 },
 }
 
@@ -47,6 +49,12 @@ impl std::fmt::Display for SpiralState {
                 write!(f, "Pass {} — Validate complete", pass)
             }
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
+            SpiralState::Exploring { pass, explore_id } => {
+                write!(f, "Pass {} — Exploring (id {})", pass, explore_id)
+            }
+            SpiralState::ExploreReview { pass, explore_id } => {
+                write!(f, "Pass {} — Explore review (id {})", pass, explore_id)
+            }
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
         }
     }
@@ -223,6 +231,34 @@ mod tests {
     #[test]
     fn test_state_roundtrip_validate_complete() {
         let state = SpiralState::ValidateComplete { pass: 1 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_exploring() {
+        let state = SpiralState::Exploring {
+            pass: 2,
+            explore_id: 1,
+        };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_explore_review() {
+        let state = SpiralState::ExploreReview {
+            pass: 3,
+            explore_id: 2,
+        };
         let file = StateFile {
             state: state.clone(),
         };

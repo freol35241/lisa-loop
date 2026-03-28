@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crossterm::style::Color;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use crate::agent::{self, AgentResult};
@@ -13,16 +14,44 @@ use crate::tasks;
 use crate::terminal;
 use crate::usage;
 
-/// Run the full spiral: scope if needed, then iterate passes
+/// Run the full spiral: scope if needed, then iterate passes.
+/// If the spiral is already complete and `follow_up` is provided (or prompted interactively),
+/// continues the spiral with a new question.
 pub fn run(
     config: &Config,
     project_root: &Path,
     max_passes: Option<u32>,
     no_pause: bool,
+    follow_up: Option<&str>,
 ) -> Result<()> {
     let mut config = config.clone();
     if no_pause {
         config.review.pause = false;
+    }
+
+    let lisa_root = config.lisa_root(project_root);
+    let state = state::load_state(&lisa_root)?;
+
+    // If spiral is complete, handle follow-up continuation
+    if let SpiralState::Complete { final_pass } = state {
+        let question = if let Some(q) = follow_up {
+            q.to_string()
+        } else if std::io::stdin().is_terminal() {
+            terminal::log_info(&format!("Spiral complete at pass {}.", final_pass));
+            println!();
+            let q: String = dialoguer::Input::new()
+                .with_prompt("  Follow-up question (or Ctrl+C to exit)")
+                .interact_text()?;
+            q
+        } else {
+            terminal::log_info(&format!(
+                "Spiral complete at pass {}. Use --follow-up to continue.",
+                final_pass
+            ));
+            return Ok(());
+        };
+
+        return continue_spiral(&config, project_root, &question, max_passes, no_pause);
     }
 
     let max = max_passes.unwrap_or(config.limits.max_spiral_passes);
@@ -38,14 +67,14 @@ pub fn run(
     terminal::log_phase(&format!("LISA LOOP — SPIRAL RUN (max {} passes)", max));
 
     ensure_scope_complete(&config, project_root)?;
+
+    // After scope, paths must be resolved (by init agent or scope agent)
+    let config = reload_config_if_needed(config, project_root)?;
+    config.validate_paths()?;
+
     ensure_ddv_complete(&config, project_root)?;
 
     run_pass_range(&config, project_root, 1, max)
-}
-
-/// Run only the scope phase
-pub fn run_scope_only(config: &Config, project_root: &Path) -> Result<()> {
-    run_scope(config, project_root)
 }
 
 /// Resume from saved state
@@ -73,21 +102,21 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
     match state {
         SpiralState::NotStarted => {
             terminal::log_info("No previous run found. Starting fresh.");
-            run(config, project_root, None, no_pause)
+            run(config, project_root, None, no_pause, None)
         }
         SpiralState::Scoping | SpiralState::ScopeReview => {
             terminal::log_info("Resuming: scope was incomplete.");
             run_scope(config, project_root)?;
-            run(config, project_root, None, no_pause)
+            run(config, project_root, None, no_pause, None)
         }
         SpiralState::ScopeComplete => {
             terminal::log_info("Scope already complete. Running DDV Agent and spiral passes.");
-            run(config, project_root, None, no_pause)
+            run(config, project_root, None, no_pause, None)
         }
         SpiralState::DdvAgent | SpiralState::DdvAgentReview => {
             terminal::log_info("Resuming: DDV Agent was incomplete.");
             run_ddv_agent(config, project_root)?;
-            run(config, project_root, None, no_pause)
+            run(config, project_root, None, no_pause, None)
         }
         SpiralState::DdvAgentComplete => {
             terminal::log_info("DDV scenarios already complete. Running spiral passes.");
@@ -116,7 +145,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match review::review_gate(config, pass, &lisa_root)? {
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
                 ReviewDecision::Finalize => finalize(config, project_root, pass),
                 ReviewDecision::Quit => {
                     terminal::log_warn("Stopping after pass review.");
@@ -128,6 +157,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                     pass + 1,
                     config.limits.max_spiral_passes,
                 ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
             }
         }
         SpiralState::RefineReview { pass } => {
@@ -146,7 +176,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match review::review_gate(config, pass, &lisa_root)? {
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
                 ReviewDecision::Finalize => finalize(config, project_root, pass),
                 ReviewDecision::Quit => {
                     terminal::log_warn("Stopping after pass review.");
@@ -158,6 +188,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                     pass + 1,
                     config.limits.max_spiral_passes,
                 ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
             }
         }
         SpiralState::BuildComplete { pass } => {
@@ -175,7 +206,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match review::review_gate(config, pass, &lisa_root)? {
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
                 ReviewDecision::Finalize => finalize(config, project_root, pass),
                 ReviewDecision::Quit => {
                     terminal::log_warn("Stopping after pass review.");
@@ -187,11 +218,12 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                     pass + 1,
                     config.limits.max_spiral_passes,
                 ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
             }
         }
         SpiralState::PassReview { pass } => {
             terminal::log_info(&format!("Resuming: review gate of pass {}.", pass));
-            match review::review_gate(config, pass, &lisa_root)? {
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
                 ReviewDecision::Finalize => finalize(config, project_root, pass),
                 ReviewDecision::Quit => {
                     terminal::log_warn("Stopping after pass review.");
@@ -203,11 +235,54 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                     pass + 1,
                     config.limits.max_spiral_passes,
                 ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
             }
+        }
+        SpiralState::Exploring { pass, explore_id } => {
+            terminal::log_info(&format!(
+                "Resuming: exploration #{} in pass {} (re-running agent).",
+                explore_id, pass
+            ));
+            // The exploration was interrupted mid-agent. We're on the explore branch.
+            // Re-run the explore agent. Since the question is lost, ask again.
+            run_explore(config, project_root, pass, explore_id)?;
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            Ok(())
+        }
+        SpiralState::ExploreReview { pass, explore_id } => {
+            terminal::log_info(&format!(
+                "Resuming: explore review for exploration #{} in pass {}.",
+                explore_id, pass
+            ));
+            let original_branch = format!("lisa/pass-{}", pass);
+            // We may be on the explore branch still, show the review gate
+            match review::explore_review_gate(pass, explore_id, &lisa_root)? {
+                review::ExploreDecision::Merge => {
+                    // Try to get back to original branch and merge
+                    let branch_name = format!("lisa/explore-{}-{}", pass, explore_id);
+                    let current = git::current_branch()?;
+                    if current == branch_name {
+                        git::checkout(&original_branch).or_else(|_| git::checkout("main"))?;
+                        git::merge_branch(&branch_name)?;
+                    }
+                    terminal::log_success(&format!("Exploration #{} merged.", explore_id));
+                }
+                review::ExploreDecision::Discard => {
+                    let branch_name = format!("lisa/explore-{}-{}", pass, explore_id);
+                    let current = git::current_branch()?;
+                    if current == branch_name {
+                        git::checkout(&original_branch).or_else(|_| git::checkout("main"))?;
+                    }
+                    let _ = git::delete_branch(&branch_name);
+                    terminal::log_info(&format!("Exploration #{} discarded.", explore_id));
+                }
+            }
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            Ok(())
         }
         SpiralState::Complete { final_pass } => {
             terminal::log_success(&format!(
-                "Spiral already complete at pass {}. Use `lisa continue \"<question>\"` to start a follow-up.",
+                "Spiral already complete at pass {}. Use `lisa run --follow-up \"<question>\"` to continue.",
                 final_pass
             ));
             Ok(())
@@ -260,7 +335,7 @@ fn resume_from_phase(
 
     git::create_tag(&format!("lisa/pass-{}", pass))?;
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-    match review::review_gate(config, pass, &lisa_root)? {
+    match pass_review_loop(config, project_root, pass, &lisa_root)? {
         ReviewDecision::Finalize => finalize(config, project_root, pass),
         ReviewDecision::Quit => {
             terminal::log_warn("Stopping after pass review.");
@@ -272,6 +347,7 @@ fn resume_from_phase(
             pass + 1,
             config.limits.max_spiral_passes,
         ),
+        ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
     }
 }
 
@@ -310,26 +386,62 @@ fn run_pass_range(
             return Ok(());
         }
         run_validate(config, project_root, pass)?;
+
+        // Generate code-diff.patch capturing this pass's changes
+        generate_pass_diff(&lisa_root, pass);
+
         git::push(config)?;
         git::create_tag(&format!("lisa/pass-{}", pass))?;
 
         state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-        match review::review_gate(config, pass, &lisa_root)? {
+        match pass_review_loop(config, project_root, pass, &lisa_root)? {
             ReviewDecision::Finalize => return finalize(config, project_root, pass),
             ReviewDecision::Quit => {
                 terminal::log_warn("Stopping after pass review.");
                 return Ok(());
             }
             ReviewDecision::Continue | ReviewDecision::Redirect => continue,
+            ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
         }
     }
 
     terminal::log_warn(&format!(
         "Reached max spiral passes ({}) without finalization. \
-         Run `lisa run --max-passes N` with a higher limit, or `lisa finalize` to finalize current results.",
+         Run `lisa run --max-passes N` with a higher limit, or `lisa resume` to reach the review gate where you can finalize.",
         max_pass
     ));
     Ok(())
+}
+
+/// Generate a code-diff.patch file for the pass, diffing against the previous pass tag.
+fn generate_pass_diff(lisa_root: &Path, pass: u32) {
+    let prev_tag = if pass > 1 {
+        format!("lisa/pass-{}", pass - 1)
+    } else {
+        "lisa/pass-0".to_string()
+    };
+    let diff_path = lisa_root.join(format!("spiral/pass-{}/code-diff.patch", pass));
+    let output = std::process::Command::new("git")
+        .args(["diff", &format!("{}..HEAD", prev_tag)])
+        .output();
+    if let Ok(out) = output {
+        if out.status.success() {
+            let _ = std::fs::write(&diff_path, &out.stdout);
+        }
+    }
+}
+
+/// Re-read lisa.toml from disk (agents may have updated [paths] or [commands]).
+fn reload_config_if_needed(config: Config, project_root: &Path) -> Result<Config> {
+    match Config::load(project_root) {
+        Ok(mut fresh) => {
+            // Preserve runtime overrides (e.g. --no-pause)
+            fresh.review.pause = config.review.pause;
+            fresh.terminal.collapse_output = config.terminal.collapse_output;
+            Ok(fresh)
+        }
+        Err(_) => Ok(config),
+    }
 }
 
 /// Return the path to the error log file for a given lisa root.
@@ -542,12 +654,6 @@ fn ensure_ddv_complete(config: &Config, project_root: &Path) -> Result<()> {
         terminal::log_info("DDV scenarios already complete.");
     }
     Ok(())
-}
-
-/// Public entry point for `lisa ddv` command
-pub fn run_ddv_agent_only(config: &Config, project_root: &Path) -> Result<()> {
-    ensure_scope_complete(config, project_root)?;
-    run_ddv_agent(config, project_root)
 }
 
 fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
@@ -869,6 +975,7 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     )?;
 
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
+    std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}/plots", pass)))?;
 
     let prev_pass = pass - 1;
     let mut extra = format!("Current spiral pass: {}\n", pass);
@@ -896,6 +1003,20 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         pass,
     )?;
     git::commit_all(&format!("refine: pass {}", pass), config)?;
+
+    // Advisory warning if task count exceeds max_tasks_per_pass
+    let plan_path = lisa_root.join("methodology/plan.md");
+    if plan_path.exists() {
+        if let Ok(counts) = tasks::count_tasks_by_status(&plan_path) {
+            if counts.total > config.limits.max_tasks_per_pass {
+                terminal::log_warn(&format!(
+                    "Pass {} has {} tasks (limit: {}). Consider refining further to shrink scope.",
+                    pass, counts.total, config.limits.max_tasks_per_pass
+                ));
+            }
+        }
+    }
+
     state::save_state(&lisa_root, &SpiralState::RefineComplete { pass })?;
     Ok(())
 }
@@ -1057,7 +1178,129 @@ fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     Ok(())
 }
 
-pub fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
+/// Run the pass review gate in a loop, handling exploration side-branches.
+/// Returns the final non-explore decision.
+fn pass_review_loop(
+    config: &Config,
+    project_root: &Path,
+    pass: u32,
+    lisa_root: &Path,
+) -> Result<ReviewDecision> {
+    loop {
+        match review::review_gate(config, pass, lisa_root)? {
+            ReviewDecision::Explore => {
+                let explore_id = next_explore_id(lisa_root, pass);
+                run_explore(config, project_root, pass, explore_id)?;
+                state::save_state(lisa_root, &SpiralState::PassReview { pass })?;
+                continue;
+            }
+            other => return Ok(other),
+        }
+    }
+}
+
+/// Determine the next exploration ID for a given pass.
+fn next_explore_id(lisa_root: &Path, pass: u32) -> u32 {
+    let pass_dir = lisa_root.join(format!("spiral/pass-{}", pass));
+    let mut max_id = 0u32;
+    if let Ok(entries) = std::fs::read_dir(&pass_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if let Some(id_str) = name_str.strip_prefix("explore-") {
+                if let Ok(id) = id_str.parse::<u32>() {
+                    max_id = max_id.max(id);
+                }
+            }
+        }
+    }
+    max_id + 1
+}
+
+/// Run a lightweight exploration on a side-branch.
+fn run_explore(config: &Config, project_root: &Path, pass: u32, explore_id: u32) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    let branch_name = format!("lisa/explore-{}-{}", pass, explore_id);
+
+    terminal::log_phase(&format!(
+        "EXPLORATION — Pass {} (explore #{})",
+        pass, explore_id
+    ));
+
+    // Save the current branch so we can return
+    let original_branch = git::current_branch()?;
+
+    // Create and checkout the exploration branch
+    git::create_branch(&branch_name)?;
+    git::checkout(&branch_name)?;
+
+    // Create exploration directory
+    let explore_dir = lisa_root.join(format!("spiral/pass-{}/explore-{}", pass, explore_id));
+    std::fs::create_dir_all(explore_dir.join("plots"))?;
+
+    // Save state
+    state::save_state(&lisa_root, &SpiralState::Exploring { pass, explore_id })?;
+
+    // Prompt the user for the exploration question
+    let question: String = if std::io::stdin().is_terminal() {
+        dialoguer::Input::new()
+            .with_prompt("  Exploration question")
+            .interact_text()?
+    } else {
+        anyhow::bail!("Exploration requires an interactive terminal for the question prompt");
+    };
+
+    // Build extra context with the exploration question and explore_id
+    let extra = format!(
+        "Exploration question: {}\n\
+         Exploration ID: {}\n\
+         Exploration directory: {}/spiral/pass-{}/explore-{}/\n",
+        question, explore_id, config.paths.lisa_root, pass, explore_id
+    );
+
+    let input = prompt::build_agent_input(Phase::Explore, config, &lisa_root, pass, Some(&extra));
+    let model = Phase::Explore.model_key(config);
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        &format!("Explore: pass {} #{}", pass, explore_id),
+        "explore",
+        pass,
+    )?;
+
+    // Commit exploration results
+    git::commit_all(
+        &format!("explore: pass {} #{} — {}", pass, explore_id, question),
+        config,
+    )?;
+
+    // Save state for review
+    state::save_state(&lisa_root, &SpiralState::ExploreReview { pass, explore_id })?;
+
+    // Show the review gate
+    match review::explore_review_gate(pass, explore_id, &lisa_root)? {
+        review::ExploreDecision::Merge => {
+            // Checkout original branch and merge
+            git::checkout(&original_branch)?;
+            git::merge_branch(&branch_name)?;
+            terminal::log_success(&format!("Exploration #{} merged.", explore_id));
+        }
+        review::ExploreDecision::Discard => {
+            // Checkout original branch and delete the exploration branch
+            git::checkout(&original_branch)?;
+            if let Err(e) = git::delete_branch(&branch_name) {
+                terminal::log_warn(&format!("Could not delete explore branch: {}", e));
+            }
+            terminal::log_info(&format!("Exploration #{} discarded.", explore_id));
+        }
+    }
+
+    Ok(())
+}
+
+fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
     terminal::log_phase("FINALIZING — Producing deliverables");
 
@@ -1217,7 +1460,7 @@ pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: b
 }
 
 /// Continue with a follow-up question after a completed spiral.
-pub fn continue_spiral(
+fn continue_spiral(
     config: &Config,
     project_root: &Path,
     question: &str,
@@ -1288,7 +1531,7 @@ pub fn continue_spiral(
         final_pass
     ));
 
-    run(&config, project_root, Some(effective_max), no_pause)
+    run(&config, project_root, Some(effective_max), no_pause, None)
 }
 
 /// Count the number of `## Follow-up` sections in ASSIGNMENT.md content.

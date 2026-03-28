@@ -23,7 +23,7 @@ Read **all** of the following:
 ### 2. Produce Deliverables
 
 Read the "Deliverables" and "Deliverable format" sections of `ASSIGNMENT.md`.
-When producing deliverables, include or reference visual verification evidence. If the deliverable is a report, embed the most important plots. If code/data, reference `{{lisa_root}}/plots/REVIEW.md`.
+When producing deliverables, include or reference visual verification evidence. If the deliverable is a report, embed the most important plots. If code/data, reference the per-pass plot reviews at `{{lisa_root}}/spiral/pass-*/plots/REVIEW.md`.
 
 Produce the specified deliverables at the locations described in the brief.
 If the brief doesn't specify locations, place deliverables in the project root.
@@ -50,7 +50,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 
 ## Key Evidence
 - Methodology: {{lisa_root}}/methodology/methodology.md
-- **Visual verification evidence: {{lisa_root}}/plots/REVIEW.md** (primary review artifact)
+- **Visual verification evidence: {{lisa_root}}/spiral/pass-*/plots/REVIEW.md** (per-pass plot reviews)
 - Progress history: {{lisa_root}}/spiral/pass-*/progress-tracking.md
 - Full spiral history: {{lisa_root}}/spiral/
 

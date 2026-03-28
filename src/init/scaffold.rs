@@ -3,16 +3,10 @@ use crossterm::style::Color;
 use std::io::IsTerminal;
 use std::path::Path;
 
-use crate::config::{default_config_toml, PathsConfig};
+use crate::agent;
+use crate::config::default_config_toml;
+use crate::prompt;
 use crate::terminal;
-
-/// Returns true if the path looks like a file (has an extension in its final component).
-fn looks_like_file(path: &str) -> bool {
-    Path::new(path)
-        .file_name()
-        .and_then(|f| Path::new(f).extension())
-        .is_some()
-}
 
 // Compiled-in templates
 const ASSIGNMENT_TEMPLATE: &str = include_str!("../../templates/assignment.md");
@@ -23,7 +17,6 @@ const ASSUMPTIONS_REGISTER_TEMPLATE: &str = include_str!("../../templates/assump
 const SANITY_CHECKS_TEMPLATE: &str = include_str!("../../templates/sanity_checks.md");
 const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cases.md");
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
-const PLOTS_REVIEW_TEMPLATE: &str = include_str!("../../templates/plots_review.md");
 const DDV_SCENARIOS_TEMPLATE: &str = include_str!("../../templates/ddv_scenarios.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
@@ -73,9 +66,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         String::new()
     };
 
-    let paths = PathsConfig::default();
-
-    // Create directory structure
+    // Create .lisa/ process infrastructure only — no source or test dirs.
+    // The init agent (Phase 2) resolves project-specific paths.
     let dirs = [
         ".lisa",
         ".lisa/methodology",
@@ -86,22 +78,10 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/references/core",
         ".lisa/references/retrieved",
         ".lisa/ddv",
-        ".lisa/plots",
         ".lisa/output",
     ];
-    let source_dirs: Vec<&str> = paths.source.iter().map(|s| s.as_str()).collect();
-    let source_dirs_only: Vec<&&str> = source_dirs.iter().filter(|s| !looks_like_file(s)).collect();
-    let test_dirs = [
-        paths.tests_ddv.as_str(),
-        paths.tests_software.as_str(),
-        paths.tests_integration.as_str(),
-    ];
 
-    for dir in dirs
-        .iter()
-        .chain(source_dirs_only.iter().copied())
-        .chain(test_dirs.iter())
-    {
+    for dir in &dirs {
         std::fs::create_dir_all(project_root.join(dir))
             .with_context(|| format!("Failed to create directory: {}", dir))?;
     }
@@ -152,24 +132,17 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         &lisa_root.join("validation/reference-data.md"),
         REFERENCE_DATA_TEMPLATE,
     )?;
-    // Write plots review
-    write_file(&lisa_root.join("plots/REVIEW.md"), PLOTS_REVIEW_TEMPLATE)?;
-
     // Write DDV templates
     write_file(&lisa_root.join("ddv/scenarios.md"), DDV_SCENARIOS_TEMPLATE)?;
 
-    // Write .gitkeep files
-    let lisa_keepdirs = [
+    // Write .gitkeep files for empty .lisa/ subdirectories
+    let keepdirs = [
         ".lisa/methodology/derivations",
         ".lisa/references/core",
         ".lisa/references/retrieved",
         ".lisa/output",
     ];
-    for dir in lisa_keepdirs
-        .iter()
-        .chain(test_dirs.iter())
-        .chain(source_dirs_only.iter().copied())
-    {
+    for dir in &keepdirs {
         let keepfile = project_root.join(dir).join(".gitkeep");
         if !keepfile.exists() {
             std::fs::write(&keepfile, "")?;
@@ -196,41 +169,37 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("V&V artifacts (auto-managed)");
     terminal::print_colored("    .lisa/ddv/                   ", Color::Cyan);
     println!("DDV verification scenarios");
-    terminal::print_colored("    .lisa/plots/                 ", Color::Cyan);
-    println!("Verification plots");
-    let source_display: Vec<String> = paths
-        .source
-        .iter()
-        .map(|s| {
-            if looks_like_file(s) {
-                s.clone()
-            } else {
-                format!("{}/", s)
-            }
-        })
-        .collect();
-    terminal::print_colored(
-        &format!("    {:<33}", source_display.join(", ")),
-        Color::Cyan,
-    );
-    println!("Implementation code");
-    terminal::print_colored(
-        &format!("    {:<33}", format!("{}/", paths.tests_ddv)),
-        Color::Cyan,
-    );
-    println!("Domain verification tests");
-    terminal::print_colored(
-        &format!("    {:<33}", format!("{}/", paths.tests_software)),
-        Color::Cyan,
-    );
-    println!("Software quality tests");
-    terminal::print_colored(
-        &format!("    {:<33}", format!("{}/", paths.tests_integration)),
-        Color::Cyan,
-    );
-    println!("End-to-end tests");
     println!();
 
+    // Phase 2: Run the init agent to examine the codebase and resolve paths
+    terminal::log_phase("INIT AGENT — Examining project structure");
+    let init_prompt = prompt::load_prompt(prompt::Phase::Init, &lisa_root);
+    let init_prompt = prompt::render_prompt(
+        &init_prompt,
+        &crate::config::Config::load(project_root)?,
+        None,
+    );
+
+    match agent::run_agent(
+        &init_prompt,
+        "opus",
+        "Init Agent",
+        true,
+        Some(&lisa_root.join("last-error.md")),
+        &[],
+    ) {
+        Ok(_result) => {
+            terminal::log_success("Init agent completed — project structure resolved.");
+        }
+        Err(e) => {
+            terminal::log_warn(&format!("Init agent failed: {}", e));
+            terminal::log_warn(
+                "Paths not resolved. Fill [paths] in lisa.toml manually, or re-run `lisa init`.",
+            );
+        }
+    }
+
+    println!();
     terminal::println_bold("  Next steps:");
     println!("    1. Edit ASSIGNMENT.md with the full assignment");
     println!("    2. Add reference papers to .lisa/references/core/");
@@ -246,20 +215,4 @@ fn write_file(path: &Path, content: &str) -> Result<()> {
     }
     std::fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_looks_like_file() {
-        assert!(looks_like_file("src/lib.rs"));
-        assert!(looks_like_file("src/my_module/mod.rs"));
-        assert!(looks_like_file("lib.rs"));
-        assert!(looks_like_file("path/to/file.txt"));
-        assert!(!looks_like_file("src"));
-        assert!(!looks_like_file("src/my_module"));
-        assert!(!looks_like_file("tests/ddv"));
-    }
 }

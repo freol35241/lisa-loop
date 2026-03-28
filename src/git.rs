@@ -186,6 +186,60 @@ pub fn has_uncommitted_changes() -> Result<bool> {
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
+/// Checkout a branch or ref.
+pub fn checkout(target: &str) -> Result<()> {
+    let status = Command::new("git")
+        .args(["checkout", target])
+        .status()
+        .context("Failed to run git checkout")?;
+    if !status.success() {
+        anyhow::bail!("git checkout {} failed", target);
+    }
+    Ok(())
+}
+
+/// Get the current branch name.
+pub fn current_branch() -> Result<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .context("Failed to get current branch")?;
+    if !output.status.success() {
+        anyhow::bail!("git rev-parse --abbrev-ref HEAD failed");
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Merge a branch into the current branch with --no-ff.
+pub fn merge_branch(branch: &str) -> Result<()> {
+    let status = Command::new("git")
+        .args([
+            "merge",
+            branch,
+            "--no-ff",
+            "-m",
+            &format!("Merge exploration: {}", branch),
+        ])
+        .status()
+        .context("Failed to run git merge")?;
+    if !status.success() {
+        anyhow::bail!("git merge {} failed — resolve conflicts manually", branch);
+    }
+    Ok(())
+}
+
+/// Delete a local branch.
+pub fn delete_branch(name: &str) -> Result<()> {
+    let status = Command::new("git")
+        .args(["branch", "-D", name])
+        .status()
+        .context("Failed to delete git branch")?;
+    if !status.success() {
+        anyhow::bail!("git branch -D {} failed", name);
+    }
+    Ok(())
+}
+
 /// Retrieve a file from another branch via `git show <branch>:<path>`.
 pub fn show_file_from_ref(git_ref: &str, path: &str) -> Result<Option<String>> {
     let output = Command::new("git")

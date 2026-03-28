@@ -136,6 +136,11 @@ should have expected values with sources.
 
 Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
 
+**Task cap:** Create at most **{{max_tasks_per_pass}}** tasks for this pass. If the current scope
+requires more, shrink the pass scope and defer remaining work to subsequent passes. Update the
+spiral plan accordingly. Splitting a pass into smaller passes is always preferred over creating
+a large pass.
+
 Update `{{lisa_root}}/methodology/plan.md`:
 - **For Pass 1:** The scope phase created a structural skeleton with task names, ordering, methodology references, and dependencies — but no checklists. Now that the methodology is fully specified, add detailed checklists to each existing task based on the complete equations and implementation notes. Split or merge tasks if the fully specified methodology reveals the original sizing was wrong.
 - **For Pass N > 1:** Add new tasks for this pass that address ONLY the current pass's scope subset (not the full problem)
@@ -144,7 +149,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
 - Tasks do NOT include DDV test items — the Validate phase writes executable tests from DDV scenarios
-- Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. If the task's DDV scenarios have `**Visual:**` fields, the corresponding plots should appear as checklist items. Store plots in `{{lisa_root}}/plots/`.
+- Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. If the task's DDV scenarios have `**Visual:**` fields, the corresponding plots should appear as checklist items. Store plots in `{{lisa_root}}/spiral/pass-{{pass}}/plots/`.
 
 **Task format:**
 ```markdown

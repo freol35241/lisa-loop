@@ -67,6 +67,8 @@ pub struct LimitsConfig {
     pub max_spiral_passes: u32,
     #[serde(default = "default_max_ralph_iterations")]
     pub max_ralph_iterations: u32,
+    #[serde(default = "default_max_tasks_per_pass")]
+    pub max_tasks_per_pass: u32,
     #[serde(default = "default_stall_threshold")]
     pub stall_threshold: u32,
     #[serde(default)]
@@ -80,6 +82,7 @@ impl Default for LimitsConfig {
         Self {
             max_spiral_passes: default_max_spiral_passes(),
             max_ralph_iterations: default_max_ralph_iterations(),
+            max_tasks_per_pass: default_max_tasks_per_pass(),
             stall_threshold: default_stall_threshold(),
             budget_usd: 0.0,
             budget_warn_pct: default_budget_warn_pct(),
@@ -91,7 +94,10 @@ fn default_max_spiral_passes() -> u32 {
     5
 }
 fn default_max_ralph_iterations() -> u32 {
-    50
+    15
+}
+fn default_max_tasks_per_pass() -> u32 {
+    5
 }
 fn default_stall_threshold() -> u32 {
     2
@@ -179,16 +185,16 @@ fn default_lisa_root() -> String {
     ".lisa".to_string()
 }
 fn default_source() -> Vec<String> {
-    vec!["src".to_string()]
+    vec![]
 }
 fn default_tests_ddv() -> String {
-    "tests/ddv".to_string()
+    String::new()
 }
 fn default_tests_software() -> String {
-    "tests/software".to_string()
+    String::new()
 }
 fn default_tests_integration() -> String {
-    "tests/integration".to_string()
+    String::new()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -234,6 +240,23 @@ impl Config {
     pub fn source_dirs_display(&self) -> String {
         self.paths.source.join(", ")
     }
+
+    /// Check that paths are configured (non-empty).
+    /// Returns Ok if paths are set, or an error directing the user to run init or fill lisa.toml.
+    pub fn validate_paths(&self) -> Result<()> {
+        if self.paths.source.is_empty()
+            || self.paths.tests_ddv.is_empty()
+            || self.paths.tests_software.is_empty()
+            || self.paths.tests_integration.is_empty()
+        {
+            anyhow::bail!(
+                "Paths not configured in lisa.toml [paths] section.\n\
+                 Run `lisa init` to auto-detect project structure, or manually fill in:\n\
+                 source, tests_ddv, tests_software, tests_integration"
+            );
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -248,15 +271,16 @@ mod tests {
         assert_eq!(config.models.scope, "opus");
         assert_eq!(config.models.build, "sonnet");
         assert_eq!(config.limits.max_spiral_passes, 5);
-        assert_eq!(config.limits.max_ralph_iterations, 50);
+        assert_eq!(config.limits.max_ralph_iterations, 15);
+        assert_eq!(config.limits.max_tasks_per_pass, 5);
         assert_eq!(config.limits.stall_threshold, 2);
         assert!(config.review.pause);
         assert!(config.git.auto_commit);
         assert!(!config.git.auto_push);
         assert!(config.terminal.collapse_output);
         assert_eq!(config.paths.lisa_root, ".lisa");
-        assert_eq!(config.paths.source, vec!["src"]);
-        assert_eq!(config.paths.tests_ddv, "tests/ddv");
+        assert!(config.paths.source.is_empty());
+        assert_eq!(config.paths.tests_ddv, "");
         assert!(config.agent.extra_args.is_empty());
     }
 
@@ -295,7 +319,30 @@ name = "minimal"
     fn test_source_dirs_display() {
         let toml_str = default_config_toml("test");
         let config: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.source_dirs_display(), "src");
+        assert_eq!(config.source_dirs_display(), "");
+    }
+
+    #[test]
+    fn test_validate_paths_empty() {
+        let toml_str = default_config_toml("test");
+        let config: Config = toml::from_str(&toml_str).unwrap();
+        assert!(config.validate_paths().is_err());
+    }
+
+    #[test]
+    fn test_validate_paths_filled() {
+        let toml_str = r#"
+[project]
+name = "filled"
+
+[paths]
+source = ["src"]
+tests_ddv = "tests/ddv"
+tests_software = "tests/software"
+tests_integration = "tests/integration"
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert!(config.validate_paths().is_ok());
     }
 }
 
@@ -313,7 +360,8 @@ validate = "opus"
 
 [limits]
 max_spiral_passes = 5
-max_ralph_iterations = 50
+max_ralph_iterations = 15
+max_tasks_per_pass = 5
 stall_threshold = 2
 # budget_usd = 0.0       # 0 = unlimited
 # budget_warn_pct = 80   # warn at this % of budget
@@ -334,13 +382,15 @@ collapse_output = true
 # Where process artifacts live (relative to project root)
 lisa_root = ".lisa"
 
-# Where deliverable code goes (relative to project root)
-source = ["src"]
+# Where deliverable code goes (relative to project root).
+# Resolved by the init agent; fill manually if needed.
+source = []
 
-# Test directories (relative to project root)
-tests_ddv = "tests/ddv"
-tests_software = "tests/software"
-tests_integration = "tests/integration"
+# Test directories (relative to project root).
+# Resolved by the init agent; fill manually if needed.
+tests_ddv = ""
+tests_software = ""
+tests_integration = ""
 
 [agent]
 # Extra CLI flags passed to every claude invocation.
