@@ -10,10 +10,42 @@ pub fn commit_all(msg: &str, config: &Config) -> Result<bool> {
         return Ok(false);
     }
 
-    terminal::log_info("Staging all changes...");
+    terminal::log_info("Staging changes...");
+
+    // Stage only deliverable paths (source, tests, config files).
+    // .lisa/ is gitignored and never committed.
+    let mut paths: Vec<String> = Vec::new();
+    paths.extend(config.paths.source.iter().cloned());
+    for test_dir in [
+        &config.paths.tests_ddv,
+        &config.paths.tests_software,
+        &config.paths.tests_integration,
+    ] {
+        if !test_dir.is_empty() {
+            paths.push(test_dir.clone());
+        }
+    }
+    // Always include project-root files the agents may modify
+    paths.extend(
+        ["ASSIGNMENT.md", "lisa.toml", ".gitignore"]
+            .iter()
+            .map(|s| s.to_string()),
+    );
+
+    // Deduplicate
+    paths.sort();
+    paths.dedup();
+
+    if paths.is_empty() {
+        terminal::log_info("No paths configured to stage.");
+        return Ok(false);
+    }
+
+    let mut args = vec!["add".to_string(), "--".to_string()];
+    args.extend(paths);
 
     let status = Command::new("git")
-        .args(["add", "-A"])
+        .args(&args)
         .status()
         .context("Failed to run git add")?;
 
@@ -238,19 +270,6 @@ pub fn delete_branch(name: &str) -> Result<()> {
         anyhow::bail!("git branch -D {} failed", name);
     }
     Ok(())
-}
-
-/// Retrieve a file from another branch via `git show <branch>:<path>`.
-pub fn show_file_from_ref(git_ref: &str, path: &str) -> Result<Option<String>> {
-    let output = Command::new("git")
-        .args(["show", &format!("{}:{}", git_ref, path)])
-        .output()
-        .context("Failed to run git show")?;
-    if output.status.success() {
-        Ok(Some(String::from_utf8_lossy(&output.stdout).to_string()))
-    } else {
-        Ok(None)
-    }
 }
 
 #[cfg(test)]

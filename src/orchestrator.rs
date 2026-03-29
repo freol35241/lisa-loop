@@ -1403,7 +1403,7 @@ fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         }
     }
 
-    // Create SPIRAL_COMPLETE.md
+    // Create SPIRAL_COMPLETE.md (internal marker, stays in .lisa/)
     let complete_content = format!(
         "# Spiral Complete\n\n\
          The human has finalized the results.\n\n\
@@ -1417,6 +1417,17 @@ fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         &complete_content,
     )?;
 
+    // Generate audit trail artifact in project root
+    let report_path = project_root.join("LISA-REPORT.md");
+    generate_audit_report(&lisa_root, config, pass, &report_path)?;
+    terminal::log_success(&format!(
+        "Audit report generated: {}",
+        report_path.display()
+    ));
+    terminal::log_info(
+        "The report is NOT auto-committed. Review it and commit manually if you want to keep it.",
+    );
+
     state::save_state(&lisa_root, &SpiralState::Complete { final_pass: pass })?;
     git::commit_all(
         &format!("final: spiral complete — finalized at pass {}", pass),
@@ -1426,17 +1437,129 @@ fn finalize(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
 
     terminal::log_success("Done. Final deliverables produced.");
 
-    // Show audit summary if it exists
-    let audit_path = lisa_root.join("output/audit-summary.md");
-    if audit_path.exists() {
-        println!();
-        terminal::log_info(&format!("Audit summary: {}", audit_path.display()));
+    Ok(())
+}
+
+/// Generate a standalone markdown audit report summarizing the full spiral history.
+fn generate_audit_report(
+    lisa_root: &Path,
+    config: &Config,
+    final_pass: u32,
+    output_path: &Path,
+) -> Result<()> {
+    use std::fmt::Write;
+    let mut report = String::new();
+
+    writeln!(report, "# Lisa Loop — Audit Report").unwrap();
+    writeln!(report).unwrap();
+    writeln!(report, "**Project:** {}  ", config.project.name).unwrap();
+    writeln!(
+        report,
+        "**Completed:** {}  ",
+        chrono::Local::now().to_rfc3339()
+    )
+    .unwrap();
+    writeln!(report, "**Final pass:** {}  ", final_pass).unwrap();
+    writeln!(report).unwrap();
+
+    // Assignment
+    let assignment_path = lisa_root
+        .parent()
+        .unwrap_or(lisa_root)
+        .join("ASSIGNMENT.md");
+    if let Ok(content) = std::fs::read_to_string(&assignment_path) {
+        writeln!(report, "---\n").unwrap();
+        writeln!(report, "## Assignment\n").unwrap();
+        writeln!(report, "{}", content.trim()).unwrap();
+        writeln!(report).unwrap();
     }
 
+    // Methodology
+    let methodology_path = lisa_root.join("methodology/methodology.md");
+    if let Ok(content) = std::fs::read_to_string(&methodology_path) {
+        writeln!(report, "---\n").unwrap();
+        writeln!(report, "## Final Methodology\n").unwrap();
+        writeln!(report, "{}", content.trim()).unwrap();
+        writeln!(report).unwrap();
+    }
+
+    // DDV Scenarios
+    let ddv_path = lisa_root.join("ddv/scenarios.md");
+    if let Ok(content) = std::fs::read_to_string(&ddv_path) {
+        writeln!(report, "---\n").unwrap();
+        writeln!(report, "## DDV Verification Scenarios\n").unwrap();
+        writeln!(report, "{}", content.trim()).unwrap();
+        writeln!(report).unwrap();
+    }
+
+    // Per-pass summaries
+    writeln!(report, "---\n").unwrap();
+    writeln!(report, "## Spiral Pass History\n").unwrap();
+
+    for pass in 0..=final_pass {
+        let pass_dir = lisa_root.join(format!("spiral/pass-{}", pass));
+        if !pass_dir.exists() {
+            continue;
+        }
+
+        writeln!(report, "### Pass {}\n", pass).unwrap();
+
+        // Review package (most useful summary)
+        let review_pkg = pass_dir.join("review-package.md");
+        if let Ok(content) = std::fs::read_to_string(&review_pkg) {
+            writeln!(report, "{}", content.trim()).unwrap();
+            writeln!(report).unwrap();
+        }
+
+        // Progress tracking
+        let progress = pass_dir.join("progress-tracking.md");
+        if let Ok(content) = std::fs::read_to_string(&progress) {
+            writeln!(report, "#### Progress Tracking\n").unwrap();
+            writeln!(report, "{}", content.trim()).unwrap();
+            writeln!(report).unwrap();
+        }
+
+        // Validation results
+        let validation = pass_dir.join("system-validation.md");
+        if let Ok(content) = std::fs::read_to_string(&validation) {
+            writeln!(report, "#### Validation Results\n").unwrap();
+            writeln!(report, "{}", content.trim()).unwrap();
+            writeln!(report).unwrap();
+        }
+    }
+
+    // Assumptions register
+    let assumptions_path = lisa_root.join("methodology/assumptions-register.md");
+    if let Ok(content) = std::fs::read_to_string(&assumptions_path) {
+        writeln!(report, "---\n").unwrap();
+        writeln!(report, "## Assumptions Register\n").unwrap();
+        writeln!(report, "{}", content.trim()).unwrap();
+        writeln!(report).unwrap();
+    }
+
+    // Usage/cost if available
+    let usage_path = lisa_root.join("usage.toml");
+    if let Ok(content) = std::fs::read_to_string(&usage_path) {
+        writeln!(report, "---\n").unwrap();
+        writeln!(report, "## Cost Ledger\n").unwrap();
+        writeln!(report, "```toml\n{}\n```", content.trim()).unwrap();
+        writeln!(report).unwrap();
+    }
+
+    writeln!(
+        report,
+        "\n---\n*Generated by [Lisa Loop](https://github.com/edmondop/lisa-loop)*"
+    )
+    .unwrap();
+
+    std::fs::write(output_path, &report)?;
     Ok(())
 }
 
 /// Roll back to a previous pass boundary.
+///
+/// Code is reset via git tags. Process state (.lisa/) is rolled back on the
+/// filesystem since it is gitignored and never committed.
 pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: bool) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
     let tag = format!("lisa/pass-{}", target_pass);
@@ -1468,7 +1591,7 @@ pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: b
     // Confirmation prompt
     if !force {
         terminal::log_warn(&format!(
-            "This will reset the repository to the state at pass {}.",
+            "This will reset code to the state at pass {} and remove later spiral artifacts.",
             target_pass
         ));
         terminal::log_warn("A backup branch will be created at current HEAD.");
@@ -1482,23 +1605,53 @@ pub fn rollback(config: &Config, project_root: &Path, target_pass: u32, force: b
         }
     }
 
-    // Create backup branch
+    // Create backup branch (for code rollback safety)
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let backup_branch = format!("lisa/backup/rollback-{}", timestamp);
     git::create_branch(&backup_branch)?;
     terminal::log_info(&format!("Backup branch created: {}", backup_branch));
 
-    // Reset to tag
+    // Reset code to tag
     git::reset_hard(&tag)?;
-    terminal::log_success(&format!("Reset to {}", tag));
+    terminal::log_success(&format!("Code reset to {}", tag));
 
-    // Restore usage.toml from backup branch (cost history should never be lost)
-    let usage_rel = format!("{}/usage.toml", config.paths.lisa_root);
-    if let Ok(Some(content)) = git::show_file_from_ref(&backup_branch, &usage_rel) {
-        let usage_path = lisa_root.join("usage.toml");
-        std::fs::write(&usage_path, &content)?;
-        git::commit_all("rollback: restore usage ledger", config)?;
-        terminal::log_info("Usage ledger preserved from before rollback.");
+    // Roll back .lisa/ process state on the filesystem
+    // Remove spiral pass directories after the target pass
+    for pass in (target_pass + 1)..=100 {
+        let pass_dir = lisa_root.join(format!("spiral/pass-{}", pass));
+        if pass_dir.exists() {
+            std::fs::remove_dir_all(&pass_dir)?;
+            terminal::log_info(&format!("Removed spiral/pass-{}/", pass));
+        } else {
+            break;
+        }
+    }
+
+    // Remove completion markers
+    let complete_marker = lisa_root.join("spiral/SPIRAL_COMPLETE.md");
+    if complete_marker.exists() {
+        std::fs::remove_file(&complete_marker)?;
+    }
+
+    // Reset state to the end of the target pass
+    let new_state = if target_pass == 0 {
+        SpiralState::ScopeComplete
+    } else {
+        SpiralState::PassReview { pass: target_pass }
+    };
+    state::save_state(&lisa_root, &new_state)?;
+    terminal::log_info(&format!("State reset to: {}", new_state));
+
+    // Delete git tags for passes after the target
+    for pass in (target_pass + 1)..=100 {
+        let tag_name = format!("lisa/pass-{}", pass);
+        if available.contains(&pass) {
+            let _ = std::process::Command::new("git")
+                .args(["tag", "-d", &tag_name])
+                .output();
+        } else {
+            break;
+        }
     }
 
     terminal::log_success(&format!(

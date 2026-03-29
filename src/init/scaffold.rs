@@ -139,19 +139,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     // Write CLAUDE.md inside .lisa/ so agents can discover artifacts
     write_file(&lisa_root.join("CLAUDE.md"), LISA_CLAUDE_MD)?;
 
-    // Write .gitkeep files for empty .lisa/ subdirectories
-    let keepdirs = [
-        ".lisa/methodology/derivations",
-        ".lisa/references/core",
-        ".lisa/references/retrieved",
-        ".lisa/output",
-    ];
-    for dir in &keepdirs {
-        let keepfile = project_root.join(dir).join(".gitkeep");
-        if !keepfile.exists() {
-            std::fs::write(&keepfile, "")?;
-        }
-    }
+    // Ensure .lisa/ is gitignored
+    ensure_gitignore(project_root)?;
 
     // Write initial state
     crate::state::save_state(&lisa_root, &crate::state::SpiralState::NotStarted)?;
@@ -212,6 +201,31 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("    3. Run: lisa run");
     println!();
 
+    Ok(())
+}
+
+/// Ensure `.lisa/` is listed in the project's `.gitignore`.
+fn ensure_gitignore(project_root: &Path) -> Result<()> {
+    let gitignore_path = project_root.join(".gitignore");
+    let entry = ".lisa/";
+
+    if gitignore_path.exists() {
+        let content = std::fs::read_to_string(&gitignore_path)?;
+        // Already present — nothing to do
+        if content.lines().any(|line| line.trim() == entry) {
+            return Ok(());
+        }
+        // Append with a preceding newline if the file doesn't end with one
+        let separator = if content.ends_with('\n') { "" } else { "\n" };
+        std::fs::write(
+            &gitignore_path,
+            format!("{}{}{}\n", content, separator, entry),
+        )?;
+    } else {
+        std::fs::write(&gitignore_path, format!("{}\n", entry))?;
+    }
+
+    terminal::log_info("Added .lisa/ to .gitignore");
     Ok(())
 }
 

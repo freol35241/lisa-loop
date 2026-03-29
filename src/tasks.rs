@@ -62,7 +62,10 @@ pub fn count_tasks_by_status_for_pass(plan_path: &Path, pass: u32) -> Result<Tas
     Ok(TaskCounts {
         total: filtered.len() as u32,
         todo: filtered.iter().filter(|t| t.status == "TODO").count() as u32,
-        in_progress: filtered.iter().filter(|t| t.status == "IN_PROGRESS").count() as u32,
+        in_progress: filtered
+            .iter()
+            .filter(|t| t.status == "IN_PROGRESS")
+            .count() as u32,
         done: filtered.iter().filter(|t| t.status == "DONE").count() as u32,
         blocked: filtered.iter().filter(|t| t.status == "BLOCKED").count() as u32,
     })
