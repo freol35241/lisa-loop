@@ -11,6 +11,38 @@ use std::time::{Duration, Instant};
 
 use crate::terminal;
 
+/// Distinguishes idle-timeout kills from other agent failures.
+#[derive(Debug)]
+pub enum AgentError {
+    /// Agent was killed because it produced no output for too long.
+    IdleTimeout {
+        label: String,
+        elapsed_secs: u64,
+        idle_limit: u64,
+    },
+    /// Any other failure (non-zero exit, spawn error, etc.).
+    Other(anyhow::Error),
+}
+
+impl std::fmt::Display for AgentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AgentError::IdleTimeout {
+                label,
+                elapsed_secs,
+                idle_limit,
+            } => write!(
+                f,
+                "Agent '{}' killed after {}s idle (limit: {}s)",
+                label, elapsed_secs, idle_limit
+            ),
+            AgentError::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl std::error::Error for AgentError {}
+
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UsageInfo {
     pub input_tokens: u64,
@@ -401,15 +433,18 @@ pub fn run_agent(
         }
 
         if timed_out {
-            anyhow::bail!(
-                "Agent '{}' killed after {}s idle (limit: {}s). Run `lisa resume` to retry this phase.",
-                label, elapsed, idle_timeout_secs
-            );
+            return Err(AgentError::IdleTimeout {
+                label: label.to_string(),
+                elapsed_secs: elapsed,
+                idle_limit: idle_timeout_secs,
+            }
+            .into());
         } else {
-            anyhow::bail!(
+            return Err(AgentError::Other(anyhow::anyhow!(
                 "Agent '{}' exited with code {}. Check the output above for errors. Run `lisa resume` to retry this phase.",
                 label, code
-            );
+            ))
+            .into());
         }
     }
     let elapsed = start.elapsed().as_secs();

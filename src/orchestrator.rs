@@ -486,15 +486,50 @@ fn run_agent_with_tracking(
     pass: u32,
 ) -> Result<AgentResult> {
     let err_log = error_log(lisa_root);
-    let result = agent::run_agent(
-        input,
-        model,
-        label,
-        config.terminal.collapse_output,
-        Some(&err_log),
-        &config.agent.extra_args,
-        config.limits.idle_timeout_secs,
-    )?;
+    let max_retries = config.limits.max_agent_retries;
+
+    let result = {
+        let mut last_err = None;
+        let mut attempt = 0;
+
+        loop {
+            match agent::run_agent(
+                input,
+                model,
+                label,
+                config.terminal.collapse_output,
+                Some(&err_log),
+                &config.agent.extra_args,
+                config.limits.idle_timeout_secs,
+            ) {
+                Ok(r) => break r,
+                Err(e) => {
+                    // Only retry on idle timeouts
+                    if e.downcast_ref::<agent::AgentError>()
+                        .is_some_and(|ae| matches!(ae, agent::AgentError::IdleTimeout { .. }))
+                        && attempt < max_retries
+                    {
+                        attempt += 1;
+                        terminal::log_warn(&format!(
+                            "Idle timeout — retrying agent ({}/{})...",
+                            attempt, max_retries
+                        ));
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                        last_err = Some(e);
+                        continue;
+                    }
+                    // Non-timeout error or retries exhausted
+                    if attempt > 0 {
+                        terminal::log_error(&format!(
+                            "Agent failed after {} retries. Surfacing error.",
+                            attempt
+                        ));
+                    }
+                    return Err(last_err.unwrap_or(e));
+                }
+            }
+        }
+    };
 
     let cumulative = usage::record_invocation(
         lisa_root,
