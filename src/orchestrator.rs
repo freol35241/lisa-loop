@@ -493,6 +493,7 @@ fn run_agent_with_tracking(
         config.terminal.collapse_output,
         Some(&err_log),
         &config.agent.extra_args,
+        config.limits.idle_timeout_secs,
     )?;
 
     let cumulative = usage::record_invocation(

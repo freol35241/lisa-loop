@@ -182,6 +182,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         true,
         Some(&lisa_root.join("last-error.md")),
         &[],
+        300, // 5 min idle timeout for init agent
     ) {
         Ok(_result) => {
             terminal::log_success("Init agent completed — project structure resolved.");

@@ -157,6 +157,16 @@ pub fn build_context_preamble(
         ));
     }
 
+    // Idle timeout heartbeat guidance
+    ctx.push_str(&format!(
+        "\n### Heartbeat\n\
+         Lisa Loop will kill your process if no tool output is received for {} seconds.\n\
+         During long-running operations (compilation, test suites, complex analysis),\n\
+         emit periodic heartbeats by running: `echo \"[heartbeat] still working...\"`\n\
+         Do this every few minutes during operations that may take a while.\n",
+        config.limits.idle_timeout_secs
+    ));
+
     ctx
 }
 

@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -63,6 +64,7 @@ pub fn run_agent(
     collapse_output: bool,
     error_log_path: Option<&Path>,
     extra_args: &[String],
+    idle_timeout_secs: u64,
 ) -> Result<AgentResult> {
     let start = Instant::now();
     let mut stats = AgentStats::default();
@@ -162,141 +164,167 @@ pub fn run_agent(
         // stdin is dropped here, closing it
     }
 
-    // Read NDJSON stream
-    if let Some(stdout) = child.stdout.take() {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    eprintln!("    [warn] NDJSON read error: {}", e);
-                    continue;
-                }
-            };
+    // Read NDJSON stream via a channel so we can enforce idle timeouts.
+    // A reader thread sends parsed lines; the main thread receives with a timeout.
+    let (tx, rx) = mpsc::channel::<String>();
 
-            let parsed: Value = match serde_json::from_str(&line) {
-                Ok(v) => v,
-                Err(e) => {
-                    // Only warn for non-empty lines (blank lines between events are normal)
-                    if !line.trim().is_empty() {
-                        eprintln!("    [warn] NDJSON parse error: {}", e);
+    let reader_handle = {
+        let stdout = child.stdout.take();
+        std::thread::spawn(move || {
+            if let Some(pipe) = stdout {
+                let reader = BufReader::new(pipe);
+                for line in reader.lines().map_while(Result::ok) {
+                    if tx.send(line).is_err() {
+                        break; // receiver dropped (timeout killed the child)
                     }
-                    continue;
                 }
-            };
+            }
+        })
+    };
 
-            match parsed.get("type").and_then(|t| t.as_str()) {
-                Some("assistant") => {
-                    if let Some(contents) = parsed
-                        .get("message")
-                        .and_then(|m| m.get("content"))
-                        .and_then(|c| c.as_array())
-                    {
-                        for item in contents {
-                            match item.get("type").and_then(|t| t.as_str()) {
-                                Some("thinking") => {
-                                    if !collapse_output {
-                                        if let Some(thought) =
-                                            item.get("thinking").and_then(|t| t.as_str())
-                                        {
-                                            terminal::print_dim(&format!(
-                                                "    [💭 {}] {}\n",
-                                                terminal::ts(),
-                                                thought
-                                            ));
-                                        }
-                                    }
-                                }
-                                Some("tool_use") => {
-                                    stats.tool_count += 1;
-                                    let name =
-                                        item.get("name").and_then(|n| n.as_str()).unwrap_or("");
-                                    let input_val =
-                                        item.get("input").cloned().unwrap_or(Value::Null);
+    let idle_timeout = Duration::from_secs(idle_timeout_secs);
+    let mut timed_out = false;
 
-                                    let detail = format_tool_detail(name, &input_val);
-                                    let call = parse_tool_call(name, &input_val);
-                                    tool_log.push(call);
+    loop {
+        match rx.recv_timeout(idle_timeout) {
+            Ok(line) => {
+                let parsed: Value = match serde_json::from_str(&line) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if !line.trim().is_empty() {
+                            eprintln!("    [warn] NDJSON parse error: {}", e);
+                        }
+                        continue;
+                    }
+                };
 
-                                    // Count specific tool types
-                                    if name == "Write" || name == "Edit" {
-                                        stats.file_writes += 1;
-                                    }
-                                    if name == "Bash" {
-                                        if let Some(cmd) =
-                                            input_val.get("command").and_then(|c| c.as_str())
-                                        {
-                                            if cmd.contains("test") || cmd.contains("pytest") {
-                                                stats.test_runs += 1;
+                match parsed.get("type").and_then(|t| t.as_str()) {
+                    Some("assistant") => {
+                        if let Some(contents) = parsed
+                            .get("message")
+                            .and_then(|m| m.get("content"))
+                            .and_then(|c| c.as_array())
+                        {
+                            for item in contents {
+                                match item.get("type").and_then(|t| t.as_str()) {
+                                    Some("thinking") => {
+                                        if !collapse_output {
+                                            if let Some(thought) =
+                                                item.get("thinking").and_then(|t| t.as_str())
+                                            {
+                                                terminal::print_dim(&format!(
+                                                    "    [💭 {}] {}\n",
+                                                    terminal::ts(),
+                                                    thought
+                                                ));
                                             }
                                         }
                                     }
+                                    Some("tool_use") => {
+                                        stats.tool_count += 1;
+                                        let name =
+                                            item.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                                        let input_val =
+                                            item.get("input").cloned().unwrap_or(Value::Null);
 
-                                    if collapsed {
-                                        // Update shared status and refresh the collapsed line
-                                        {
-                                            let mut status = live_status.lock().unwrap();
-                                            status.tool_count = stats.tool_count;
-                                            status.latest_tool = detail.clone();
+                                        let detail = format_tool_detail(name, &input_val);
+                                        let call = parse_tool_call(name, &input_val);
+                                        tool_log.push(call);
+
+                                        if name == "Write" || name == "Edit" {
+                                            stats.file_writes += 1;
                                         }
-                                        let elapsed = start.elapsed().as_secs();
-                                        let mins = elapsed / 60;
-                                        let secs = elapsed % 60;
-                                        let line = format_collapsed_line(
-                                            label,
-                                            mins,
-                                            secs,
-                                            stats.tool_count,
-                                            &detail,
-                                        );
-                                        print!("\x1b[1A\x1b[2K  ");
-                                        terminal::print_colored(&line, Color::Cyan);
-                                        println!();
-                                    } else {
-                                        print!("    ");
-                                        terminal::print_colored(
-                                            &format!("[🔧 {}]", terminal::ts()),
-                                            Color::Magenta,
-                                        );
-                                        println!(" {}", detail);
+                                        if name == "Bash" {
+                                            if let Some(cmd) =
+                                                input_val.get("command").and_then(|c| c.as_str())
+                                            {
+                                                if cmd.contains("test") || cmd.contains("pytest") {
+                                                    stats.test_runs += 1;
+                                                }
+                                            }
+                                        }
+
+                                        if collapsed {
+                                            {
+                                                let mut status = live_status.lock().unwrap();
+                                                status.tool_count = stats.tool_count;
+                                                status.latest_tool = detail.clone();
+                                            }
+                                            let elapsed = start.elapsed().as_secs();
+                                            let mins = elapsed / 60;
+                                            let secs = elapsed % 60;
+                                            let line = format_collapsed_line(
+                                                label,
+                                                mins,
+                                                secs,
+                                                stats.tool_count,
+                                                &detail,
+                                            );
+                                            print!("\x1b[1A\x1b[2K  ");
+                                            terminal::print_colored(&line, Color::Cyan);
+                                            println!();
+                                        } else {
+                                            print!("    ");
+                                            terminal::print_colored(
+                                                &format!("[🔧 {}]", terminal::ts()),
+                                                Color::Magenta,
+                                            );
+                                            println!(" {}", detail);
+                                        }
                                     }
+                                    _ => {}
                                 }
-                                _ => {}
                             }
                         }
                     }
+                    Some("result") => {
+                        if let Some(text) = parsed.get("result").and_then(|r| r.as_str()) {
+                            result_text = text.to_string();
+                        }
+                        if let Some(cost) = parsed.get("total_cost_usd").and_then(|c| c.as_f64()) {
+                            usage.cost_usd = cost;
+                        }
+                        if let Some(u) = parsed.get("usage") {
+                            if let Some(v) = u.get("input_tokens").and_then(|t| t.as_u64()) {
+                                usage.input_tokens = v;
+                            }
+                            if let Some(v) = u.get("output_tokens").and_then(|t| t.as_u64()) {
+                                usage.output_tokens = v;
+                            }
+                            if let Some(v) = u
+                                .get("cache_creation_input_tokens")
+                                .and_then(|t| t.as_u64())
+                            {
+                                usage.cache_creation_input_tokens = v;
+                            }
+                            if let Some(v) =
+                                u.get("cache_read_input_tokens").and_then(|t| t.as_u64())
+                            {
+                                usage.cache_read_input_tokens = v;
+                            }
+                        }
+                    }
+                    _ => {}
                 }
-                Some("result") => {
-                    if let Some(text) = parsed.get("result").and_then(|r| r.as_str()) {
-                        result_text = text.to_string();
-                    }
-                    // Extract cost
-                    if let Some(cost) = parsed.get("total_cost_usd").and_then(|c| c.as_f64()) {
-                        usage.cost_usd = cost;
-                    }
-                    // Extract token usage
-                    if let Some(u) = parsed.get("usage") {
-                        if let Some(v) = u.get("input_tokens").and_then(|t| t.as_u64()) {
-                            usage.input_tokens = v;
-                        }
-                        if let Some(v) = u.get("output_tokens").and_then(|t| t.as_u64()) {
-                            usage.output_tokens = v;
-                        }
-                        if let Some(v) = u
-                            .get("cache_creation_input_tokens")
-                            .and_then(|t| t.as_u64())
-                        {
-                            usage.cache_creation_input_tokens = v;
-                        }
-                        if let Some(v) = u.get("cache_read_input_tokens").and_then(|t| t.as_u64()) {
-                            usage.cache_read_input_tokens = v;
-                        }
-                    }
-                }
-                _ => {}
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // No output for idle_timeout_secs — kill the agent
+                terminal::log_warn(&format!(
+                    "Agent '{}' idle for {}s — killing process.",
+                    label, idle_timeout_secs
+                ));
+                let _ = child.kill();
+                timed_out = true;
+                break;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                // Reader thread finished (stdout closed) — agent is done
+                break;
             }
         }
     }
+
+    let _ = reader_handle.join();
 
     let status = child.wait().context("Failed to wait for claude process")?;
     let stderr_output = stderr_handle.join().unwrap_or_default();
@@ -305,9 +333,15 @@ pub fn run_agent(
     ticker_running.store(false, Ordering::Relaxed);
     let _ = ticker_handle.join();
 
-    if !status.success() {
+    if timed_out || !status.success() {
         let code = status.code().unwrap_or(-1);
         let elapsed = start.elapsed().as_secs();
+
+        let failure_reason = if timed_out {
+            format!("IDLE TIMEOUT ({}s no output)", idle_timeout_secs)
+        } else {
+            format!("FAILED exit {}", code)
+        };
 
         // Show stderr if present
         if !stderr_output.trim().is_empty() {
@@ -322,8 +356,8 @@ pub fn run_agent(
             print!("\x1b[1A\x1b[2K  ");
             terminal::print_colored(
                 &format!(
-                    "x {} ({}s, {} tools — FAILED exit {})",
-                    label, elapsed, stats.tool_count, code
+                    "x {} ({}s, {} tools — {})",
+                    label, elapsed, stats.tool_count, failure_reason
                 ),
                 Color::Red,
             );
@@ -343,6 +377,7 @@ pub fn run_agent(
         if let Some(path) = error_log_path {
             let mut content = "# Last Error\n\n".to_string();
             content.push_str(&format!("- **Agent:** {}\n", label));
+            content.push_str(&format!("- **Reason:** {}\n", failure_reason));
             content.push_str(&format!("- **Exit code:** {}\n", code));
             content.push_str(&format!("- **Elapsed:** {}s\n", elapsed));
             content.push_str(&format!("- **Tool count:** {}\n", stats.tool_count));
@@ -358,7 +393,6 @@ pub fn run_agent(
             }
             if !stderr_output.trim().is_empty() {
                 content.push_str("\n## Stderr\n\n```\n");
-                // Cap at 2048 chars to avoid bloating the error log
                 let capped = truncate_str(&stderr_output, 2048);
                 content.push_str(&capped);
                 content.push_str("\n```\n");
@@ -366,10 +400,17 @@ pub fn run_agent(
             let _ = std::fs::write(path, &content);
         }
 
-        anyhow::bail!(
-            "Agent '{}' exited with code {}. Check the output above for errors. Run `lisa resume` to retry this phase.",
-            label, code
-        );
+        if timed_out {
+            anyhow::bail!(
+                "Agent '{}' killed after {}s idle (limit: {}s). Run `lisa resume` to retry this phase.",
+                label, elapsed, idle_timeout_secs
+            );
+        } else {
+            anyhow::bail!(
+                "Agent '{}' exited with code {}. Check the output above for errors. Run `lisa resume` to retry this phase.",
+                label, code
+            );
+        }
     }
     let elapsed = start.elapsed().as_secs();
 

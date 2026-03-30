@@ -75,6 +75,8 @@ pub struct LimitsConfig {
     pub budget_usd: f64,
     #[serde(default = "default_budget_warn_pct")]
     pub budget_warn_pct: u32,
+    #[serde(default = "default_idle_timeout_secs")]
+    pub idle_timeout_secs: u64,
 }
 
 impl Default for LimitsConfig {
@@ -86,6 +88,7 @@ impl Default for LimitsConfig {
             stall_threshold: default_stall_threshold(),
             budget_usd: 0.0,
             budget_warn_pct: default_budget_warn_pct(),
+            idle_timeout_secs: default_idle_timeout_secs(),
         }
     }
 }
@@ -104,6 +107,9 @@ fn default_stall_threshold() -> u32 {
 }
 fn default_budget_warn_pct() -> u32 {
     80
+}
+fn default_idle_timeout_secs() -> u64 {
+    300
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -281,6 +287,7 @@ mod tests {
         assert_eq!(config.paths.lisa_root, ".lisa");
         assert!(config.paths.source.is_empty());
         assert_eq!(config.paths.tests_ddv, "");
+        assert_eq!(config.limits.idle_timeout_secs, 300);
         assert!(config.agent.extra_args.is_empty());
     }
 
@@ -365,6 +372,7 @@ max_tasks_per_pass = 5
 stall_threshold = 2
 # budget_usd = 0.0       # 0 = unlimited
 # budget_warn_pct = 80   # warn at this % of budget
+idle_timeout_secs = 300  # kill agent after 5 min with no output
 
 [review]
 # Human review gates. When false, loop runs fully autonomously.
