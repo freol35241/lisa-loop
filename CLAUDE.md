@@ -5,13 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-cargo build              # Build the project
+cargo build              # Build the project (dev, dynamically linked)
 cargo test               # Run all unit tests
 cargo test <test_name>   # Run a single test (e.g., cargo test test_parse_tasks)
 cargo test <mod>::tests  # Run all tests in a module (e.g., cargo test config::tests)
 cargo clippy             # Lint
 cargo fmt                # Format
 cargo install --path .   # Install the `lisa` binary
+
+# Portable release build (statically linked, no glibc dependency):
+rustup target add x86_64-unknown-linux-musl
+sudo apt-get install -y musl-tools
+cargo build --release --target x86_64-unknown-linux-musl
+# Binary: target/x86_64-unknown-linux-musl/release/lisa
 ```
 
 ## What This Project Is
