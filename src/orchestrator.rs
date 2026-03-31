@@ -739,6 +739,9 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     state::save_state(&lisa_root, &SpiralState::Scoping)?;
     std::fs::create_dir_all(lisa_root.join("spiral/pass-0"))?;
 
+    // Ensure scope artifact spec files are on disk for the agent to read
+    prompt::ensure_scope_specs(&lisa_root, config)?;
+
     // Check for existing feedback (resume case)
     let feedback_path = lisa_root.join("spiral/pass-0/scope-feedback.md");
     let extra_context = if feedback_path.exists() {

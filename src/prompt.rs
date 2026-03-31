@@ -1,3 +1,4 @@
+use anyhow::Result;
 use crate::config::Config;
 use std::path::Path;
 
@@ -10,6 +11,25 @@ pub const PROMPT_BUILD: &str = include_str!("../prompts/PROMPT_build.md");
 pub const PROMPT_VALIDATE: &str = include_str!("../prompts/PROMPT_validate.md");
 pub const PROMPT_FINALIZE: &str = include_str!("../prompts/PROMPT_finalize.md");
 pub const PROMPT_EXPLORE: &str = include_str!("../prompts/PROMPT_explore.md");
+
+// Compiled-in scope artifact specs (read on demand by the scoping agent)
+const SCOPE_SPEC_METHODOLOGY: &str = include_str!("../prompts/scope/methodology_spec.md");
+const SCOPE_SPEC_LITERATURE_SURVEY: &str = include_str!("../prompts/scope/literature_survey_spec.md");
+const SCOPE_SPEC_SPIRAL_PLAN: &str = include_str!("../prompts/scope/spiral_plan_spec.md");
+const SCOPE_SPEC_STACK_SELECTION: &str = include_str!("../prompts/scope/stack_selection_spec.md");
+const SCOPE_SPEC_VALIDATION: &str = include_str!("../prompts/scope/validation_specs.md");
+const SCOPE_SPEC_IMPLEMENTATION_PLAN: &str = include_str!("../prompts/scope/implementation_plan_spec.md");
+const SCOPE_SPEC_DDV_SCENARIOS: &str = include_str!("../prompts/scope/ddv_scenarios_spec.md");
+
+pub const SCOPE_SPECS: &[(&str, &str)] = &[
+    ("methodology_spec.md", SCOPE_SPEC_METHODOLOGY),
+    ("literature_survey_spec.md", SCOPE_SPEC_LITERATURE_SURVEY),
+    ("spiral_plan_spec.md", SCOPE_SPEC_SPIRAL_PLAN),
+    ("stack_selection_spec.md", SCOPE_SPEC_STACK_SELECTION),
+    ("validation_specs.md", SCOPE_SPEC_VALIDATION),
+    ("implementation_plan_spec.md", SCOPE_SPEC_IMPLEMENTATION_PLAN),
+    ("ddv_scenarios_spec.md", SCOPE_SPEC_DDV_SCENARIOS),
+];
 
 #[derive(Debug, Clone, Copy)]
 pub enum Phase {
@@ -212,6 +232,22 @@ pub fn build_agent_input(
     input
 }
 
+/// Write scope artifact spec files to .lisa/prompts/scope/ if they don't already exist.
+/// Renders {{placeholder}} substitutions so the agent sees concrete paths and values.
+/// Preserves user-customized files (same pattern as eject-prompts).
+pub fn ensure_scope_specs(lisa_root: &Path, config: &Config) -> Result<()> {
+    let scope_dir = lisa_root.join("prompts/scope");
+    std::fs::create_dir_all(&scope_dir)?;
+    for (filename, content) in SCOPE_SPECS {
+        let path = scope_dir.join(filename);
+        if !path.exists() {
+            let rendered = render_prompt(content, config, Some(0));
+            std::fs::write(&path, rendered)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,5 +336,72 @@ tests_integration = "tests/integration"
         assert!(!PROMPT_VALIDATE.is_empty());
         assert!(!PROMPT_FINALIZE.is_empty());
         assert!(!PROMPT_EXPLORE.is_empty());
+    }
+
+    #[test]
+    fn test_scope_specs_not_empty() {
+        assert_eq!(SCOPE_SPECS.len(), 7);
+        for (filename, content) in SCOPE_SPECS {
+            assert!(!filename.is_empty(), "spec filename is empty");
+            assert!(!content.is_empty(), "spec content is empty for {}", filename);
+        }
+    }
+
+    #[test]
+    fn test_scope_prompt_references_all_specs() {
+        for (filename, _) in SCOPE_SPECS {
+            let reference = format!("prompts/scope/{}", filename);
+            assert!(
+                PROMPT_SCOPE.contains(&reference),
+                "PROMPT_scope.md does not reference {}",
+                filename,
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_scope_specs_creates_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lisa_root = tmp.path();
+        let config = test_config();
+        ensure_scope_specs(lisa_root, &config).unwrap();
+
+        for (filename, _) in SCOPE_SPECS {
+            let path = lisa_root.join("prompts/scope").join(filename);
+            assert!(path.exists(), "{} was not created", filename);
+            let written = std::fs::read_to_string(&path).unwrap();
+            // Specs should be rendered — no raw {{lisa_root}} placeholders remaining
+            assert!(
+                !written.contains("{{lisa_root}}"),
+                "{} still contains unrendered {{{{lisa_root}}}} placeholder",
+                filename,
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_scope_specs_preserves_existing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lisa_root = tmp.path();
+        let config = test_config();
+        let scope_dir = lisa_root.join("prompts/scope");
+        std::fs::create_dir_all(&scope_dir).unwrap();
+
+        // Write a customized version of the first spec
+        let (filename, _) = SCOPE_SPECS[0];
+        let custom = "# My custom spec\n";
+        std::fs::write(scope_dir.join(filename), custom).unwrap();
+
+        ensure_scope_specs(lisa_root, &config).unwrap();
+
+        // Custom file should be preserved
+        let content = std::fs::read_to_string(scope_dir.join(filename)).unwrap();
+        assert_eq!(content, custom, "existing file was overwritten");
+
+        // Other files should have been created
+        for (fname, _) in &SCOPE_SPECS[1..] {
+            let path = scope_dir.join(fname);
+            assert!(path.exists(), "{} was not created", fname);
+        }
     }
 }

@@ -80,6 +80,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/references/retrieved",
         ".lisa/ddv",
         ".lisa/output",
+        ".lisa/prompts/scope",
     ];
 
     for dir in &dirs {

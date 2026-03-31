@@ -415,9 +415,23 @@ fn cmd_eject_prompts() -> Result<()> {
         }
     }
 
+    // Also eject scope artifact spec files
+    let scope_dir = prompts_dir.join("scope");
+    std::fs::create_dir_all(&scope_dir)?;
+    for (filename, content) in prompt::SCOPE_SPECS {
+        let path = scope_dir.join(filename);
+        if path.exists() {
+            terminal::log_warn(&format!("  Skipping scope/{} (already exists)", filename));
+        } else {
+            std::fs::write(&path, content)?;
+            terminal::log_success(&format!("  Written scope/{}", filename));
+        }
+    }
+
     println!();
     terminal::log_info("Prompts ejected to .lisa/prompts/");
-    terminal::log_info("Edit them freely — the CLI will use local prompts when present.");
+    terminal::log_info("Scope artifact specs ejected to .lisa/prompts/scope/");
+    terminal::log_info("Edit them freely — the CLI will use local versions when present.");
     println!();
 
     Ok(())
