@@ -20,7 +20,7 @@ Read **all** of the following:
 - `{{lisa_root}}/STACK.md` — project-specific operational guidance. **Pay particular attention to the "Resolved Technology Stack" section** — all implementation plan tasks you write must reference the concrete language, libraries, and tools specified there.
 - `{{lisa_root}}/methodology/methodology.md` — the current methodology
 - `{{lisa_root}}/methodology/plan.md` — the current implementation plan
-- `{{lisa_root}}/ddv/scenarios.md` — DDV verification scenarios and manifest
+- `{{lisa_root}}/skills/engineering-judgment.md` — the bounding methodology agents follow
 - `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` — what success looks like
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — scope progression across passes (read this to determine the scope and fidelity target for this pass)
 
@@ -34,7 +34,7 @@ If this is **Pass N > 1**:
 - Read `{{lisa_root}}/spiral/pass-{N-1}/system-validation.md` — what validation checks passed/failed
 - Read `{{lisa_root}}/spiral/pass-{N-1}/execution-report.md` — previous execution results
 - Read `{{lisa_root}}/spiral/pass-{N-1}/human-redirect.md` — human guidance (if file exists)
-- Read any files in `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` — unresolved methodology or DDV disagreement issues from build
+- Read any files in `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` — unresolved methodology issues from build
 
 ### 2. Research Delegation
 
@@ -69,14 +69,7 @@ Do not simply paste subagent output — integrate it with your own reasoning.
 
 If `{{lisa_root}}/spiral/pass-{N-1}/reconsiderations/` contains unresolved issues, resolve each one:
 
-**For DDV disagreements** (`ddv-disagreement-*.md`):
-1. Go back to the authoritative source paper cited by both the test and the implementation
-2. Determine which interpretation is correct
-3. If the **test was wrong**: update the corresponding DDV scenario in `{{lisa_root}}/ddv/scenarios.md` with the correct expected value.
-4. If the **implementation was wrong**: the task will be re-attempted in this pass's build phase
-5. Document your adjudication in the refine summary
-
-**For methodology issues** (other reconsideration files):
+**For methodology issues:**
 1. Evaluate the proposed alternative
 2. Update `{{lisa_root}}/methodology/methodology.md` if the alternative is accepted
 3. Update verification cases if the methodology change affects expected values
@@ -115,26 +108,25 @@ After any methodology change:
    - Add new entries to `{{lisa_root}}/validation/reference-data.md` (format: `RD-NNN`)
    These documents are checked during every validation phase. Keep them current.
 
-### 5. Assign DDV Scenarios to Tasks
+### 5. Identify Bounding Check Requirements
 
-Read `{{lisa_root}}/ddv/scenarios.md` and assign relevant scenario IDs to each task's
-`**DDV Scenarios:**` field in the plan. A task should reference scenarios whose physical
-behaviors it is responsible for enabling.
+For each task in the plan, identify what bounding checks should be derived as part of
+implementation, following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`:
 
-If methodology changes in this pass may invalidate existing DDV scenarios (e.g., changing
-the governing equations or valid parameter ranges), flag this explicitly in the refine
-summary so the human can decide whether to re-run the DDV Agent.
+- Which phenomena need Level 1 (phenomenon) bounds?
+- Which compositions need Level 2 (composition) bounds?
+- Does the system output need a Level 3 (system) independent estimate?
 
-### 6. Update DDV Scenarios
+Add bounding check items to each task's checklist (e.g., "Derive phenomenon bounds for [X]").
 
-If methodology changes affect expected values or valid ranges, update the corresponding
-DDV scenarios in `{{lisa_root}}/ddv/scenarios.md`. For new methods that need verification,
-add new scenario sketches (the DDV Agent will fully ground them if re-run). Each scenario
-should have expected values with sources.
-
-### 7. Update Implementation Plan
+### 6. Update Implementation Plan
 
 Read `{{lisa_root}}/spiral/pass-0/spiral-plan.md` to determine the scope and fidelity target for this pass.
+
+**Task cap:** Create at most **{{max_tasks_per_pass}}** tasks for this pass. If the current scope
+requires more, shrink the pass scope and defer remaining work to subsequent passes. Update the
+spiral plan accordingly. Splitting a pass into smaller passes is always preferred over creating
+a large pass.
 
 Update `{{lisa_root}}/methodology/plan.md`:
 - **For Pass 1:** The scope phase created a structural skeleton with task names, ordering, methodology references, and dependencies — but no checklists. Now that the methodology is fully specified, add detailed checklists to each existing task based on the complete equations and implementation notes. Split or merge tasks if the fully specified methodology reveals the original sizing was wrong.
@@ -143,8 +135,8 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - Each task references a methodology section
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
-- Tasks do NOT include DDV test items — the Validate phase writes executable tests from DDV scenarios
-- Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. If the task's DDV scenarios have `**Visual:**` fields, the corresponding plots should appear as checklist items. Store plots in `{{lisa_root}}/plots/`.
+- Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. Store plots in `{{lisa_root}}/spiral/pass-{{pass}}/plots/`.
+- Tasks should include bounding check items where applicable: `- [ ] Derive phenomenon bounds for [X]` following the engineering judgment skill.
 
 **Task format:**
 ```markdown
@@ -152,7 +144,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
 - **Pass:** N
 - **Methodology:** [section ref]
-- **DDV Scenarios:** DDV-001, DDV-003 (or "none")
+- **Bounding Checks:** L1 for [phenomenon], L2 for [composition] (or "none")
 - **Checklist:**
   - [ ] [Implement X]
   - [ ] [Implement Y]
@@ -162,8 +154,6 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - **Dependencies:** [task refs or "None"]
 ```
 
-Note: no DDV test items in the plan. The Validate phase writes executable tests from DDV scenarios.
-
 **Task rules:**
 - Order tasks bottom-up: utilities → core equations → higher-level models → integration
 - Each task completable in a single build iteration
@@ -171,9 +161,9 @@ Note: no DDV test items in the plan. The Validate phase writes executable tests 
 - Infrastructure tasks come first if needed
 - Tag every task with `**Pass:** N` for the current pass
 
-### 8. Produce Refine Summary
+### 7. Produce Refine Summary
 
-Create `{{lisa_root}}/spiral/pass-N/refine-summary.md`:
+Create `{{lisa_root}}/spiral/pass-{{pass}}/refine-summary.md`:
 
 If nothing changed: write only "No methodology changes this pass."
 

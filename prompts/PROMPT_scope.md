@@ -9,6 +9,15 @@ You are a research engineer establishing the scope, acceptance criteria, methodo
 ### Phase 1: READ INPUTS
 Read `ASSIGNMENT.md`, `{{lisa_root}}/STACK.md`, and skim `{{lisa_root}}/references/core/`.
 
+If `{{lisa_root}}/CODEBASE.md` exists, read it carefully. This means you are working with an
+existing codebase. Scope your work as modifications to the existing system — the methodology
+should describe what is being added or changed, not the entire system. Bounding checks should
+include regression coverage for existing behavior that might be affected.
+
+If the `[paths]` section in `lisa.toml` has empty `source` and test paths (greenfield project),
+you must resolve them during technology stack selection in Phase 3: create appropriate source
+and test directories for the chosen language/framework and update `lisa.toml` with the paths.
+
 Pay particular attention to the **"Approach"** section of `ASSIGNMENT.md`. If the human has
 stated a methodological preference (e.g., "simplest method possible," "state of the art,"
 or a specific method/paper to follow), respect it throughout all subsequent phases. If the
@@ -20,27 +29,25 @@ Spawn the **Literature Survey** and **Environment Probe** subagents (they are in
 
 ### Phase 3: FIRST SYNTHESIS
 Synthesize subagent results. Select methodology and technology stack. Write:
-- `{{lisa_root}}/methodology/methodology.md`
-- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
-- Update `{{lisa_root}}/STACK.md` with resolved technology stack
+- `{{lisa_root}}/methodology/methodology.md` — read spec at `{{lisa_root}}/prompts/scope/methodology_spec.md`
+- `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md` (format below)
+- Update `{{lisa_root}}/STACK.md` — read spec at `{{lisa_root}}/prompts/scope/stack_selection_spec.md`
 
 ### Phase 4: DELEGATE VALIDATION
 Spawn the **Validation Research** and **Test Framework Research** subagents (they are independent — delegate back-to-back). Wait for results.
 
 ### Phase 5: FINAL SYNTHESIS
 Synthesize subagent results. Write all remaining artifacts:
-- `{{lisa_root}}/methodology/plan.md`
-- `{{lisa_root}}/ddv/scenarios.md` — initial DDV scenario sketches (the DDV Agent will refine these)
-- `{{lisa_root}}/spiral/pass-0/literature-survey.md` (review/augment subagent output)
-- `{{lisa_root}}/spiral/pass-0/spiral-plan.md`
-- `{{lisa_root}}/validation/sanity-checks.md`
-- `{{lisa_root}}/validation/limiting-cases.md`
-- `{{lisa_root}}/validation/reference-data.md`
+- `{{lisa_root}}/methodology/plan.md` — read spec at `{{lisa_root}}/prompts/scope/implementation_plan_spec.md`
+- `{{lisa_root}}/spiral/pass-0/literature-survey.md` — read spec at `{{lisa_root}}/prompts/scope/literature_survey_spec.md`
+- `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — read spec at `{{lisa_root}}/prompts/scope/spiral_plan_spec.md`
+- Validation artifacts (`sanity-checks.md`, `limiting-cases.md`, `reference-data.md`) — read spec at `{{lisa_root}}/prompts/scope/validation_specs.md`
 - Create or update the project root `.gitignore` with patterns appropriate for the resolved
   technology stack (build outputs, dependency caches, virtual environments, IDE files, OS files,
-  framework-specific artifacts). Base patterns on the resolved stack in `{{lisa_root}}/STACK.md`.
-  If a `.gitignore` already exists, merge new patterns without removing existing ones.
-- `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md` (last)
+  framework-specific artifacts). If a `.gitignore` already exists, merge new patterns without removing existing ones.
+- `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md` (last — format below)
+
+**Important:** Before writing each artifact, read its spec file for the required format and guidance. The spec files are at `{{lisa_root}}/prompts/scope/`. Each contains the template, rules, and examples for that artifact.
 
 ## Scope Feedback (Refinement Re-invocation)
 
@@ -72,33 +79,8 @@ candidate methods for [problem from ASSIGNMENT.md]. For each candidate: provide 
 (author(s), year, title, DOI/URL), approach description, fidelity level, assumptions,
 valid range, pros/cons for our problem. Evaluate alternatives. Save paper summaries to
 {{lisa_root}}/references/retrieved/ with citations and key equations. Write the complete literature
-survey to {{lisa_root}}/spiral/pass-0/literature-survey.md using this template:
-
-# Literature Survey
-
-## Methods Surveyed
-
-### [Topic/Phenomenon A]
-
-#### [Method 1 Name]
-- **Source:** [Author(s), Year, Title, DOI/URL]
-- **Approach:** [Brief description]
-- **Fidelity:** [Low / Medium / High]
-- **Assumptions:** [Key assumptions]
-- **Valid range:** [Where it applies]
-- **Pros:** [Advantages for our problem]
-- **Cons:** [Disadvantages or limitations]
-- **Available:** [YES / NEEDS_PAPER]
-
-#### Recommended Approach for [Topic A]
-[Which method(s) to use and why]
-
-## Papers Retrieved
-[List papers saved to {{lisa_root}}/references/retrieved/ with full citations]
-
-## Papers Needed
-[Papers flagged with NEEDS_PAPER that the human should provide]
-
+survey to {{lisa_root}}/spiral/pass-0/literature-survey.md using the template in
+{{lisa_root}}/prompts/scope/literature_survey_spec.md.
 Rules: Every method candidate must cite a peer-reviewed source. Never fabricate equations
 from memory. Prefer open-access papers. Document alternatives considered for each phenomenon."
 
@@ -129,229 +111,24 @@ Prompt pattern: "Read ASSIGNMENT.md and {{lisa_root}}/methodology/methodology.md
 for: limiting cases where the answer is known analytically, reference datasets for
 comparison, conservation laws that must be satisfied, order-of-magnitude estimates from
 first principles, and cross-validation opportunities using independent methods. Return
-structured findings organized by category:
-
-## Known Limiting Cases
-- [Case]: When [condition], result should be [value] because [reason]. Source: [citation].
-
-## Reference Data
-- [Dataset]: [Source citation], [what it measures], [how to compare].
-
-## Conservation Laws
-- [Law]: [Statement], [how to check in our system].
-
-## Order-of-Magnitude Estimates
-- [Quantity]: Estimate [value] [units] based on [reasoning].
-
-## Cross-Validation Opportunities
-- [Method]: [How it can corroborate results]."
+structured findings organized by category (Known Limiting Cases, Reference Data,
+Conservation Laws, Order-of-Magnitude Estimates, Cross-Validation Opportunities)."
 
 ### Test Framework Research subagent
 Delegate when: After technology stack is selected (Phase 4).
 Prompt pattern: "Given this technology stack: [language] with [test framework]. Research
-how to implement a three-category test structure: DDV tests ({{tests_ddv}}/), software tests
-({{tests_software}}/), and integration tests ({{tests_integration}}/). DDV tests need L0/L1
-level filtering. Return:
-
-## Test Commands
-- Run all tests: [command]
-- Run DDV tests only: [command]
-- Run software tests only: [command]
-- Run integration tests only: [command]
-- Run DDV L0 only: [command]
-- Run DDV L1 only: [command]
-
-## Configuration Required
-[Any config files, settings, or infrastructure needed to support the test structure]
-
-## Infrastructure Task Description
-[What needs to be set up as the first task in the implementation plan — concrete steps]"
+how to implement a test structure with: bounding tests ({{tests_bounds}}/ with phenomenon/,
+composition/, system/ subdirectories), software tests ({{tests_software}}/), and integration
+tests ({{tests_integration}}/). Return: test commands for each category, configuration
+required, and an infrastructure task description for what needs to be set up."
 
 ---
 
-## Artifacts to Produce
+## Inline Artifact Specs
 
-You must create **all** of the following files. Do not skip any.
+The following artifacts are small enough to specify here directly (no external spec file needed).
 
----
-
-### 1. `{{lisa_root}}/methodology/methodology.md` — The Methodology Document
-
-**This is the central technical artifact.** It identifies the recommended methods, cites source papers, lists key equations by name/number, and documents assumptions and valid ranges.
-
-**Division of labor:** The methodology created here is an *initial specification*. It identifies the recommended method, cites the source paper, lists key equations by name/number, and documents assumptions and valid ranges. It does NOT contain full equation derivations with every variable defined — that level of detail is the refine phase's job in Pass 1. This intentional fidelity gap is what gives the first refine phase meaningful work: transforming a method recommendation into a complete, implementable specification.
-
-Populate `{{lisa_root}}/methodology/methodology.md`:
-
-```markdown
-# Methodology
-
-## Phenomenon
-[What this project models — from ASSIGNMENT.md]
-
-## Candidate Methods
-
-### [Method 1]
-- **Source:** [Citation]
-- **Approach:** [Description]
-- **Fidelity:** [Low / Medium / High]
-- **Pros:** [For our problem]
-- **Cons:** [Limitations]
-
-### [Method 2]
-...
-
-## Recommended Approach
-[Which method and why, considering spiral progression and the human's approach preference from ASSIGNMENT.md]
-[If the human asked for simplicity, justify why this method is the simplest that can meet the acceptance criteria]
-[If the human asked for state of the art, justify why this is the best available method]
-[If there is a mismatch between the requested approach and the acceptance criteria, flag it explicitly]
-
-## Key Equations
-[Identify by name and equation number from the source paper — e.g., "Eq. 12 in Faltinsen (1990)" or "ITTC-57 friction line." Do NOT write out the full mathematical expressions here — that is the refine phase's job. If a specific paper is needed but not yet available, flag with [NEEDS_PAPER].]
-
-## Assumptions
-[List all assumptions]
-
-## Valid Range
-[Parameter ranges where the chosen method applies]
-```
-
-If the problem has distinct sub-topics (e.g., frictional resistance, wave resistance, added resistance), organize the methodology into clearly separated **sections** within the single document. Each section follows the same structure above.
-
----
-
-### 2. `{{lisa_root}}/methodology/plan.md` — Implementation Plan (Structural Skeleton)
-
-Initial implementation plan with task structure for Pass 1. At this stage you know *what*
-needs to be implemented and in what order, but the equations are not yet fully specified —
-that detail comes from the refine phase. Keep this plan at the structural level: task names,
-ordering, methodology references, and dependencies. Do NOT write detailed checklists — the
-refine phase will flesh those out once the methodology is complete.
-
-```markdown
-# Implementation Plan
-
-## Tasks
-
-### Task 1: [Short name]
-- **Status:** TODO
-- **Pass:** 1
-- **Methodology:** [section ref]
-- **Dependencies:** [task refs or "None"]
-
-### Task 2: [Short name]
-- **Status:** TODO
-- **Pass:** 1
-- **Methodology:** [section ref]
-- **Dependencies:** [task refs or "None"]
-```
-
-**Task rules:**
-- Order tasks bottom-up: utilities → core equations → higher-level models → integration
-- Each task should be scoped for a single Ralph iteration
-- Infrastructure tasks (setup, test framework, etc.) come first if needed
-- Tag every task with `**Pass:** 1` for Pass 1 tasks
-- Pass 2+ tasks can be sketched with TODO placeholders
-- Tasks do NOT include DDV test items — DDV tests are written from scenarios by the Validate phase
-- Do NOT add checklists — the refine phase adds those after completing the methodology
-
----
-
-### 3. Initial DDV Scenario Sketches — `{{lisa_root}}/ddv/scenarios.md`
-
-Write initial DDV scenario sketches directly into `{{lisa_root}}/ddv/scenarios.md`. These are preliminary
-verification scenarios that the DDV Agent will later refine and expand with full literature grounding.
-Place scenarios after the `## Scenarios` heading (the `## Manifest` section at the top is managed by later phases).
-
-Use this simplified format for each scenario:
-
-```markdown
-## DDV-001: [Short descriptive title]
-
-**Physical behavior:** [What physical/domain behavior this tests]
-**Level:** L0 | L1
-**Conditions:** [Input parameters with units]
-**Expected output:** [Expected result with units and tolerance]
-**Source:** [Citation or reasoning for expected value]
-**Category:** [unit-function | model-behavior | system-integration | limiting-case | reference-data]
-**Visual:** [What plot to generate, or "None" for simple spot-checks]
-```
-
-L0 = individual function tests (known input → known output). L1 = model-level tests (behavior over valid range).
-These sketches do not need the full rigor of DDV Agent scenarios — they establish the verification
-intent that the DDV Agent will ground in authoritative literature.
-
----
-
-### 4. Technology Stack Selection — `{{lisa_root}}/STACK.md` + Environment Probing
-
-**This artifact ensures that all subsequent agents use a concrete, verified technology stack rather than making implicit choices.**
-
-#### Reason About Stack Selection
-
-Before probing the environment, reason about the best technology stack for this project:
-
-- **Computational requirements:** Is the problem compute-bound (favoring a compiled language) or I/O-bound / prototyping-oriented (where a scripting language suffices)?
-- **Ecosystem:** Are there domain-specific libraries that favor a particular language?
-- **Human preferences:** Read the "Technology Preferences" section of `ASSIGNMENT.md`. If the human stated preferences, respect them. If blank, choose freely.
-
-#### Probe the Local Environment
-
-The Environment Probe subagent has already checked what runtimes and tools are available.
-Synthesize its report here: verify it covers all runtimes needed for your chosen stack,
-and note any gaps that require human resolution.
-
-#### Handle Two Categories of Dependencies
-
-**1. Runtimes and toolchains** (language interpreters, compilers, system-level libraries, etc.):
-
-Check if these are present by running version commands. If a required runtime is **not available**:
-- Do **NOT** attempt to install it
-- Create `{{lisa_root}}/spiral/pass-0/environment-resolution.md` listing what is missing:
-
-```markdown
-# Environment Resolution Required
-
-## Missing Runtimes / Toolchains
-
-### [Tool Name]
-- **What:** [e.g., Python 3.10+]
-- **Why needed:** [e.g., Primary implementation language]
-- **Suggested install:** [e.g., `apt install python3` or `pyenv install 3.11`]
-- **Alternative:** [Could a different stack choice avoid this? If so, describe.]
-
-## Status
-Waiting for human resolution before proceeding.
-```
-
-If all required runtimes are present, do **NOT** create this file (or create it empty).
-
-**2. Package-level dependencies** (packages, crates, modules, etc.):
-
-Install these directly using the appropriate package manager. These are routine development dependencies:
-- Run the install command using the appropriate package manager
-- Verify each install succeeded
-- Record installed versions in {{lisa_root}}/STACK.md
-
-#### Populate {{lisa_root}}/STACK.md
-
-Update the "Resolved Technology Stack" section of `{{lisa_root}}/STACK.md`:
-
-- **Language & Runtime:** Fill with verified language and version (e.g., "Python 3.11.5 (verified present)")
-- **Key Dependencies:** List all installed packages with versions
-- **Test Framework:** Specify the chosen test framework and version
-- **Stack Justification:** Brief reasoning for the technology choices
-
-Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, tested commands** — no more placeholders. If the human pre-filled any command sections before running scope, verify those commands work (run them) rather than overwriting them.
-
-**Backward compatibility:** If {{lisa_root}}/STACK.md already has concrete (non-placeholder) commands filled in by the user, verify they work and keep them. Only populate sections that contain placeholders or template text.
-
----
-
-### 5. System-Level Files
-
-#### `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
+### Acceptance Criteria — `{{lisa_root}}/spiral/pass-0/acceptance-criteria.md`
 
 ```markdown
 # Acceptance Criteria
@@ -361,163 +138,51 @@ Fill in all command sections (Setup, Build, Test, Lint, etc.) with **concrete, t
 
 ## Success Criteria
 [For each key output:]
-- **[Output name]:** [Target value or range] [units] — accuracy needed: [±X or X%]
+- **[Output name]:** [Target value or range] [units] — accuracy needed: [+/-X or X%]
 - [Justification for accuracy requirement]
 
 ## Decision Context
 [What decisions will be made based on this answer? What accuracy is needed for those decisions?]
 ```
 
-#### `{{lisa_root}}/validation/sanity-checks.md`
-
-```markdown
-# Sanity Checks
-
-These are engineering judgment checks to be executed after every spiral pass.
-A failure on any check indicates a likely error and should block acceptance.
-
-## Order of Magnitude
-- [ ] [Quantity] should be approximately [value] [units] (±[order of magnitude])
-  - **Reasoning:** [Why this magnitude is expected]
-
-## Expected Trends
-- [ ] When [parameter] increases, [quantity] should [increase/decrease/remain constant]
-  - **Reasoning:** [Physical justification]
-
-## Physical Bounds
-- [ ] [Quantity] must be [positive / in range [a,b] / less than X]
-  - **Reasoning:** [Physical constraint]
-
-## Conservation
-- [ ] [Conserved quantity] should be preserved to within [tolerance]
-  - **Check method:** [How to verify]
-
-## Dimensional Analysis
-- [ ] All outputs have correct dimensions/units
-  - **Check method:** [How to verify]
-
-## Red Flags
-- [ ] [Specific condition that would indicate a clearly wrong answer]
-```
-
-#### `{{lisa_root}}/validation/limiting-cases.md`
-
-Extract the limiting cases from your validation research and format them using the `LC-NNN` format (e.g., `LC-001`, `LC-002`). Each entry should include: case description, the condition, expected result, source/reasoning, and a pass/fail status placeholder.
-
-#### `{{lisa_root}}/validation/reference-data.md`
-
-Extract the reference datasets from your validation research and format them using the `RD-NNN` format (e.g., `RD-001`, `RD-002`). Each entry should include: dataset description, source citation, what it measures, comparison method, and a pass/fail status placeholder.
-
-These are the living validation documents that will be checked during every validation phase and refined during methodology refinement phases.
-
-#### `{{lisa_root}}/spiral/pass-0/literature-survey.md`
-
-Survey of candidate methods, organized by topic/phenomenon:
-
-```markdown
-# Literature Survey
-
-## Methods Surveyed
-
-### [Topic/Phenomenon A]
-
-#### [Method 1 Name]
-- **Source:** [Author(s), Year, Title, DOI/URL]
-- **Approach:** [Brief description]
-- **Fidelity:** [Low / Medium / High]
-- **Assumptions:** [Key assumptions]
-- **Valid range:** [Where it applies]
-- **Pros:** [Advantages for our problem]
-- **Cons:** [Disadvantages or limitations]
-- **Available:** [YES / NEEDS_PAPER — whether full paper is accessible]
-
-[Repeat for each candidate method]
-
-#### Recommended Approach for [Topic A]
-[Which method(s) to use and why]
-
-### [Topic/Phenomenon B]
-[Same structure]
-
-## Cross-Cutting Methods
-[Any methods that span multiple topics]
-
-## Papers Retrieved
-[List papers saved to {{lisa_root}}/references/retrieved/ with full citations]
-
-## Papers Needed
-[Papers flagged with [NEEDS_PAPER] that the human should provide]
-```
-
-The **Literature Survey subagent** has produced this artifact. Review it, augment with your
-own judgment if needed, and ensure it meets the template above. Verify that:
-- Every method candidate cites a peer-reviewed source (author(s), year, title, DOI/URL)
-- Alternatives are documented for each phenomenon
-- Papers saved to `{{lisa_root}}/references/retrieved/` have proper citations and key equations
-
-#### `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — Scope Progression
-
-The spiral plan MUST define how scope and fidelity increase per pass. Early passes test
-the methodology on a SUBSET of the full problem — not the full scope at low fidelity.
-
-**Calibrate the spiral plan to the human's approach preference** from `ASSIGNMENT.md`:
-- If they want simplicity/minimum viable: plan fewer passes, stay with one method, widen
-  tolerances. The spiral may converge in 1-2 passes.
-- If they want state of the art: plan for progressive method upgrades across passes,
-  tighter final tolerances, more validation.
-- If they specified a particular method: build the spiral around that method's scope
-  progression (narrow → broad), not around method upgrades.
-- If no preference stated: use balanced judgment.
-
-```markdown
-# Spiral Plan
-
-## Approach Philosophy
-[Summarize the human's approach preference from ASSIGNMENT.md, or state "balanced (default)"
-if none was given. Note any tension between the requested approach and the acceptance criteria.]
-
-## Scope Progression
-
-| Pass | Scope subset | Fidelity | Acceptance (this pass) | Key question |
-|------|-------------|----------|----------------------|--------------|
-| 1    | [subset]    | [level]  | [±X%]               | Does the approach work at all? |
-| 2    | [broader]   | [level]  | [±X%]               | Does it generalize across range? |
-| 3    | [full]      | [level]  | [±X%]               | Does coupling work? |
-| 4    | [full]      | [refined]| [±X%]               | Converged? |
-
-## Progress Tracking Expectations
-[What quantities to track across passes, expected rate of change]
-
-## Risk Areas
-[Where methodology might need reconsideration, known difficult aspects]
-```
-
-Example for ship resistance (5-25 kn, sea states 1-6), **balanced** approach:
-- Pass 1: 12 kn, calm water, simplest method → ±50%
-- Pass 2: 5-25 kn, calm water, add corrections → ±20%
-- Pass 3: Full range + sea states 1-3 → ±10%
-- Pass 4: Full scope, refined methods → ±5%
-
-Same problem, **minimum viable** approach:
-- Pass 1: Full speed range, calm water, Holtrop-Mennen → ±15%
-- Pass 2: Add sea state corrections → ±10%
-(Fewer passes, simpler method, acceptance tolerances widened to match method capability)
-
-The refine phase reads this plan to scope tasks for the current pass.
-The Validate phase writes executable DDV tests only for the current pass's scope subset.
-Acceptance criteria are staged — early passes have wider tolerances.
-
----
-
-### 6. Assumptions Register
-
-#### `{{lisa_root}}/methodology/assumptions-register.md`
+### Assumptions Register — `{{lisa_root}}/methodology/assumptions-register.md`
 
 If you identify any cross-cutting assumptions during scoping, add them to the existing template in `{{lisa_root}}/methodology/assumptions-register.md`.
 
+### PASS_COMPLETE — `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md`
+
+Create this file **last**, after all other artifacts are complete.
+
+```markdown
+# Pass 0 — Scoping Complete
+
+## Summary
+[One paragraph summary of what was established]
+
+## Artifacts Produced
+- {{lisa_root}}/STACK.md (resolved technology stack, concrete commands)
+- {{lisa_root}}/methodology/methodology.md
+- {{lisa_root}}/methodology/plan.md
+- {{lisa_root}}/spiral/pass-0/acceptance-criteria.md
+- {{lisa_root}}/spiral/pass-0/literature-survey.md
+- {{lisa_root}}/spiral/pass-0/spiral-plan.md
+- {{lisa_root}}/spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)
+- {{lisa_root}}/validation/sanity-checks.md
+- {{lisa_root}}/validation/limiting-cases.md
+- {{lisa_root}}/validation/reference-data.md
+
+## Key Decisions
+[List the most important scoping decisions made]
+
+## Open Questions for Human Review
+[Anything that needs human input before proceeding to Pass 1]
+```
+
 ---
 
-### 7. Complexity Assessment
+## Additional Guidance
+
+### Complexity Assessment
 
 After surveying the literature and understanding the problem, assess whether this problem
 can be handled with a single methodology document and build loop, or whether it requires
@@ -538,33 +203,22 @@ Criteria for modular decomposition (exceptional):
 If you recommend modular decomposition, document why in the spiral plan and organize
 the methodology into clearly separated sections. The code should be organized into
 corresponding modules in `{{source_dirs}}/`. But the spiral loop is still the same — one refine phase,
-one DDV phase, one build loop. The modularity is in the content, not the process.
+one build loop, one audit. The modularity is in the content, not the process.
 
----
+### Test Categorization
 
-### 8. Test Categorization Mechanism
-
-The project uses three test categories that must be runnable independently:
-- **DDV tests** (`{{tests_ddv}}/`) — Domain-Driven Verification tests written by the Validate phase from DDV scenarios
+The project uses four test categories that must be runnable independently:
+- **Bounding tests** (`{{tests_bounds}}/`) — First-principles bounding tests at three levels (phenomenon, composition, system), written by the Build phase following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`
 - **Software tests** (`{{tests_software}}/`) — Software quality tests written by the build phase
 - **Integration tests** (`{{tests_integration}}/`) — End-to-end tests written by the Build phase
 
-Additionally, DDV tests have verification levels (Level 0: individual functions, Level 1: model level) that should be filterable.
+Bounding tests are organized into three subdirectories: `phenomenon/`, `composition/`, `system/`.
 
-When resolving the test framework, also define and document the categorization mechanism:
-- How are tests tagged/grouped by category? (markers, directories, naming conventions, test sets)
-- How are DDV tests filtered by verification level?
-- Does the framework need any configuration to support this? (e.g., marker registration, custom test runners)
+When resolving the test framework, define and document the categorization mechanism in
+`{{lisa_root}}/STACK.md` with concrete commands that select each category. Include any framework
+configuration needed as the first infrastructure task in `{{lisa_root}}/methodology/plan.md`.
 
-Document the chosen mechanism in `{{lisa_root}}/STACK.md` by filling in the test command sections with
-concrete commands that select each category.
-
-Include any framework configuration needed to make the categorization work as the first
-infrastructure task in `{{lisa_root}}/methodology/plan.md`.
-
----
-
-### 9. Code Organization
+### Code Organization
 
 Document the code layout in `{{lisa_root}}/STACK.md` (append to the existing file, do not overwrite):
 
@@ -574,44 +228,12 @@ Document the code layout in `{{lisa_root}}/STACK.md` (append to the existing fil
 Source code is organized by logical module:
 - `{{source_dirs}}/` — All implementation code, organized by logical grouping
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `{{tests_ddv}}/` — Domain-Driven Verification tests (written by Validate phase from DDV scenarios)
+- `{{tests_bounds}}/` — First-principles bounding tests (phenomenon/, composition/, system/)
 - `{{tests_software}}/` — Software quality tests (written by build phase)
 - `{{tests_integration}}/` — End-to-end tests (written by Build phase)
 ```
 
 If during scoping you identify shared infrastructure needs (e.g., common physical constants, unit conversion, atmospheric models, interpolation utilities), note these in the spiral plan as infrastructure to be created by the first task that needs them.
-
----
-
-### 10. `{{lisa_root}}/spiral/pass-0/PASS_COMPLETE.md`
-
-Create this file **last**, after all other artifacts are complete.
-
-```markdown
-# Pass 0 — Scoping Complete
-
-## Summary
-[One paragraph summary of what was established]
-
-## Artifacts Produced
-- {{lisa_root}}/STACK.md (resolved technology stack, concrete commands)
-- {{lisa_root}}/methodology/methodology.md
-- {{lisa_root}}/methodology/plan.md
-- {{lisa_root}}/ddv/scenarios.md (initial DDV scenario sketches)
-- {{lisa_root}}/spiral/pass-0/acceptance-criteria.md
-- {{lisa_root}}/spiral/pass-0/literature-survey.md
-- {{lisa_root}}/spiral/pass-0/spiral-plan.md
-- {{lisa_root}}/spiral/pass-0/environment-resolution.md (only if missing runtimes/toolchains)
-- {{lisa_root}}/validation/sanity-checks.md
-- {{lisa_root}}/validation/limiting-cases.md
-- {{lisa_root}}/validation/reference-data.md
-
-## Key Decisions
-[List the most important scoping decisions made]
-
-## Open Questions for Human Review
-[Anything that needs human input before proceeding to Pass 1]
-```
 
 ---
 
@@ -626,7 +248,7 @@ Create this file **last**, after all other artifacts are complete.
 
 ### Visual Verification
 
-- **Visuals are the preferred way to surface results for human review.** Every verification case and DDV scenario that checks a trend, comparison, limiting case, or parameter sweep should specify a `**Visual:**` field. Plots go in `{{lisa_root}}/plots/` and are documented in `{{lisa_root}}/plots/REVIEW.md`.
+- **Visuals are the preferred way to surface results for human review.** Every verification case that checks a trend, comparison, limiting case, or parameter sweep should specify a `**Visual:**` field. Plots go in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and are documented in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
 
 ### Engineering Judgment
 

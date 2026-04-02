@@ -14,16 +14,16 @@ Read **all** of the following:
 
 - `ASSIGNMENT.md` — the assignment, especially the "Deliverables" and "Deliverable format" sections
 - `{{lisa_root}}/STACK.md` — project-specific operational guidance
-- The review package for the final pass: `{{lisa_root}}/spiral/pass-N/review-package.md` (where N is the current pass)
-- `{{lisa_root}}/spiral/pass-N/progress-tracking.md` — progress tracking
-- `{{lisa_root}}/spiral/pass-N/system-validation.md` — validation results
+- The review package for the final pass: `{{lisa_root}}/spiral/pass-{{pass}}/review-package.md` (where N is the current pass)
+- `{{lisa_root}}/spiral/pass-{{pass}}/progress-tracking.md` — progress tracking
+- `{{lisa_root}}/spiral/pass-{{pass}}/system-validation.md` — validation results
 - `{{lisa_root}}/methodology/methodology.md` — the methodology
 - `{{lisa_root}}/methodology/assumptions-register.md` — assumptions and limitations
 
 ### 2. Produce Deliverables
 
 Read the "Deliverables" and "Deliverable format" sections of `ASSIGNMENT.md`.
-When producing deliverables, include or reference visual verification evidence. If the deliverable is a report, embed the most important plots. If code/data, reference `{{lisa_root}}/plots/REVIEW.md`.
+When producing deliverables, include or reference visual verification evidence. If the deliverable is a report, embed the most important plots. If code/data, reference the per-pass plot reviews at `{{lisa_root}}/spiral/pass-*/plots/REVIEW.md`.
 
 Produce the specified deliverables at the locations described in the brief.
 If the brief doesn't specify locations, place deliverables in the project root.
@@ -42,7 +42,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 [List with paths]
 
 ## Validation Status
-- DDV verification: [pass/total]
+- Bounding tests: [pass/total] (L1: [N], L2: [N], L3: [N])
 - Software tests: [pass/total]
 - Integration tests: [pass/total]
 - Sanity checks: [pass/total]
@@ -50,7 +50,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 
 ## Key Evidence
 - Methodology: {{lisa_root}}/methodology/methodology.md
-- **Visual verification evidence: {{lisa_root}}/plots/REVIEW.md** (primary review artifact)
+- **Visual verification evidence: {{lisa_root}}/spiral/pass-*/plots/REVIEW.md** (per-pass plot reviews)
 - Progress history: {{lisa_root}}/spiral/pass-*/progress-tracking.md
 - Full spiral history: {{lisa_root}}/spiral/
 

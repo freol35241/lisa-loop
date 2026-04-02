@@ -52,6 +52,25 @@ pub fn count_tasks_by_status(plan_path: &Path) -> Result<TaskCounts> {
     })
 }
 
+pub fn count_tasks_by_status_for_pass(plan_path: &Path, pass: u32) -> Result<TaskCounts> {
+    if !plan_path.exists() {
+        return Ok(TaskCounts::default());
+    }
+    let content = std::fs::read_to_string(plan_path)?;
+    let tasks = parse_tasks(&content);
+    let filtered: Vec<&Task> = tasks.iter().filter(|t| t.pass == pass).collect();
+    Ok(TaskCounts {
+        total: filtered.len() as u32,
+        todo: filtered.iter().filter(|t| t.status == "TODO").count() as u32,
+        in_progress: filtered
+            .iter()
+            .filter(|t| t.status == "IN_PROGRESS")
+            .count() as u32,
+        done: filtered.iter().filter(|t| t.status == "DONE").count() as u32,
+        blocked: filtered.iter().filter(|t| t.status == "BLOCKED").count() as u32,
+    })
+}
+
 #[derive(Debug, Default)]
 pub struct TaskCounts {
     pub total: u32,
@@ -253,5 +272,50 @@ mod tests {
         // Should not panic; returns hash of empty task list
         let hash2 = hash_task_statuses(path).unwrap();
         assert_eq!(hash, hash2, "Hash of missing file should be deterministic");
+    }
+
+    #[test]
+    fn test_count_tasks_by_status_for_pass() {
+        let dir = std::env::temp_dir().join("lisa_test_pass_filter");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"# Implementation Plan
+
+## Tasks
+
+### Task 1: Setup
+- **Status:** DONE
+- **Pass:** 1
+
+### Task 2: Core
+- **Status:** TODO
+- **Pass:** 1
+
+### Task 3: Advanced
+- **Status:** TODO
+- **Pass:** 2
+
+### Task 4: Polish
+- **Status:** BLOCKED
+- **Pass:** 2
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        let pass1 = count_tasks_by_status_for_pass(&plan, 1).unwrap();
+        assert_eq!(pass1.total, 2);
+        assert_eq!(pass1.done, 1);
+        assert_eq!(pass1.todo, 1);
+        assert_eq!(pass1.blocked, 0);
+
+        let pass2 = count_tasks_by_status_for_pass(&plan, 2).unwrap();
+        assert_eq!(pass2.total, 2);
+        assert_eq!(pass2.todo, 1);
+        assert_eq!(pass2.blocked, 1);
+
+        let pass3 = count_tasks_by_status_for_pass(&plan, 3).unwrap();
+        assert_eq!(pass3.total, 0);
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

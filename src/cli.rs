@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
     after_long_help = "\
 WORKFLOW:
 
-  lisa init → scaffold .lisa/ + ASSIGNMENT.md
+  lisa init → scaffold .lisa/ + ASSIGNMENT.md + codebase discovery
                     │
                     ▼
   ┌───────────────────────────────────────────────┐
@@ -27,7 +27,13 @@ WORKFLOW:
   │  Each pass widens scope & tightens tolerances │◄── human gate
   └──────────────────┬────────────────────────────┘
                      ▼
-  lisa finalize → answer.md + report.md
+  Finalize at review gate → answer.md + report.md
+
+ARTIFACTS:
+
+  All process artifacts live in .lisa/ — methodology, plans, skills,
+  validation results, plots, and per-pass summaries.
+  See .lisa/CLAUDE.md for a full map of what's where.
 "
 )]
 #[command(version)]
@@ -47,7 +53,7 @@ pub enum Commands {
         #[arg(long)]
         tech: Option<String>,
     },
-    /// Run the full spiral (scope if needed, then iterate)
+    /// Run the full spiral (scope if needed, then iterate). If complete, continue with --follow-up.
     Run {
         /// Maximum number of spiral passes
         #[arg(long)]
@@ -58,6 +64,9 @@ pub enum Commands {
         /// Show full agent output (overrides collapse_output config)
         #[arg(long, short)]
         verbose: bool,
+        /// Continue a completed spiral with a follow-up question
+        #[arg(long)]
+        follow_up: Option<String>,
     },
     /// Resume from saved state
     Resume {
@@ -68,20 +77,12 @@ pub enum Commands {
         #[arg(long, short)]
         verbose: bool,
     },
-    /// Run only Pass 0 (scoping)
-    Scope,
-    /// Run the DDV Agent (write or extend domain verification scenarios)
-    Ddv,
-    /// Print current spiral state
+    /// Print current spiral state and pass history
     Status,
     /// Check environment and prerequisites
     Doctor,
-    /// Produce final deliverables
-    Finalize,
     /// Copy compiled-in prompts to .lisa/prompts/ for customization
     EjectPrompts,
-    /// Show pass-by-pass history (answer, tests, recommendation)
-    History,
     /// Roll back to a previous pass boundary
     Rollback {
         /// Pass number to roll back to (e.g., 1 for end of pass 1)
@@ -89,19 +90,5 @@ pub enum Commands {
         /// Skip confirmation prompt
         #[arg(long)]
         force: bool,
-    },
-    /// Continue with a follow-up question after a completed spiral
-    Continue {
-        /// The follow-up question or task
-        question: String,
-        /// Maximum number of additional spiral passes
-        #[arg(long)]
-        max_passes: Option<u32>,
-        /// Skip all human review gates
-        #[arg(long)]
-        no_pause: bool,
-        /// Show full agent output (overrides collapse_output config)
-        #[arg(long, short)]
-        verbose: bool,
     },
 }

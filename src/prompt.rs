@@ -1,32 +1,69 @@
 use crate::config::Config;
+use anyhow::Result;
 use std::path::Path;
 
 // Compiled-in prompts
+pub const PROMPT_INIT: &str = include_str!("../prompts/PROMPT_init.md");
 pub const PROMPT_SCOPE: &str = include_str!("../prompts/PROMPT_scope.md");
 pub const PROMPT_REFINE: &str = include_str!("../prompts/PROMPT_refine.md");
-pub const PROMPT_DDV_AGENT: &str = include_str!("../prompts/PROMPT_ddv_agent.md");
 pub const PROMPT_BUILD: &str = include_str!("../prompts/PROMPT_build.md");
-pub const PROMPT_VALIDATE: &str = include_str!("../prompts/PROMPT_validate.md");
+pub const PROMPT_AUDIT: &str = include_str!("../prompts/PROMPT_audit.md");
 pub const PROMPT_FINALIZE: &str = include_str!("../prompts/PROMPT_finalize.md");
+pub const PROMPT_EXPLORE: &str = include_str!("../prompts/PROMPT_explore.md");
+
+// Compiled-in skill files
+pub const SKILL_ENGINEERING_JUDGMENT: &str = include_str!("../skills/engineering_judgment.md");
+pub const SKILL_DIMENSIONAL_ANALYSIS: &str = include_str!("../skills/dimensional_analysis.md");
+pub const SKILL_NUMERICAL_STABILITY: &str = include_str!("../skills/numerical_stability.md");
+pub const SKILL_LITERATURE_GROUNDING: &str = include_str!("../skills/literature_grounding.md");
+
+pub const SKILLS: &[(&str, &str)] = &[
+    ("engineering-judgment.md", SKILL_ENGINEERING_JUDGMENT),
+    ("dimensional-analysis.md", SKILL_DIMENSIONAL_ANALYSIS),
+    ("numerical-stability.md", SKILL_NUMERICAL_STABILITY),
+    ("literature-grounding.md", SKILL_LITERATURE_GROUNDING),
+];
+
+// Compiled-in scope artifact specs (read on demand by the scoping agent)
+const SCOPE_SPEC_METHODOLOGY: &str = include_str!("../prompts/scope/methodology_spec.md");
+const SCOPE_SPEC_LITERATURE_SURVEY: &str =
+    include_str!("../prompts/scope/literature_survey_spec.md");
+const SCOPE_SPEC_SPIRAL_PLAN: &str = include_str!("../prompts/scope/spiral_plan_spec.md");
+const SCOPE_SPEC_STACK_SELECTION: &str = include_str!("../prompts/scope/stack_selection_spec.md");
+const SCOPE_SPEC_VALIDATION: &str = include_str!("../prompts/scope/validation_specs.md");
+const SCOPE_SPEC_IMPLEMENTATION_PLAN: &str =
+    include_str!("../prompts/scope/implementation_plan_spec.md");
+pub const SCOPE_SPECS: &[(&str, &str)] = &[
+    ("methodology_spec.md", SCOPE_SPEC_METHODOLOGY),
+    ("literature_survey_spec.md", SCOPE_SPEC_LITERATURE_SURVEY),
+    ("spiral_plan_spec.md", SCOPE_SPEC_SPIRAL_PLAN),
+    ("stack_selection_spec.md", SCOPE_SPEC_STACK_SELECTION),
+    ("validation_specs.md", SCOPE_SPEC_VALIDATION),
+    (
+        "implementation_plan_spec.md",
+        SCOPE_SPEC_IMPLEMENTATION_PLAN,
+    ),
+];
 
 #[derive(Debug, Clone, Copy)]
 pub enum Phase {
+    Init,
     Scope,
     Refine,
-    DdvAgent,
     Build,
-    Validate,
+    Audit,
     Finalize,
+    Explore,
 }
 
 impl Phase {
     pub fn model_key(&self, config: &Config) -> String {
         match self {
-            Phase::Scope => config.models.scope.clone(),
+            Phase::Init | Phase::Scope => config.models.scope.clone(),
             Phase::Refine => config.models.refine.clone(),
-            Phase::DdvAgent => config.models.ddv.clone(),
             Phase::Build => config.models.build.clone(),
-            Phase::Validate | Phase::Finalize => config.models.validate.clone(),
+            Phase::Audit | Phase::Finalize => config.models.audit.clone(),
+            Phase::Explore => config.models.scope.clone(),
         }
     }
 }
@@ -34,12 +71,13 @@ impl Phase {
 /// Load prompt for a phase. Prefers local .lisa/prompts/ if ejected, otherwise uses compiled-in.
 pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     let local_path = match phase {
+        Phase::Init => lisa_root.join("prompts/init.md"),
         Phase::Scope => lisa_root.join("prompts/scope.md"),
         Phase::Refine => lisa_root.join("prompts/refine.md"),
-        Phase::DdvAgent => lisa_root.join("prompts/ddv_agent.md"),
         Phase::Build => lisa_root.join("prompts/build.md"),
-        Phase::Validate => lisa_root.join("prompts/validate.md"),
+        Phase::Audit => lisa_root.join("prompts/audit.md"),
         Phase::Finalize => lisa_root.join("prompts/finalize.md"),
+        Phase::Explore => lisa_root.join("prompts/explore.md"),
     };
 
     if local_path.exists() {
@@ -49,29 +87,37 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     }
 
     match phase {
+        Phase::Init => PROMPT_INIT.to_string(),
         Phase::Scope => PROMPT_SCOPE.to_string(),
         Phase::Refine => PROMPT_REFINE.to_string(),
-        Phase::DdvAgent => PROMPT_DDV_AGENT.to_string(),
         Phase::Build => PROMPT_BUILD.to_string(),
-        Phase::Validate => PROMPT_VALIDATE.to_string(),
+        Phase::Audit => PROMPT_AUDIT.to_string(),
         Phase::Finalize => PROMPT_FINALIZE.to_string(),
+        Phase::Explore => PROMPT_EXPLORE.to_string(),
     }
 }
 
-/// Render the prompt with path substitutions
-pub fn render_prompt(prompt: &str, config: &Config) -> String {
+/// Render the prompt with path substitutions.
+/// `pass` is the current spiral pass number (used for `{{pass}}` placeholder).
+pub fn render_prompt(prompt: &str, config: &Config, pass: Option<u32>) -> String {
     let lisa_root = &config.paths.lisa_root;
     let source_dirs = config.source_dirs_display();
-    let tests_ddv = &config.paths.tests_ddv;
+    let tests_bounds = &config.paths.tests_bounds;
     let tests_software = &config.paths.tests_software;
     let tests_integration = &config.paths.tests_integration;
+    let pass_str = pass.unwrap_or(0).to_string();
 
     prompt
         .replace("{{lisa_root}}", lisa_root)
         .replace("{{source_dirs}}", &source_dirs)
-        .replace("{{tests_ddv}}", tests_ddv)
+        .replace("{{tests_bounds}}", tests_bounds)
         .replace("{{tests_software}}", tests_software)
         .replace("{{tests_integration}}", tests_integration)
+        .replace(
+            "{{max_tasks_per_pass}}",
+            &config.limits.max_tasks_per_pass.to_string(),
+        )
+        .replace("{{pass}}", &pass_str)
 }
 
 /// Build the context preamble that gets prepended to every agent invocation
@@ -98,9 +144,9 @@ pub fn build_context_preamble(
 - Spiral: {}/spiral/
 - Validation: {}/validation/
 - References: {}/references/
-- Plots: {}/plots/
+- Plots: {}/spiral/pass-{}/plots/
 - Source code: {} (deliverable)
-- DDV tests: {}
+- Bounds tests: {}
 - Software tests: {}
 - Integration tests: {}
 
@@ -116,8 +162,9 @@ pub fn build_context_preamble(
         lisa_root,
         lisa_root,
         lisa_root,
+        current_pass,
         source_dirs,
-        config.paths.tests_ddv,
+        config.paths.tests_bounds,
         config.paths.tests_software,
         config.paths.tests_integration,
         current_pass,
@@ -140,6 +187,16 @@ pub fn build_context_preamble(
         ));
     }
 
+    // Idle timeout heartbeat guidance
+    ctx.push_str(&format!(
+        "\n### Heartbeat\n\
+         Lisa Loop will kill your process if no tool output is received for {} seconds.\n\
+         During long-running operations (compilation, test suites, complex analysis),\n\
+         emit periodic heartbeats by running: `echo \"[heartbeat] still working...\"`\n\
+         Do this every few minutes during operations that may take a while.\n",
+        config.limits.idle_timeout_secs
+    ));
+
     ctx
 }
 
@@ -152,12 +209,13 @@ pub fn build_agent_input(
     extra_context: Option<&str>,
 ) -> String {
     let phase_name = match phase {
+        Phase::Init => "Init",
         Phase::Scope => "Scope",
         Phase::Refine => "Refine",
-        Phase::DdvAgent => "DDV Agent",
         Phase::Build => "Build",
-        Phase::Validate => "Validate",
+        Phase::Audit => "Audit",
         Phase::Finalize => "Finalize",
+        Phase::Explore => "Explore",
     };
 
     let has_redirect = if current_pass > 0 {
@@ -171,7 +229,7 @@ pub fn build_agent_input(
 
     let preamble = build_context_preamble(config, current_pass, phase_name, has_redirect);
     let prompt = load_prompt(phase, lisa_root);
-    let rendered = render_prompt(&prompt, config);
+    let rendered = render_prompt(&prompt, config, Some(current_pass));
 
     let mut input = preamble;
     if let Some(extra) = extra_context {
@@ -181,6 +239,22 @@ pub fn build_agent_input(
     }
     input.push_str(&rendered);
     input
+}
+
+/// Write scope artifact spec files to .lisa/prompts/scope/ if they don't already exist.
+/// Renders {{placeholder}} substitutions so the agent sees concrete paths and values.
+/// Preserves user-customized files (same pattern as eject-prompts).
+pub fn ensure_scope_specs(lisa_root: &Path, config: &Config) -> Result<()> {
+    let scope_dir = lisa_root.join("prompts/scope");
+    std::fs::create_dir_all(&scope_dir)?;
+    for (filename, content) in SCOPE_SPECS {
+        let path = scope_dir.join(filename);
+        if !path.exists() {
+            let rendered = render_prompt(content, config, Some(0));
+            std::fs::write(&path, rendered)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -196,17 +270,43 @@ mod tests {
     #[test]
     fn test_render_prompt_substitutions() {
         let config = test_config();
-        let prompt = "Read ASSIGNMENT.md and {{tests_ddv}}/ tests.";
-        let rendered = render_prompt(prompt, &config);
-        assert_eq!(rendered, "Read ASSIGNMENT.md and tests/ddv/ tests.");
+        let prompt = "Read ASSIGNMENT.md and {{tests_bounds}}/ tests.";
+        let rendered = render_prompt(prompt, &config, None);
+        assert_eq!(rendered, "Read ASSIGNMENT.md and / tests.");
     }
 
     #[test]
     fn test_render_prompt_source_dirs() {
         let config = test_config();
         let prompt = "Source at {{source_dirs}}.";
-        let rendered = render_prompt(prompt, &config);
-        assert_eq!(rendered, "Source at src.");
+        let rendered = render_prompt(prompt, &config, None);
+        assert_eq!(rendered, "Source at .");
+    }
+
+    #[test]
+    fn test_render_prompt_substitutions_with_filled_paths() {
+        let toml_str = r#"
+[project]
+name = "test"
+
+[paths]
+source = ["src"]
+tests_bounds = "tests/bounds"
+tests_software = "tests/software"
+tests_integration = "tests/integration"
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        let prompt = "Read {{tests_bounds}}/ and {{source_dirs}}.";
+        let rendered = render_prompt(prompt, &config, Some(1));
+        assert_eq!(rendered, "Read tests/bounds/ and src.");
+    }
+
+    #[test]
+    fn test_render_prompt_pass_placeholder() {
+        let config = test_config();
+        let prompt = "Plots at .lisa/spiral/pass-{{pass}}/plots/";
+        let rendered = render_prompt(prompt, &config, Some(3));
+        assert_eq!(rendered, "Plots at .lisa/spiral/pass-3/plots/");
     }
 
     #[test]
@@ -225,6 +325,7 @@ mod tests {
         let preamble = build_context_preamble(&config, 2, "Build", false);
         assert!(preamble.contains("Spiral pass: 2"));
         assert!(preamble.contains("Previous pass results: .lisa/spiral/pass-1/"));
+        assert!(preamble.contains("Plots: .lisa/spiral/pass-2/plots/"));
     }
 
     #[test]
@@ -236,11 +337,83 @@ mod tests {
 
     #[test]
     fn test_compiled_prompts_not_empty() {
+        assert!(!PROMPT_INIT.is_empty());
         assert!(!PROMPT_SCOPE.is_empty());
         assert!(!PROMPT_REFINE.is_empty());
-        assert!(!PROMPT_DDV_AGENT.is_empty());
         assert!(!PROMPT_BUILD.is_empty());
-        assert!(!PROMPT_VALIDATE.is_empty());
+        assert!(!PROMPT_AUDIT.is_empty());
         assert!(!PROMPT_FINALIZE.is_empty());
+        assert!(!PROMPT_EXPLORE.is_empty());
+    }
+
+    #[test]
+    fn test_scope_specs_not_empty() {
+        assert_eq!(SCOPE_SPECS.len(), 6);
+        for (filename, content) in SCOPE_SPECS {
+            assert!(!filename.is_empty(), "spec filename is empty");
+            assert!(
+                !content.is_empty(),
+                "spec content is empty for {}",
+                filename
+            );
+        }
+    }
+
+    #[test]
+    fn test_scope_prompt_references_all_specs() {
+        for (filename, _) in SCOPE_SPECS {
+            let reference = format!("prompts/scope/{}", filename);
+            assert!(
+                PROMPT_SCOPE.contains(&reference),
+                "PROMPT_scope.md does not reference {}",
+                filename,
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_scope_specs_creates_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lisa_root = tmp.path();
+        let config = test_config();
+        ensure_scope_specs(lisa_root, &config).unwrap();
+
+        for (filename, _) in SCOPE_SPECS {
+            let path = lisa_root.join("prompts/scope").join(filename);
+            assert!(path.exists(), "{} was not created", filename);
+            let written = std::fs::read_to_string(&path).unwrap();
+            // Specs should be rendered — no raw {{lisa_root}} placeholders remaining
+            assert!(
+                !written.contains("{{lisa_root}}"),
+                "{} still contains unrendered {{{{lisa_root}}}} placeholder",
+                filename,
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_scope_specs_preserves_existing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lisa_root = tmp.path();
+        let config = test_config();
+        let scope_dir = lisa_root.join("prompts/scope");
+        std::fs::create_dir_all(&scope_dir).unwrap();
+
+        // Write a customized version of the first spec
+        let (filename, _) = SCOPE_SPECS[0];
+        let custom = "# My custom spec\n";
+        std::fs::write(scope_dir.join(filename), custom).unwrap();
+
+        ensure_scope_specs(lisa_root, &config).unwrap();
+
+        // Custom file should be preserved
+        let content = std::fs::read_to_string(scope_dir.join(filename)).unwrap();
+        assert_eq!(content, custom, "existing file was overwritten");
+
+        // Other files should have been created
+        for (fname, _) in &SCOPE_SPECS[1..] {
+            let path = scope_dir.join(fname);
+            assert!(path.exists(), "{} was not created", fname);
+        }
     }
 }

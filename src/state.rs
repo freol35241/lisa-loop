@@ -9,15 +9,14 @@ pub enum SpiralState {
     Scoping,
     ScopeReview,
     ScopeComplete,
-    DdvAgent,
-    DdvAgentReview,
-    DdvAgentComplete,
     InPass { pass: u32, phase: PassPhase },
     RefineComplete { pass: u32 },
     RefineReview { pass: u32 },
     BuildComplete { pass: u32 },
-    ValidateComplete { pass: u32 },
+    AuditComplete { pass: u32 },
     PassReview { pass: u32 },
+    Exploring { pass: u32, explore_id: u32 },
+    ExploreReview { pass: u32, explore_id: u32 },
     Complete { final_pass: u32 },
 }
 
@@ -26,7 +25,7 @@ pub enum SpiralState {
 pub enum PassPhase {
     Refine,
     Build { iteration: u32 },
-    Validate,
+    Audit,
 }
 
 impl std::fmt::Display for SpiralState {
@@ -36,17 +35,20 @@ impl std::fmt::Display for SpiralState {
             SpiralState::Scoping => write!(f, "Scoping"),
             SpiralState::ScopeReview => write!(f, "Scope review"),
             SpiralState::ScopeComplete => write!(f, "Scope complete"),
-            SpiralState::DdvAgent => write!(f, "DDV Agent"),
-            SpiralState::DdvAgentReview => write!(f, "DDV Agent review"),
-            SpiralState::DdvAgentComplete => write!(f, "DDV Agent complete"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
             SpiralState::RefineComplete { pass } => write!(f, "Pass {} — Refine complete", pass),
             SpiralState::RefineReview { pass } => write!(f, "Pass {} — Refine review", pass),
             SpiralState::BuildComplete { pass } => write!(f, "Pass {} — Build complete", pass),
-            SpiralState::ValidateComplete { pass } => {
-                write!(f, "Pass {} — Validate complete", pass)
+            SpiralState::AuditComplete { pass } => {
+                write!(f, "Pass {} — Audit complete", pass)
             }
             SpiralState::PassReview { pass } => write!(f, "Pass {} — Review", pass),
+            SpiralState::Exploring { pass, explore_id } => {
+                write!(f, "Pass {} — Exploring (id {})", pass, explore_id)
+            }
+            SpiralState::ExploreReview { pass, explore_id } => {
+                write!(f, "Pass {} — Explore review (id {})", pass, explore_id)
+            }
             SpiralState::Complete { final_pass } => write!(f, "Complete (pass {})", final_pass),
         }
     }
@@ -57,7 +59,7 @@ impl std::fmt::Display for PassPhase {
         match self {
             PassPhase::Refine => write!(f, "Refine"),
             PassPhase::Build { iteration } => write!(f, "Build (iteration {})", iteration),
-            PassPhase::Validate => write!(f, "Validate"),
+            PassPhase::Audit => write!(f, "Audit"),
         }
     }
 }
@@ -155,39 +157,6 @@ mod tests {
     }
 
     #[test]
-    fn test_state_roundtrip_ddv_agent() {
-        let state = SpiralState::DdvAgent;
-        let file = StateFile {
-            state: state.clone(),
-        };
-        let toml_str = toml::to_string_pretty(&file).unwrap();
-        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.state, state);
-    }
-
-    #[test]
-    fn test_state_roundtrip_ddv_agent_review() {
-        let state = SpiralState::DdvAgentReview;
-        let file = StateFile {
-            state: state.clone(),
-        };
-        let toml_str = toml::to_string_pretty(&file).unwrap();
-        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.state, state);
-    }
-
-    #[test]
-    fn test_state_roundtrip_ddv_agent_complete() {
-        let state = SpiralState::DdvAgentComplete;
-        let file = StateFile {
-            state: state.clone(),
-        };
-        let toml_str = toml::to_string_pretty(&file).unwrap();
-        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.state, state);
-    }
-
-    #[test]
     fn test_state_roundtrip_refine_review() {
         let state = SpiralState::RefineReview { pass: 3 };
         let file = StateFile {
@@ -221,8 +190,36 @@ mod tests {
     }
 
     #[test]
-    fn test_state_roundtrip_validate_complete() {
-        let state = SpiralState::ValidateComplete { pass: 1 };
+    fn test_state_roundtrip_audit_complete() {
+        let state = SpiralState::AuditComplete { pass: 1 };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_exploring() {
+        let state = SpiralState::Exploring {
+            pass: 2,
+            explore_id: 1,
+        };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_explore_review() {
+        let state = SpiralState::ExploreReview {
+            pass: 3,
+            explore_id: 2,
+        };
         let file = StateFile {
             state: state.clone(),
         };
@@ -247,8 +244,8 @@ mod tests {
             "Pass 3 — Build complete"
         );
         assert_eq!(
-            format!("{}", SpiralState::ValidateComplete { pass: 1 }),
-            "Pass 1 — Validate complete"
+            format!("{}", SpiralState::AuditComplete { pass: 1 }),
+            "Pass 1 — Audit complete"
         );
         assert_eq!(
             format!(

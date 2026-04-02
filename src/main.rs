@@ -35,12 +35,19 @@ fn main() -> Result<()> {
             max_passes,
             no_pause,
             verbose,
+            follow_up,
         } => {
             let mut config = load_config()?;
             if verbose {
                 config.terminal.collapse_output = false;
             }
-            orchestrator::run(&config, &project_root(), max_passes, no_pause)
+            orchestrator::run(
+                &config,
+                &project_root(),
+                max_passes,
+                no_pause,
+                follow_up.as_deref(),
+            )
         }
         cli::Commands::Resume { no_pause, verbose } => {
             let mut config = load_config()?;
@@ -49,59 +56,12 @@ fn main() -> Result<()> {
             }
             orchestrator::resume(&config, &project_root(), no_pause)
         }
-        cli::Commands::Scope => {
-            let config = load_config()?;
-            orchestrator::run_scope_only(&config, &project_root())
-        }
-        cli::Commands::Ddv => {
-            let config = load_config()?;
-            orchestrator::run_ddv_agent_only(&config, &project_root())
-        }
         cli::Commands::Status => cmd_status(),
         cli::Commands::Doctor => cmd_doctor(),
-        cli::Commands::Finalize => {
-            let config = load_config()?;
-            let lisa_root = config.lisa_root(&project_root());
-            let state = state::load_state(&lisa_root)?;
-            match state {
-                state::SpiralState::PassReview { pass } => {
-                    orchestrator::finalize(&config, &project_root(), pass)
-                }
-                state::SpiralState::InPass { pass, ref phase } => {
-                    terminal::log_warn(&format!(
-                        "Finalizing from mid-pass (pass {}, phase {}). \
-                         The validate phase has not run — review-package.md may not exist.",
-                        pass, phase
-                    ));
-                    orchestrator::finalize(&config, &project_root(), pass)
-                }
-                state::SpiralState::Complete { final_pass } => {
-                    terminal::log_info(&format!("Spiral already complete at pass {}.", final_pass));
-                    Ok(())
-                }
-                _ => {
-                    terminal::log_error("Cannot finalize: no pass has been completed yet.");
-                    Ok(())
-                }
-            }
-        }
         cli::Commands::EjectPrompts => cmd_eject_prompts(),
-        cli::Commands::History => cmd_history(),
         cli::Commands::Rollback { pass, force } => {
             let config = load_config()?;
             orchestrator::rollback(&config, &project_root(), pass, force)
-        }
-        cli::Commands::Continue {
-            question,
-            max_passes,
-            no_pause,
-            verbose,
-        } => {
-            let mut config = load_config()?;
-            if verbose {
-                config.terminal.collapse_output = false;
-            }
-            orchestrator::continue_spiral(&config, &project_root(), &question, max_passes, no_pause)
         }
     }
 }
@@ -203,6 +163,88 @@ fn cmd_status() -> Result<()> {
             if !tags.is_empty() {
                 let tag_strs: Vec<String> = tags.iter().map(|t| t.to_string()).collect();
                 println!("  Rollback points: pass {}", tag_strs.join(", "));
+            }
+
+            // Show pass history table (merged from cmd_history)
+            let spiral_dir = lisa_root.join("spiral");
+            if spiral_dir.exists() {
+                let mut passes: Vec<u32> = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&spiral_dir) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let name = entry.file_name();
+                        let name_str = name.to_string_lossy();
+                        if let Some(num_str) = name_str.strip_prefix("pass-") {
+                            if let Ok(num) = num_str.parse::<u32>() {
+                                if num > 0 {
+                                    passes.push(num);
+                                }
+                            }
+                        }
+                    }
+                }
+                passes.sort();
+
+                if !passes.is_empty() {
+                    println!();
+                    terminal::println_bold("  Pass History");
+                    println!();
+                    println!(
+                        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Status",
+                        "Pass", "Answer", "Bounds", "Sanity", "Cost"
+                    );
+                    println!(
+                        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  --------------",
+                        "----", "------------------------------", "--------", "-------", "--------"
+                    );
+
+                    for pass_num in &passes {
+                        let review_path =
+                            lisa_root.join(format!("spiral/pass-{}/review-package.md", pass_num));
+                        if !review_path.exists() {
+                            continue;
+                        }
+                        let content = match std::fs::read_to_string(&review_path) {
+                            Ok(c) => c,
+                            Err(_) => continue,
+                        };
+
+                        let answer =
+                            review::extract_section_first_line(&content, "## Current Answer")
+                                .unwrap_or_else(|| "-".to_string());
+                        let answer_trunc = truncate_str(&answer, 30);
+
+                        let bounds =
+                            extract_bounds_summary(&content).unwrap_or_else(|| "-".to_string());
+                        let bounds_trunc = truncate_str(&bounds, 8);
+
+                        let sanity =
+                            extract_sanity_summary(&content).unwrap_or_else(|| "-".to_string());
+                        let sanity_trunc = truncate_str(&sanity, 7);
+
+                        let rec =
+                            review::extract_section_first_line(&content, "## Status Assessment")
+                                .or_else(|| {
+                                    review::extract_section_first_line(
+                                        &content,
+                                        "## Recommendation",
+                                    )
+                                })
+                                .unwrap_or_else(|| "-".to_string());
+
+                        let cost = ledger.pass_cost(*pass_num);
+                        let cost_str = if cost > 0.0 {
+                            format!("${:.4}", cost)
+                        } else {
+                            "-".to_string()
+                        };
+                        let cost_trunc = truncate_str(&cost_str, 8);
+
+                        println!(
+                            "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  {}",
+                            pass_num, answer_trunc, bounds_trunc, sanity_trunc, cost_trunc, rec
+                        );
+                    }
+                }
             }
         }
     }
@@ -354,12 +396,13 @@ fn cmd_eject_prompts() -> Result<()> {
     std::fs::create_dir_all(&prompts_dir)?;
 
     let prompts = [
+        ("init.md", prompt::PROMPT_INIT),
         ("scope.md", prompt::PROMPT_SCOPE),
         ("refine.md", prompt::PROMPT_REFINE),
-        ("ddv_agent.md", prompt::PROMPT_DDV_AGENT),
         ("build.md", prompt::PROMPT_BUILD),
-        ("validate.md", prompt::PROMPT_VALIDATE),
+        ("audit.md", prompt::PROMPT_AUDIT),
         ("finalize.md", prompt::PROMPT_FINALIZE),
+        ("explore.md", prompt::PROMPT_EXPLORE),
     ];
 
     for (filename, content) in &prompts {
@@ -372,121 +415,47 @@ fn cmd_eject_prompts() -> Result<()> {
         }
     }
 
+    // Also eject scope artifact spec files
+    let scope_dir = prompts_dir.join("scope");
+    std::fs::create_dir_all(&scope_dir)?;
+    for (filename, content) in prompt::SCOPE_SPECS {
+        let path = scope_dir.join(filename);
+        if path.exists() {
+            terminal::log_warn(&format!("  Skipping scope/{} (already exists)", filename));
+        } else {
+            std::fs::write(&path, content)?;
+            terminal::log_success(&format!("  Written scope/{}", filename));
+        }
+    }
+
+    // Also eject skill files
+    let skills_dir = lisa_root.join("skills");
+    std::fs::create_dir_all(&skills_dir)?;
+    for (filename, content) in prompt::SKILLS {
+        let path = skills_dir.join(filename);
+        if path.exists() {
+            terminal::log_warn(&format!("  Skipping skills/{} (already exists)", filename));
+        } else {
+            std::fs::write(&path, content)?;
+            terminal::log_success(&format!("  Written skills/{}", filename));
+        }
+    }
+
     println!();
     terminal::log_info("Prompts ejected to .lisa/prompts/");
-    terminal::log_info("Edit them freely — the CLI will use local prompts when present.");
+    terminal::log_info("Scope artifact specs ejected to .lisa/prompts/scope/");
+    terminal::log_info("Skills ejected to .lisa/skills/");
+    terminal::log_info("Edit them freely — the CLI will use local versions when present.");
     println!();
 
     Ok(())
 }
 
-fn cmd_history() -> Result<()> {
-    let root = project_root();
-    let lisa_root = match load_config() {
-        Ok(config) => config.lisa_root(&root),
-        Err(_) => root.join(".lisa"),
-    };
-
-    if !lisa_root.exists() {
-        terminal::log_error("No .lisa/ directory found. Run `lisa init` first.");
-        return Ok(());
-    }
-
-    let spiral_dir = lisa_root.join("spiral");
-    if !spiral_dir.exists() {
-        terminal::log_error("No spiral directory found. Run `lisa run` first.");
-        return Ok(());
-    }
-
-    // Collect pass directories (skip pass-0)
-    let mut passes: Vec<u32> = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&spiral_dir) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if let Some(num_str) = name_str.strip_prefix("pass-") {
-                if let Ok(num) = num_str.parse::<u32>() {
-                    if num > 0 {
-                        passes.push(num);
-                    }
-                }
-            }
-        }
-    }
-
-    passes.sort();
-
-    if passes.is_empty() {
-        terminal::log_info("No completed passes found (only pass-0 exists).");
-        return Ok(());
-    }
-
-    let ledger = usage::load_usage(&lisa_root).unwrap_or_default();
-
-    println!();
-    terminal::println_bold("Lisa Loop — Pass History");
-    println!();
-
-    // Header
-    println!(
-        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Status",
-        "Pass", "Answer", "DDV", "Sanity", "Cost"
-    );
-    println!(
-        "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  --------------",
-        "----", "------------------------------", "--------", "-------", "--------"
-    );
-
-    for pass in &passes {
-        let review_path = lisa_root.join(format!("spiral/pass-{}/review-package.md", pass));
-        if !review_path.exists() {
-            continue;
-        }
-        let content = match std::fs::read_to_string(&review_path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        let answer = review::extract_section_first_line(&content, "## Current Answer")
-            .unwrap_or_else(|| "-".to_string());
-        let answer_trunc = truncate_str(&answer, 30);
-
-        let ddv = extract_ddv_summary(&content).unwrap_or_else(|| "-".to_string());
-        let ddv_trunc = truncate_str(&ddv, 8);
-
-        let sanity = extract_sanity_summary(&content).unwrap_or_else(|| "-".to_string());
-        let sanity_trunc = truncate_str(&sanity, 7);
-
-        let rec = review::extract_section_first_line(&content, "## Status Assessment")
-            .or_else(|| review::extract_section_first_line(&content, "## Recommendation"))
-            .unwrap_or_else(|| "-".to_string());
-
-        let cost = ledger.pass_cost(*pass);
-        let cost_str = if cost > 0.0 {
-            format!("${:.4}", cost)
-        } else {
-            "-".to_string()
-        };
-        let cost_trunc = truncate_str(&cost_str, 8);
-
-        println!(
-            "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  {}",
-            pass, answer_trunc, ddv_trunc, sanity_trunc, cost_trunc, rec
-        );
-    }
-
-    println!();
-
-    Ok(())
-}
-
-/// Extract DDV test result summary (e.g., "3/4") from review content.
-fn extract_ddv_summary(content: &str) -> Option<String> {
+/// Extract bounding test result summary (e.g., "3/4") from review content.
+fn extract_bounds_summary(content: &str) -> Option<String> {
     for line in content.lines() {
-        if line.starts_with("DDV:") {
-            // Try to extract a fraction like "3/4" or "passed: 3/4"
-            let text = line.trim_start_matches("DDV:").trim();
-            // Look for N/M pattern
+        if line.starts_with("Bounds:") {
+            let text = line.trim_start_matches("Bounds:").trim();
             if let Some(frac) = extract_fraction(text) {
                 return Some(frac);
             }
