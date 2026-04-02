@@ -11,7 +11,7 @@ Read `ASSIGNMENT.md`, `{{lisa_root}}/STACK.md`, and skim `{{lisa_root}}/referenc
 
 If `{{lisa_root}}/CODEBASE.md` exists, read it carefully. This means you are working with an
 existing codebase. Scope your work as modifications to the existing system — the methodology
-should describe what is being added or changed, not the entire system. DDV scenarios should
+should describe what is being added or changed, not the entire system. Bounding checks should
 include regression coverage for existing behavior that might be affected.
 
 If the `[paths]` section in `lisa.toml` has empty `source` and test paths (greenfield project),
@@ -39,7 +39,6 @@ Spawn the **Validation Research** and **Test Framework Research** subagents (the
 ### Phase 5: FINAL SYNTHESIS
 Synthesize subagent results. Write all remaining artifacts:
 - `{{lisa_root}}/methodology/plan.md` — read spec at `{{lisa_root}}/prompts/scope/implementation_plan_spec.md`
-- `{{lisa_root}}/ddv/scenarios.md` — read spec at `{{lisa_root}}/prompts/scope/ddv_scenarios_spec.md`
 - `{{lisa_root}}/spiral/pass-0/literature-survey.md` — read spec at `{{lisa_root}}/prompts/scope/literature_survey_spec.md`
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — read spec at `{{lisa_root}}/prompts/scope/spiral_plan_spec.md`
 - Validation artifacts (`sanity-checks.md`, `limiting-cases.md`, `reference-data.md`) — read spec at `{{lisa_root}}/prompts/scope/validation_specs.md`
@@ -118,10 +117,10 @@ Conservation Laws, Order-of-Magnitude Estimates, Cross-Validation Opportunities)
 ### Test Framework Research subagent
 Delegate when: After technology stack is selected (Phase 4).
 Prompt pattern: "Given this technology stack: [language] with [test framework]. Research
-how to implement a three-category test structure: DDV tests ({{tests_ddv}}/), software tests
-({{tests_software}}/), and integration tests ({{tests_integration}}/). DDV tests need L0/L1
-level filtering. Return: test commands for each category and level, configuration required,
-and an infrastructure task description for what needs to be set up."
+how to implement a test structure with: bounding tests ({{tests_bounds}}/ with phenomenon/,
+composition/, system/ subdirectories), software tests ({{tests_software}}/), and integration
+tests ({{tests_integration}}/). Return: test commands for each category, configuration
+required, and an infrastructure task description for what needs to be set up."
 
 ---
 
@@ -164,7 +163,6 @@ Create this file **last**, after all other artifacts are complete.
 - {{lisa_root}}/STACK.md (resolved technology stack, concrete commands)
 - {{lisa_root}}/methodology/methodology.md
 - {{lisa_root}}/methodology/plan.md
-- {{lisa_root}}/ddv/scenarios.md (initial DDV scenario sketches)
 - {{lisa_root}}/spiral/pass-0/acceptance-criteria.md
 - {{lisa_root}}/spiral/pass-0/literature-survey.md
 - {{lisa_root}}/spiral/pass-0/spiral-plan.md
@@ -205,16 +203,16 @@ Criteria for modular decomposition (exceptional):
 If you recommend modular decomposition, document why in the spiral plan and organize
 the methodology into clearly separated sections. The code should be organized into
 corresponding modules in `{{source_dirs}}/`. But the spiral loop is still the same — one refine phase,
-one DDV phase, one build loop. The modularity is in the content, not the process.
+one build loop, one audit. The modularity is in the content, not the process.
 
 ### Test Categorization
 
-The project uses three test categories that must be runnable independently:
-- **DDV tests** (`{{tests_ddv}}/`) — Domain-Driven Verification tests written by the Validate phase from DDV scenarios
+The project uses four test categories that must be runnable independently:
+- **Bounding tests** (`{{tests_bounds}}/`) — First-principles bounding tests at three levels (phenomenon, composition, system), written by the Build phase following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`
 - **Software tests** (`{{tests_software}}/`) — Software quality tests written by the build phase
 - **Integration tests** (`{{tests_integration}}/`) — End-to-end tests written by the Build phase
 
-Additionally, DDV tests have verification levels (Level 0: individual functions, Level 1: model level) that should be filterable.
+Bounding tests are organized into three subdirectories: `phenomenon/`, `composition/`, `system/`.
 
 When resolving the test framework, define and document the categorization mechanism in
 `{{lisa_root}}/STACK.md` with concrete commands that select each category. Include any framework
@@ -230,7 +228,7 @@ Document the code layout in `{{lisa_root}}/STACK.md` (append to the existing fil
 Source code is organized by logical module:
 - `{{source_dirs}}/` — All implementation code, organized by logical grouping
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `{{tests_ddv}}/` — Domain-Driven Verification tests (written by Validate phase from DDV scenarios)
+- `{{tests_bounds}}/` — First-principles bounding tests (phenomenon/, composition/, system/)
 - `{{tests_software}}/` — Software quality tests (written by build phase)
 - `{{tests_integration}}/` — End-to-end tests (written by Build phase)
 ```
@@ -250,7 +248,7 @@ If during scoping you identify shared infrastructure needs (e.g., common physica
 
 ### Visual Verification
 
-- **Visuals are the preferred way to surface results for human review.** Every verification case and DDV scenario that checks a trend, comparison, limiting case, or parameter sweep should specify a `**Visual:**` field. Plots go in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and are documented in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
+- **Visuals are the preferred way to surface results for human review.** Every verification case that checks a trend, comparison, limiting case, or parameter sweep should specify a `**Visual:**` field. Plots go in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and are documented in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
 
 ### Engineering Judgment
 

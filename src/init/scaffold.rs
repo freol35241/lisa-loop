@@ -17,7 +17,6 @@ const ASSUMPTIONS_REGISTER_TEMPLATE: &str = include_str!("../../templates/assump
 const SANITY_CHECKS_TEMPLATE: &str = include_str!("../../templates/sanity_checks.md");
 const LIMITING_CASES_TEMPLATE: &str = include_str!("../../templates/limiting_cases.md");
 const REFERENCE_DATA_TEMPLATE: &str = include_str!("../../templates/reference_data.md");
-const DDV_SCENARIOS_TEMPLATE: &str = include_str!("../../templates/ddv_scenarios.md");
 const LISA_CLAUDE_MD: &str = include_str!("../../templates/lisa_claude.md");
 
 pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> Result<()> {
@@ -78,7 +77,7 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         ".lisa/validation",
         ".lisa/references/core",
         ".lisa/references/retrieved",
-        ".lisa/ddv",
+        ".lisa/skills",
         ".lisa/output",
         ".lisa/prompts/scope",
     ];
@@ -134,8 +133,10 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
         &lisa_root.join("validation/reference-data.md"),
         REFERENCE_DATA_TEMPLATE,
     )?;
-    // Write DDV templates
-    write_file(&lisa_root.join("ddv/scenarios.md"), DDV_SCENARIOS_TEMPLATE)?;
+    // Write skill files
+    for (filename, content) in crate::prompt::SKILLS {
+        write_file(&lisa_root.join(format!("skills/{}", filename)), content)?;
+    }
 
     // Write CLAUDE.md inside .lisa/ so agents can discover artifacts
     write_file(&lisa_root.join("CLAUDE.md"), LISA_CLAUDE_MD)?;
@@ -161,8 +162,8 @@ pub fn run(project_root: &Path, name: Option<String>, tech: Option<String>) -> R
     println!("Spiral state (auto-managed)");
     terminal::print_colored("    .lisa/validation/            ", Color::Cyan);
     println!("V&V artifacts (auto-managed)");
-    terminal::print_colored("    .lisa/ddv/                   ", Color::Cyan);
-    println!("DDV verification scenarios");
+    terminal::print_colored("    .lisa/skills/                ", Color::Cyan);
+    println!("Engineering skills for agents");
     terminal::print_colored("    .lisa/CLAUDE.md               ", Color::Cyan);
     println!("Artifact guide for AI agents");
     println!();

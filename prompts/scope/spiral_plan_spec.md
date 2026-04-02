@@ -56,5 +56,5 @@ if none was given. Note any tension between the requested approach and the accep
 ## How the spiral plan is used
 
 The refine phase reads this plan to scope tasks for the current pass.
-The Validate phase writes executable DDV tests only for the current pass's scope subset.
+The Audit phase checks bounding test discipline and coverage for the current pass's scope subset.
 Acceptance criteria are staged — early passes have wider tolerances.

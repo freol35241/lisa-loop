@@ -42,7 +42,7 @@ Create `{{lisa_root}}/output/audit-summary.md`:
 [List with paths]
 
 ## Validation Status
-- DDV verification: [pass/total]
+- Bounding tests: [pass/total] (L1: [N], L2: [N], L3: [N])
 - Software tests: [pass/total]
 - Integration tests: [pass/total]
 - Sanity checks: [pass/total]

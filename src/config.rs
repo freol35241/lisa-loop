@@ -34,12 +34,10 @@ pub struct ModelsConfig {
     pub scope: String,
     #[serde(default = "default_opus")]
     pub refine: String,
-    #[serde(default = "default_opus")]
-    pub ddv: String,
     #[serde(default = "default_sonnet")]
     pub build: String,
     #[serde(default = "default_opus")]
-    pub validate: String,
+    pub audit: String,
 }
 
 impl Default for ModelsConfig {
@@ -47,9 +45,8 @@ impl Default for ModelsConfig {
         Self {
             scope: default_opus(),
             refine: default_opus(),
-            ddv: default_opus(),
             build: default_sonnet(),
-            validate: default_opus(),
+            audit: default_opus(),
         }
     }
 }
@@ -173,8 +170,8 @@ pub struct PathsConfig {
     pub lisa_root: String,
     #[serde(default = "default_source")]
     pub source: Vec<String>,
-    #[serde(default = "default_tests_ddv")]
-    pub tests_ddv: String,
+    #[serde(default = "default_tests_bounds")]
+    pub tests_bounds: String,
     #[serde(default = "default_tests_software")]
     pub tests_software: String,
     #[serde(default = "default_tests_integration")]
@@ -186,7 +183,7 @@ impl Default for PathsConfig {
         Self {
             lisa_root: default_lisa_root(),
             source: default_source(),
-            tests_ddv: default_tests_ddv(),
+            tests_bounds: default_tests_bounds(),
             tests_software: default_tests_software(),
             tests_integration: default_tests_integration(),
         }
@@ -199,7 +196,7 @@ fn default_lisa_root() -> String {
 fn default_source() -> Vec<String> {
     vec![]
 }
-fn default_tests_ddv() -> String {
+fn default_tests_bounds() -> String {
     String::new()
 }
 fn default_tests_software() -> String {
@@ -226,7 +223,7 @@ pub struct CommandsConfig {
     #[serde(default)]
     pub test_all: String,
     #[serde(default)]
-    pub test_ddv: String,
+    pub test_bounds: String,
     #[serde(default)]
     pub test_software: String,
     #[serde(default)]
@@ -257,14 +254,14 @@ impl Config {
     /// Returns Ok if paths are set, or an error directing the user to run init or fill lisa.toml.
     pub fn validate_paths(&self) -> Result<()> {
         if self.paths.source.is_empty()
-            || self.paths.tests_ddv.is_empty()
+            || self.paths.tests_bounds.is_empty()
             || self.paths.tests_software.is_empty()
             || self.paths.tests_integration.is_empty()
         {
             anyhow::bail!(
                 "Paths not configured in lisa.toml [paths] section.\n\
                  Run `lisa init` to auto-detect project structure, or manually fill in:\n\
-                 source, tests_ddv, tests_software, tests_integration"
+                 source, tests_bounds, tests_software, tests_integration"
             );
         }
         Ok(())
@@ -292,7 +289,7 @@ mod tests {
         assert!(config.terminal.collapse_output);
         assert_eq!(config.paths.lisa_root, ".lisa");
         assert!(config.paths.source.is_empty());
-        assert_eq!(config.paths.tests_ddv, "");
+        assert_eq!(config.paths.tests_bounds, "");
         assert_eq!(config.limits.idle_timeout_secs, 300);
         assert_eq!(config.limits.max_agent_retries, 2);
         assert!(config.agent.extra_args.is_empty());
@@ -351,7 +348,7 @@ name = "filled"
 
 [paths]
 source = ["src"]
-tests_ddv = "tests/ddv"
+tests_bounds = "tests/bounds"
 tests_software = "tests/software"
 tests_integration = "tests/integration"
 "#;
@@ -368,9 +365,8 @@ name = "{name}"
 [models]
 scope = "opus"
 refine = "opus"
-ddv = "opus"
 build = "sonnet"
-validate = "opus"
+audit = "opus"
 
 [limits]
 max_spiral_passes = 5
@@ -404,7 +400,7 @@ source = []
 
 # Test directories (relative to project root).
 # Resolved by the init agent; fill manually if needed.
-tests_ddv = ""
+tests_bounds = ""
 tests_software = ""
 tests_integration = ""
 
@@ -418,7 +414,7 @@ extra_args = []
 setup = ""
 build = ""
 test_all = ""
-test_ddv = ""
+test_bounds = ""
 test_software = ""
 test_integration = ""
 lint = ""

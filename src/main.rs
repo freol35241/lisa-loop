@@ -190,7 +190,7 @@ fn cmd_status() -> Result<()> {
                     println!();
                     println!(
                         "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  Status",
-                        "Pass", "Answer", "DDV", "Sanity", "Cost"
+                        "Pass", "Answer", "Bounds", "Sanity", "Cost"
                     );
                     println!(
                         "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  --------------",
@@ -213,8 +213,9 @@ fn cmd_status() -> Result<()> {
                                 .unwrap_or_else(|| "-".to_string());
                         let answer_trunc = truncate_str(&answer, 30);
 
-                        let ddv = extract_ddv_summary(&content).unwrap_or_else(|| "-".to_string());
-                        let ddv_trunc = truncate_str(&ddv, 8);
+                        let bounds =
+                            extract_bounds_summary(&content).unwrap_or_else(|| "-".to_string());
+                        let bounds_trunc = truncate_str(&bounds, 8);
 
                         let sanity =
                             extract_sanity_summary(&content).unwrap_or_else(|| "-".to_string());
@@ -240,7 +241,7 @@ fn cmd_status() -> Result<()> {
 
                         println!(
                             "  {:>4}  {:<30}  {:<8}  {:<7}  {:<8}  {}",
-                            pass_num, answer_trunc, ddv_trunc, sanity_trunc, cost_trunc, rec
+                            pass_num, answer_trunc, bounds_trunc, sanity_trunc, cost_trunc, rec
                         );
                     }
                 }
@@ -398,9 +399,8 @@ fn cmd_eject_prompts() -> Result<()> {
         ("init.md", prompt::PROMPT_INIT),
         ("scope.md", prompt::PROMPT_SCOPE),
         ("refine.md", prompt::PROMPT_REFINE),
-        ("ddv_agent.md", prompt::PROMPT_DDV_AGENT),
         ("build.md", prompt::PROMPT_BUILD),
-        ("validate.md", prompt::PROMPT_VALIDATE),
+        ("audit.md", prompt::PROMPT_AUDIT),
         ("finalize.md", prompt::PROMPT_FINALIZE),
         ("explore.md", prompt::PROMPT_EXPLORE),
     ];
@@ -428,22 +428,34 @@ fn cmd_eject_prompts() -> Result<()> {
         }
     }
 
+    // Also eject skill files
+    let skills_dir = lisa_root.join("skills");
+    std::fs::create_dir_all(&skills_dir)?;
+    for (filename, content) in prompt::SKILLS {
+        let path = skills_dir.join(filename);
+        if path.exists() {
+            terminal::log_warn(&format!("  Skipping skills/{} (already exists)", filename));
+        } else {
+            std::fs::write(&path, content)?;
+            terminal::log_success(&format!("  Written skills/{}", filename));
+        }
+    }
+
     println!();
     terminal::log_info("Prompts ejected to .lisa/prompts/");
     terminal::log_info("Scope artifact specs ejected to .lisa/prompts/scope/");
+    terminal::log_info("Skills ejected to .lisa/skills/");
     terminal::log_info("Edit them freely — the CLI will use local versions when present.");
     println!();
 
     Ok(())
 }
 
-/// Extract DDV test result summary (e.g., "3/4") from review content.
-fn extract_ddv_summary(content: &str) -> Option<String> {
+/// Extract bounding test result summary (e.g., "3/4") from review content.
+fn extract_bounds_summary(content: &str) -> Option<String> {
     for line in content.lines() {
-        if line.starts_with("DDV:") {
-            // Try to extract a fraction like "3/4" or "passed: 3/4"
-            let text = line.trim_start_matches("DDV:").trim();
-            // Look for N/M pattern
+        if line.starts_with("Bounds:") {
+            let text = line.trim_start_matches("Bounds:").trim();
             if let Some(frac) = extract_fraction(text) {
                 return Some(frac);
             }

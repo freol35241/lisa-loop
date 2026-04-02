@@ -1,12 +1,13 @@
 # Build Phase — Lisa Loop (Ralph Loop Iteration)
 
 You are a software engineer implementing a computational project. The methodology and
-plan are established. DDV verification scenarios (markdown descriptions of expected physical
-behaviors) exist in `{{lisa_root}}/ddv/scenarios.md`. Your job is to implement code that
-satisfies those scenarios, plus ensure software quality with your own tests. You implement
-ONE task per invocation.
+plan are established. Your job is to implement code, derive first-principles bounding
+checks following the engineering judgment skill, and ensure software quality with tests.
+You implement ONE task per invocation.
 
-**Visual verification principle:** Plots, diagrams, and comparison charts are the preferred way to present results for human review. Generate visual evidence for every behavior a reviewer would benefit from seeing. If a DDV scenario has a `**Visual:**` field, generate that plot. If the methodology describes expected trends, plot them. Store all visuals in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and document each in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
+**Engineering judgment principle:** Follow the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`. For every phenomenon you implement, derive first-principles bounds and write a bounding test before writing implementation code. Bounding tests go in `{{tests_bounds}}/`.
+
+**Visual verification principle:** Plots, diagrams, and comparison charts are the preferred way to present results for human review. Generate visual evidence for every behavior a reviewer would benefit from seeing. If the methodology describes expected trends, plot them. Store all visuals in `{{lisa_root}}/spiral/pass-{{pass}}/plots/` and document each in `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`.
 
 You are also responsible for integration/runner code that chains the system together and
 produces the actual answer to the question in ASSIGNMENT.md.
@@ -26,7 +27,7 @@ number. Look for `Current spiral pass:` at the top of this prompt.
 4. Read `{{lisa_root}}/methodology/methodology.md` for the equations to implement (relevant section only — the task tells you which section).
 5. Read existing code in `{{source_dirs}}/` (relevant files only).
 6. Read existing derivation docs in `{{lisa_root}}/methodology/derivations/`.
-7. Read `{{lisa_root}}/ddv/scenarios.md` for DDV verification scenarios relevant to the current task.
+7. Read `{{lisa_root}}/skills/engineering-judgment.md` for the bounding methodology to follow.
 8. Implement the next TODO task.
 
 ## Pick the Next Task
@@ -57,42 +58,45 @@ Your code **must** match the methodology specification exactly:
 
 **If your implementation deviates from the methodology for any reason, STOP.** Do not commit code that contradicts the methodology. Instead, use the Reconsideration Protocol (see below).
 
-### DDV Scenarios and Executable Tests
+### Engineering Judgment — Bounding Tests
 
-Each task in the plan may have a `**DDV Scenarios:**` field listing scenario IDs from
-`{{lisa_root}}/ddv/scenarios.md`. When implementing a task, read the referenced scenarios
-to understand what physical behaviors your implementation must satisfy.
+Follow the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`. You are
+responsible for writing bounding tests at all three levels alongside your implementation code.
 
-**You do NOT write DDV tests.** The Validate phase (which runs after Build) converts
-scenarios into executable tests in `{{tests_ddv}}/`. Your job is to write code that
-produces correct results so those tests will pass when the Validate phase creates them.
+**Before implementing a phenomenon:**
+1. Identify the governing dimensional groups
+2. Establish coefficient ranges from known physics
+3. Compute an order-of-magnitude expected output
+4. Write a Level 1 bounding test in `{{tests_bounds}}/phenomenon/` with a documented derivation
+5. Then implement the phenomenon
 
-**If executable DDV tests already exist** (from a previous pass's Validate phase), run
-them after implementing. They are read-only — you MUST NOT modify files in `{{tests_ddv}}/`.
-If a DDV test expects a value your code doesn't produce, your code is wrong — not the test.
+**After integrating phenomena:**
+1. Derive composition bounds from phenomenon-level bounds
+2. Write Level 2 bounding tests in `{{tests_bounds}}/composition/`
+3. Verify conservation laws and component ratios
 
-If after implementing you believe an existing DDV test has an error (wrong expected value,
-wrong tolerance, misread paper), do NOT modify the test. Instead:
-1. Document the disagreement in a reconsideration file
-2. Include your analysis: what you implemented, what the test expects, why you think
-   the test is wrong, citing the same source paper
-3. Mark the task BLOCKED
-4. The next refine phase (opus) will adjudicate
+**When producing system-level output:**
+1. Derive an independent back-of-envelope estimate using different reasoning
+2. Write Level 3 bounding tests in `{{tests_bounds}}/system/`
+3. If disagreement exceeds a factor of 2, investigate before reporting
 
-This separation is the core of Domain-Driven Verification: the test author and the
-implementer interpret the same papers independently. Disagreements are valuable signals,
-not bugs to suppress.
+**Every bounding test must include a derivation comment** documenting the physical reasoning,
+known coefficient ranges, and arithmetic. A bounding test without a derivation is not a
+bounding test — it's an arbitrary assertion.
+
+**If a bounding test fails**, your implementation is wrong — not the bound (assuming the
+derivation is sound). Fix the implementation.
 
 ### Software Quality Tests
 
-In addition to implementing code that satisfies DDV scenarios, you are responsible for software correctness:
+In addition to implementing code with bounding tests, you are responsible for software correctness:
 - Edge cases: empty input, zero values, extreme parameter ranges
 - Error handling: invalid input, NaN propagation, out-of-range parameters
 - Numerical stability: behavior near singularities, convergence at boundaries
 - Array/shape correctness for vectorized operations
 
 Write these tests in `{{tests_software}}/` alongside your implementation. They must pass before marking a task done.
-Categorize them so they can be run independently of DDV and integration tests. Use the
+Categorize them so they can be run independently of bounding and integration tests. Use the
 mechanism defined in `{{lisa_root}}/STACK.md` (see "Run Software Tests" command). Ensure every software
 test you write is picked up by that command.
 
@@ -103,7 +107,7 @@ normal development. The requirement is simply: they must exist and they must pas
 
 - Create source files in `{{source_dirs}}/` organized by logical module (not by subsystem)
 - `{{source_dirs}}/common/` — Shared utilities (constants, unit conversions, interpolation, I/O)
-- `{{tests_ddv}}/` — Domain-Driven Verification tests (read-only for you — written by Validate phase from DDV scenarios)
+- `{{tests_bounds}}/` — First-principles bounding tests (phenomenon/, composition/, system/) — written by you
 - `{{tests_software}}/` — Software quality tests (written by you)
 - `{{tests_integration}}/` — End-to-end / integration tests (written by you)
 
@@ -134,13 +138,13 @@ When a derivation doc is needed, create or update a document in `{{lisa_root}}/m
 
 After implementing, run verification:
 
-1. **Run DDV tests (if any exist):** If `{{tests_ddv}}/` contains executable tests from a previous Validate phase, run them using the test command from `{{lisa_root}}/STACK.md`. If no DDV tests exist yet (e.g., first pass), skip this step.
+1. **Run bounding tests:** Run all bounding tests in `{{tests_bounds}}/`. All must pass.
 2. **Run software tests:** Run your newly written software quality tests.
 3. **Run full suite:** Full test suite as regression check.
 4. **Generate and regenerate plots:**
    - **Create new plots** for `[Visual: ...]` checklist items in the current task
    - **Regenerate existing plots** whose underlying model or data changed
-   - If DDV scenarios referenced by this task specify a `**Visual:**` field, generate the described plot
+   - Generate bounding visualizations per the engineering judgment skill (L1 bars, L2 waterfall, L3 cross-check)
    - Types of visual evidence: comparison charts, parameter sweeps, convergence curves, residual plots, overlay diagrams
 5. **Update `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md`:** For every new or updated plot, add:
    - Path to the plot
@@ -222,24 +226,6 @@ If the methodology specification does not work in practice, **do not silently ch
 2. Mark the current task as `BLOCKED` in `{{lisa_root}}/methodology/plan.md`.
 3. Commit everything and exit. The next refine phase will address the reconsideration.
 
-### DDV Disagreement Protocol
-
-If a DDV test appears to encode wrong domain knowledge (your implementation is correct but the test
-expects wrong values), this is a SPECIAL reconsideration:
-
-Create `{{lisa_root}}/spiral/pass-{{pass}}/reconsiderations/ddv-disagreement-[test-name].md`:
-
-```markdown
-## DDV Disagreement: [test name]
-- **Test expects:** [value, citing the test's source comment]
-- **Implementation produces:** [value, citing methodology section]
-- **My analysis:** [why the test may be wrong — specific equation, specific paper, specific reading]
-- **Recommendation:** [revise test / revise implementation / need expert input]
-```
-
-This is a feature, not a bug. Independent interpretation of papers will sometimes disagree.
-The next refine phase resolves it.
-
 ## Blocked Task Handling
 
 When you encounter a problem that might block a task:
@@ -256,13 +242,12 @@ When you encounter a problem that might block a task:
 Before marking a task as `DONE`, verify **all** of the following:
 
 1. **All checklist items are checked off.** Review the task in `{{lisa_root}}/methodology/plan.md` and confirm that every `- [ ]` has been changed to `- [x]`. If any item is still `- [ ]`, the task is **not done**.
-2. **All existing DDV tests still pass.** If `{{tests_ddv}}/` contains executable tests from a previous Validate phase, they must all be green. If no DDV tests exist yet, this criterion is automatically satisfied.
+2. **All bounding tests pass.** Every phenomenon implemented must have a Level 1 bounding test, and it must pass.
 3. **All software quality tests pass.**
 4. **Full test suite passes** (regression check).
 5. **Code matches the methodology spec.**
 6. **Derivation doc written** (if non-trivial mapping).
 7. **All visual verification plots generated** (both new from `[Visual: ...]` items and regenerated for changed models) and `{{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md` updated.
-8. **DDV scenarios** referenced by this task are expected to be satisfiable by the implementation (the Validate phase will write executable tests for them after Build completes).
 
 Only after confirming all criteria, mark the task as `DONE` in `{{lisa_root}}/methodology/plan.md`.
 

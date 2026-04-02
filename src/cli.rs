@@ -31,8 +31,8 @@ WORKFLOW:
 
 ARTIFACTS:
 
-  All process artifacts live in .lisa/ — methodology, plans, DDV
-  scenarios, validation results, plots, and per-pass summaries.
+  All process artifacts live in .lisa/ — methodology, plans, skills,
+  validation results, plots, and per-pass summaries.
   See .lisa/CLAUDE.md for a full map of what's where.
 "
 )]

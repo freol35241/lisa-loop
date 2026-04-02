@@ -59,7 +59,7 @@ For **existing codebases**, set paths to match discovered locations:
 ```toml
 [paths]
 source = ["src"]           # actual source directories found
-tests_ddv = "tests/ddv"    # create if it doesn't exist
+tests_bounds = "tests/bounds"  # create if it doesn't exist (with phenomenon/, composition/, system/ subdirs)
 tests_software = "tests"   # map to existing test directory
 tests_integration = "tests/integration"  # create if needed
 
@@ -72,12 +72,12 @@ For **greenfield projects**, leave `[paths]` empty — the scope agent will reso
 ```toml
 [paths]
 source = []
-tests_ddv = ""
+tests_bounds = ""
 tests_software = ""
 tests_integration = ""
 ```
 
-If you create any new directories (like `tests/ddv/` for an existing project that lacks DDV test infrastructure), add a `.gitkeep` file in them.
+If you create any new directories (like `tests/bounds/` for an existing project that lacks bounding test infrastructure), add a `.gitkeep` file in them. For bounding tests, create the three subdirectories: `phenomenon/`, `composition/`, `system/`.
 
 ### 4. Rules
 

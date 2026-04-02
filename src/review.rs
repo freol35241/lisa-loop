@@ -56,14 +56,6 @@ pub enum BlockDecision {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum DdvDecision {
-    Approve,
-    Refine,
-    Edit,
-    Quit,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum RefineDecision {
     Approve,
     Refine,
@@ -155,18 +147,6 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         }
     }
 
-    // DDV scenarios (from ddv/scenarios.md)
-    let scenarios_path = lisa_root.join("ddv/scenarios.md");
-    if scenarios_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
-            let ddv_count = count_ddv_scenarios(&content);
-            if ddv_count > 0 {
-                terminal::print_colored("  DDV scenarios:", Color::Cyan);
-                println!(" {}", ddv_count);
-            }
-        }
-    }
-
     // Acceptance criteria lines
     if acceptance_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&acceptance_path) {
@@ -250,80 +230,6 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
             "r" => return Ok(ScopeDecision::Refine),
             "e" => return Ok(ScopeDecision::Edit),
             "q" => return Ok(ScopeDecision::Quit),
-            _ => println!("  Invalid choice. Enter A, R, E, or Q."),
-        }
-    }
-}
-
-/// DDV Agent review gate — always shown (even when pause = false)
-pub fn ddv_review_gate(_config: &Config, lisa_root: &Path) -> Result<DdvDecision> {
-    println!();
-    terminal::print_separator();
-    terminal::println_bold("  DDV SCENARIOS COMPLETE — REVIEW REQUIRED");
-    terminal::print_separator();
-    println!();
-
-    // Show scenario summary
-    let scenarios_path = lisa_root.join("ddv/scenarios.md");
-    if scenarios_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
-            let scenario_count = content.lines().filter(|l| l.starts_with("## DDV-")).count();
-            terminal::print_colored("  Scenarios: ", Color::Cyan);
-            println!("{}", scenario_count);
-
-            // Show first few scenario titles
-            let titles: Vec<&str> = content
-                .lines()
-                .filter(|l| l.starts_with("## DDV-"))
-                .take(5)
-                .collect();
-            for title in &titles {
-                println!("    {}", title.trim_start_matches("## "));
-            }
-            if scenario_count > 5 {
-                println!("    ... and {} more", scenario_count - 5);
-            }
-        }
-    }
-
-    // Show manifest summary (from ## Manifest section in scenarios.md)
-    if scenarios_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
-            let entry_count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
-            if entry_count > 0 {
-                terminal::print_colored("  Manifest:  ", Color::Cyan);
-                println!("{} entries", entry_count);
-            }
-        }
-    }
-
-    println!();
-    terminal::print_colored("  Files:\n", Color::Cyan);
-    println!("    Scenarios: {}/ddv/scenarios.md", lisa_root.display());
-
-    println!();
-    terminal::print_colored("  [A]", Color::Green);
-    println!(" APPROVE  — accept DDV scenarios and proceed to Pass 1");
-    terminal::print_colored("  [R]", Color::Yellow);
-    println!(" REFINE   — write feedback to a file, then the DDV agent re-runs");
-    terminal::print_colored("  [E]", Color::Cyan);
-    println!(" EDIT     — edit the scenario files yourself with any editor, then approve");
-    terminal::print_colored("  [Q]", Color::Red);
-    println!(" QUIT     — stop the spiral here (resume later with `lisa resume`)");
-    println!();
-    terminal::print_separator();
-    println!();
-
-    loop {
-        print!("  Your choice [A/R/E/Q]: ");
-        io::stdout().flush()?;
-        let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
-        match choice.trim().to_lowercase().as_str() {
-            "a" => return Ok(DdvDecision::Approve),
-            "r" => return Ok(DdvDecision::Refine),
-            "e" => return Ok(DdvDecision::Edit),
-            "q" => return Ok(DdvDecision::Quit),
             _ => println!("  Invalid choice. Enter A, R, E, or Q."),
         }
     }
@@ -976,11 +882,6 @@ pub fn extract_methodology_approach_from(content: &str) -> Option<String> {
     None
 }
 
-/// Count `## DDV-` headings in ddv/scenarios.md.
-pub fn count_ddv_scenarios(content: &str) -> u32 {
-    content.lines().filter(|l| l.starts_with("## DDV-")).count() as u32
-}
-
 fn extract_stack_info(agents_content: &str) -> Option<String> {
     let mut found = false;
     for line in agents_content.lines() {
@@ -1014,7 +915,7 @@ fn display_review_summary(content: &str, _pass: u32) {
 
     // Extract test summary
     for line in content.lines() {
-        if line.starts_with("DDV:") {
+        if line.starts_with("Bounds:") {
             terminal::print_bold("  Tests: ");
             println!("{}", line);
             break;
@@ -1027,24 +928,6 @@ fn display_review_summary(content: &str, _pass: u32) {
             let info = line.split(':').next_back().unwrap_or("").trim();
             terminal::print_bold("  Sanity: ");
             println!("{}", info);
-            break;
-        }
-    }
-
-    // DDV Scenario Coverage
-    if let Some(coverage) = extract_section_first_line(content, "## DDV Scenario Coverage") {
-        terminal::print_bold("  DDV coverage: ");
-        println!("{}", coverage);
-    }
-    // Highlight re-run recommendation
-    for line in content.lines() {
-        if line.contains("Re-run DDV Agent recommended:") {
-            let text = line.trim();
-            if text.to_uppercase().contains("YES") {
-                terminal::print_colored(&format!("  {}\n", text), Color::Yellow);
-            } else {
-                println!("  {}", text);
-            }
             break;
         }
     }
@@ -1174,18 +1057,6 @@ mod tests {
             extract_methodology_approach_from(content),
             Some("Direct numerical simulation.".to_string())
         );
-    }
-
-    #[test]
-    fn test_count_ddv_scenarios() {
-        let content = "# DDV Scenarios\n\n## DDV-001: Basic check\nDetails...\n\n## DDV-002: Boundary\nDetails...\n\n## DDV-003: Convergence\nDetails...\n";
-        assert_eq!(count_ddv_scenarios(content), 3);
-    }
-
-    #[test]
-    fn test_count_ddv_scenarios_none() {
-        let content = "# DDV Scenarios\n\n## Manifest\n\nNo scenarios yet.\n";
-        assert_eq!(count_ddv_scenarios(content), 0);
     }
 
     #[test]

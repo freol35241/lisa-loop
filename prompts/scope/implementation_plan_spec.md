@@ -33,5 +33,5 @@ refine phase will flesh those out once the methodology is complete.
 - Infrastructure tasks (setup, test framework, etc.) come first if needed
 - Tag every task with `**Pass:** 1` for Pass 1 tasks
 - Pass 2+ tasks can be sketched with TODO placeholders
-- Tasks do NOT include DDV test items — DDV tests are written from scenarios by the Validate phase
+- Tasks should include bounding check items where applicable (the Build phase derives and writes bounding tests per the engineering judgment skill)
 - Do NOT add checklists — the refine phase adds those after completing the methodology

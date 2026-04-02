@@ -17,7 +17,7 @@ pub fn commit_all(msg: &str, config: &Config) -> Result<bool> {
     let mut paths: Vec<String> = Vec::new();
     paths.extend(config.paths.source.iter().cloned());
     for test_dir in [
-        &config.paths.tests_ddv,
+        &config.paths.tests_bounds,
         &config.paths.tests_software,
         &config.paths.tests_integration,
     ] {

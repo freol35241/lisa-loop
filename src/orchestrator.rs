@@ -72,8 +72,6 @@ pub fn run(
     let config = reload_config_if_needed(config, project_root)?;
     config.validate_paths()?;
 
-    ensure_ddv_complete(&config, project_root)?;
-
     run_pass_range(&config, project_root, 1, max)
 }
 
@@ -110,17 +108,8 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             run(config, project_root, None, no_pause, None)
         }
         SpiralState::ScopeComplete => {
-            terminal::log_info("Scope already complete. Running DDV Agent and spiral passes.");
+            terminal::log_info("Scope already complete. Running spiral passes.");
             run(config, project_root, None, no_pause, None)
-        }
-        SpiralState::DdvAgent | SpiralState::DdvAgentReview => {
-            terminal::log_info("Resuming: DDV Agent was incomplete.");
-            run_ddv_agent(config, project_root)?;
-            run(config, project_root, None, no_pause, None)
-        }
-        SpiralState::DdvAgentComplete => {
-            terminal::log_info("DDV scenarios already complete. Running spiral passes.");
-            run_pass_range(config, project_root, 1, config.limits.max_spiral_passes)
         }
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
@@ -141,7 +130,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
-            run_validate(config, project_root, pass)?;
+            run_audit(config, project_root, pass)?;
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
@@ -172,7 +161,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
-            run_validate(config, project_root, pass)?;
+            run_audit(config, project_root, pass)?;
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
@@ -193,14 +182,14 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
         }
         SpiralState::BuildComplete { pass } => {
             terminal::log_info(&format!(
-                "Resuming: build complete for pass {}, proceeding to validate.",
+                "Resuming: build complete for pass {}, proceeding to audit.",
                 pass
             ));
-            resume_from_phase(config, project_root, pass, &PassPhase::Validate)
+            resume_from_phase(config, project_root, pass, &PassPhase::Audit)
         }
-        SpiralState::ValidateComplete { pass } => {
+        SpiralState::AuditComplete { pass } => {
             terminal::log_info(&format!(
-                "Resuming: validate complete for pass {}, proceeding to review.",
+                "Resuming: audit complete for pass {}, proceeding to review.",
                 pass
             ));
             git::push(config)?;
@@ -338,7 +327,7 @@ fn resume_from_phase(
             if !run_build_loop(config, project_root, pass, 1)? {
                 return Ok(());
             }
-            run_validate(config, project_root, pass)?;
+            run_audit(config, project_root, pass)?;
             git::push(config)?;
         }
         PassPhase::Build { iteration } => {
@@ -349,12 +338,12 @@ fn resume_from_phase(
             if !run_build_loop(config, project_root, pass, *iteration)? {
                 return Ok(());
             }
-            run_validate(config, project_root, pass)?;
+            run_audit(config, project_root, pass)?;
             git::push(config)?;
         }
-        PassPhase::Validate => {
+        PassPhase::Audit => {
             terminal::log_info(&format!("Resuming: validate phase at pass {}.", pass));
-            run_validate(config, project_root, pass)?;
+            run_audit(config, project_root, pass)?;
             git::push(config)?;
         }
     }
@@ -411,7 +400,7 @@ fn run_pass_range(
             ));
             return Ok(());
         }
-        run_validate(config, project_root, pass)?;
+        run_audit(config, project_root, pass)?;
 
         // Generate code-diff.patch capturing this pass's changes
         generate_pass_diff(&lisa_root, pass);
@@ -591,137 +580,6 @@ fn ensure_scope_complete(config: &Config, project_root: &Path) -> Result<()> {
         }
     } else {
         terminal::log_info("Pass 0 already complete.");
-    }
-    Ok(())
-}
-
-fn run_ddv_agent(config: &Config, project_root: &Path) -> Result<()> {
-    let lisa_root = config.lisa_root(project_root);
-
-    terminal::log_phase("DDV AGENT — Writing verification scenarios");
-
-    if lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
-        terminal::log_success("DDV scenarios already complete.");
-        return Ok(());
-    }
-
-    state::save_state(&lisa_root, &SpiralState::DdvAgent)?;
-    std::fs::create_dir_all(lisa_root.join("ddv"))?;
-
-    let input = prompt::build_agent_input(Phase::DdvAgent, config, &lisa_root, 0, None);
-    let model = Phase::DdvAgent.model_key(config);
-
-    run_agent_with_tracking(
-        config,
-        &lisa_root,
-        &input,
-        &model,
-        "DDV Agent",
-        "ddv_agent",
-        0,
-    )?;
-    git::commit_all("ddv-agent: verification scenarios written", config)?;
-
-    // DDV review gate — always shown (even when pause = false)
-    state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
-    loop {
-        match review::ddv_review_gate(config, &lisa_root)? {
-            review::DdvDecision::Approve => {
-                terminal::log_success("DDV scenarios approved. Proceeding to Pass 1.");
-                break;
-            }
-            review::DdvDecision::Refine => {
-                // Create feedback template if it doesn't exist
-                let feedback_path = lisa_root.join("ddv/ddv-feedback.md");
-                if !feedback_path.exists() {
-                    std::fs::write(
-                        &feedback_path,
-                        "# DDV Feedback\n\n## Coverage Gaps\n-\n\n## Scenario Issues\n-\n\n## Missing Sources\n-\n\n## Other\n-\n",
-                    )?;
-                }
-
-                review::wait_for_edit(
-                    "Write your DDV feedback in the file below. Describe coverage gaps, scenario issues, or missing sources.",
-                    &feedback_path,
-                );
-
-                // Remove completion marker so agent re-runs
-                let complete_marker = lisa_root.join("ddv/DDV_COMPLETE.md");
-                if complete_marker.exists() {
-                    std::fs::remove_file(&complete_marker)?;
-                }
-
-                terminal::log_info("Re-running DDV Agent with feedback...");
-                state::save_state(&lisa_root, &SpiralState::DdvAgent)?;
-
-                let refine_ctx = "DDV REFINEMENT: The human has reviewed your scenarios and provided feedback.\n\
-                                  Read ddv/ddv-feedback.md carefully and update affected scenarios.\n\
-                                  Do not discard previous work — refine it based on the feedback.";
-
-                let input = prompt::build_agent_input(
-                    Phase::DdvAgent,
-                    config,
-                    &lisa_root,
-                    0,
-                    Some(refine_ctx),
-                );
-
-                run_agent_with_tracking(
-                    config,
-                    &lisa_root,
-                    &input,
-                    &model,
-                    "DDV Agent: refinement",
-                    "ddv_agent",
-                    0,
-                )?;
-                git::commit_all("ddv-agent: scenarios refined after human feedback", config)?;
-                terminal::log_info("DDV scenarios refined. Reviewing again...");
-                state::save_state(&lisa_root, &SpiralState::DdvAgentReview)?;
-            }
-            review::DdvDecision::Edit => {
-                let scenarios_path = lisa_root.join("ddv/scenarios.md");
-                terminal::log_info("Edit the DDV scenario files directly with any editor.");
-                println!();
-                terminal::print_colored("  Scenarios: ", Color::Cyan);
-                println!("{}", scenarios_path.display());
-                println!();
-                print!("  Press Enter when you are done editing...");
-                let _ = std::io::Write::flush(&mut std::io::stdout());
-                let mut _buf = String::new();
-                let _ = std::io::stdin().read_line(&mut _buf);
-
-                // Re-display summary after edit
-                display_ddv_edit_summary(&lisa_root);
-
-                terminal::log_success(
-                    "DDV scenarios approved (manually edited). Proceeding to Pass 1.",
-                );
-                break;
-            }
-            review::DdvDecision::Quit => {
-                terminal::log_warn("Stopping after DDV Agent.");
-                return Ok(());
-            }
-        }
-    }
-
-    state::save_state(&lisa_root, &SpiralState::DdvAgentComplete)?;
-    terminal::log_success("DDV Agent complete.");
-    Ok(())
-}
-
-fn ensure_ddv_complete(config: &Config, project_root: &Path) -> Result<()> {
-    let lisa_root = config.lisa_root(project_root);
-    if !lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
-        terminal::log_info("DDV scenarios not complete. Running DDV Agent first.");
-        run_ddv_agent(config, project_root)?;
-        if !lisa_root.join("ddv/DDV_COMPLETE.md").exists() {
-            terminal::log_warn("DDV Agent not completed. Run `lisa run` to try again.");
-            anyhow::bail!("DDV Agent phase did not complete (user quit or agent failed).");
-        }
-    } else {
-        terminal::log_info("DDV scenarios already complete.");
     }
     Ok(())
 }
@@ -999,23 +857,6 @@ fn display_scope_edit_summary(lisa_root: &Path) {
     }
 }
 
-/// Display a brief summary of DDV artifacts after manual editing.
-fn display_ddv_edit_summary(lisa_root: &Path) {
-    let scenarios_path = lisa_root.join("ddv/scenarios.md");
-    if scenarios_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&scenarios_path) {
-            let count = content.lines().filter(|l| l.starts_with("## DDV-")).count();
-            terminal::print_colored("  Scenarios: ", Color::Cyan);
-            println!("{}", count);
-            let manifest_count = content.lines().filter(|l| l.starts_with("| DDV-")).count();
-            if manifest_count > 0 {
-                terminal::print_colored("  Manifest: ", Color::Cyan);
-                println!("{} entries", manifest_count);
-            }
-        }
-    }
-}
-
 /// Display a brief summary of key artifacts after manual editing.
 fn display_refine_edit_summary(lisa_root: &Path) {
     let plan_path = lisa_root.join("methodology/plan.md");
@@ -1221,33 +1062,33 @@ fn run_build_loop(
     Ok(true)
 }
 
-fn run_validate(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
+fn run_audit(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
-    terminal::log_phase(&format!("PASS {} — VALIDATE", pass));
+    terminal::log_phase(&format!("PASS {} — AUDIT", pass));
     state::save_state(
         &lisa_root,
         &SpiralState::InPass {
             pass,
-            phase: PassPhase::Validate,
+            phase: PassPhase::Audit,
         },
     )?;
 
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
 
     let extra = format!("Current spiral pass: {}", pass);
-    let input = prompt::build_agent_input(Phase::Validate, config, &lisa_root, pass, Some(&extra));
-    let model = Phase::Validate.model_key(config);
+    let input = prompt::build_agent_input(Phase::Audit, config, &lisa_root, pass, Some(&extra));
+    let model = Phase::Audit.model_key(config);
     run_agent_with_tracking(
         config,
         &lisa_root,
         &input,
         &model,
-        &format!("Validate: pass {}", pass),
-        "validate",
+        &format!("Audit: pass {}", pass),
+        "audit",
         pass,
     )?;
-    git::commit_all(&format!("validate: pass {}", pass), config)?;
-    state::save_state(&lisa_root, &SpiralState::ValidateComplete { pass })?;
+    git::commit_all(&format!("audit: pass {}", pass), config)?;
+    state::save_state(&lisa_root, &SpiralState::AuditComplete { pass })?;
     Ok(())
 }
 
@@ -1522,15 +1363,6 @@ fn generate_audit_report(
         writeln!(report).unwrap();
     }
 
-    // DDV Scenarios
-    let ddv_path = lisa_root.join("ddv/scenarios.md");
-    if let Ok(content) = std::fs::read_to_string(&ddv_path) {
-        writeln!(report, "---\n").unwrap();
-        writeln!(report, "## DDV Verification Scenarios\n").unwrap();
-        writeln!(report, "{}", content.trim()).unwrap();
-        writeln!(report).unwrap();
-    }
-
     // Per-pass summaries
     writeln!(report, "---\n").unwrap();
     writeln!(report, "## Spiral Pass History\n").unwrap();
@@ -1747,8 +1579,8 @@ fn continue_spiral(
         std::fs::remove_file(&complete_marker)?;
     }
 
-    // Reset state to DdvAgentComplete (scope + DDV scenarios are still valid)
-    state::save_state(&lisa_root, &SpiralState::DdvAgentComplete)?;
+    // Reset state to ScopeComplete (scope is still valid)
+    state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
 
     git::commit_all(
         &format!(

@@ -22,6 +22,15 @@ Use this guide to find and interpret results, methods, assumptions, and validati
 | `CODEBASE.md` | Auto-discovered project structure summary |
 | `STACK.md` | Resolved technology stack and build/test commands |
 
+### Skills (engineering standards for agents)
+
+| File | Purpose |
+|------|---------|
+| `skills/engineering-judgment.md` | Three-level bounding methodology (phenomenon, composition, system) |
+| `skills/dimensional-analysis.md` | Unit tracking through computation chains |
+| `skills/numerical-stability.md` | Discretisation, convergence, floating point checks |
+| `skills/literature-grounding.md` | Optional reference data comparison methodology |
+
 ### Methodology (refined each pass)
 
 | File | Purpose |
@@ -35,7 +44,6 @@ Use this guide to find and interpret results, methods, assumptions, and validati
 
 | File | Purpose |
 |------|---------|
-| `ddv/scenarios.md` | Domain-Driven Verification scenarios with literature sources and tolerances |
 | `validation/sanity-checks.md` | Order-of-magnitude, trend, conservation, and dimensional checks |
 | `validation/limiting-cases.md` | Analytical limiting cases to verify |
 | `validation/reference-data.md` | Published reference datasets for comparison |
@@ -49,12 +57,12 @@ Use this guide to find and interpret results, methods, assumptions, and validati
 | `spiral-plan.md` | (Pass 0 only) Scope progression strategy across passes |
 | `refine-summary.md` | What methodology changed this pass |
 | `execution-report.md` | Intermediate values and outputs from Build |
-| `system-validation.md` | Full validation results: test counts, sanity checks, DDV status |
+| `system-validation.md` | Full validation results: bounding audit, test counts, sanity checks |
 | `progress-tracking.md` | Cross-pass convergence metrics and coverage |
 | `review-package.md` | Human-facing summary with key results and recommendations |
 | `plots/REVIEW.md` | Index of all plots with descriptions and assessments |
-| `plots/*.png` | Visual evidence (DDV comparisons, convergence, reference data) |
-| `reconsiderations/*.md` | Disagreements between DDV tests and implementation, pending adjudication |
+| `plots/*.png` | Visual evidence (bounding checks, convergence, reference data) |
+| `reconsiderations/*.md` | Methodology issues pending adjudication |
 | `code-diff.patch` | Code changes vs. previous pass |
 | `PASS_COMPLETE.md` | Marker indicating this pass finished |
 
@@ -75,7 +83,7 @@ Use this guide to find and interpret results, methods, assumptions, and validati
 
 1. Check `state.toml` to see which pass completed last
 2. Read `spiral/pass-N/review-package.md` for the high-level summary
-3. Read `spiral/pass-N/system-validation.md` for detailed test results
+3. Read `spiral/pass-N/system-validation.md` for detailed test results and bounding audit
 4. Check `spiral/pass-N/plots/REVIEW.md` for visual evidence
 5. Read `spiral/pass-N/progress-tracking.md` for convergence across passes
 6. Read `methodology/assumptions-register.md` for caveats and limitations
@@ -84,13 +92,14 @@ Use this guide to find and interpret results, methods, assumptions, and validati
 
 - The governing equations and their sources are in `methodology/methodology.md`
 - Each non-trivial derivation is documented in `methodology/derivations/`
-- DDV scenarios in `ddv/scenarios.md` trace back to literature with full citations
+- Engineering skills in `skills/` define the verification methodology agents follow
 - The `literature-survey.md` in pass-0 shows what alternatives were considered and why they were rejected
 
 ## How to Assess Trustworthiness
 
-- Check DDV scenario pass rates in `ddv/scenarios.md` (Manifest table)
+- Check bounding test results by level (phenomenon, composition, system) in `system-validation.md`
+- Review bounding discipline audit: does every phenomenon have L1 bounds? Every composition L2?
 - Review sanity checks in `validation/sanity-checks.md`
-- Look for reconsiderations in `spiral/pass-N/reconsiderations/` — these flag unresolved disagreements
+- Look for reconsiderations in `spiral/pass-N/reconsiderations/` — these flag unresolved issues
 - Compare convergence across passes in `progress-tracking.md`
 - Read `methodology/assumptions-register.md` for known limitations
