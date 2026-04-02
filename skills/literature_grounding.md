@@ -41,11 +41,72 @@ When comparing model output to reference data:
 3. **Correlation coefficient:** For datasets with multiple points, R² indicates trend agreement
 4. **Bias:** Systematic over- or under-prediction across all data points suggests a systematic error
 
-### Step 4: Interpretation
+### Step 4: Condition Match Assessment
 
-- Agreement within measurement uncertainty → model is consistent with data
-- Agreement within first-principles bounds but outside measurement uncertainty → model captures the right physics but may have calibration issues
+Before comparing numbers, assess how well the published conditions match your modelled conditions. An experienced engineer comparing against published data always asks "how similar is their case to mine?"
+
+Factors that affect condition similarity:
+- **Geometric differences:** hull form, dimensions, proportions, surface roughness
+- **Operating condition differences:** speed, draft, trim, sea state, loading
+- **Scale effects:** model scale vs full scale, Reynolds number range
+- **Environmental differences:** water depth, temperature, salinity
+- **Methodology differences:** experimental vs CFD vs empirical correlation
+
+Rate the overall condition match:
+- **CLOSE:** conditions are nearly identical; differences should be small
+- **APPROXIMATE:** conditions are similar but with notable differences; expect ±10-20% scatter
+- **LOOSE:** conditions differ substantially; comparison is directional only
+
+Estimate the expected difference from condition mismatches before looking at the actual comparison. This prevents retrofitting explanations after seeing disagreement.
+
+### Step 5: Interpretation
+
+- Agreement within measurement uncertainty → model is consistent with data (CONSISTENT)
+- Agreement within first-principles bounds but outside measurement uncertainty → may indicate calibration issues or condition mismatch (INCONCLUSIVE if conditions differ, CONCERN if conditions match)
 - Disagreement outside first-principles bounds → fundamental model error (investigate using Level 1 bounds to locate the faulty phenomenon)
+- Disagreement with similar conditions but within expected scatter → CONSISTENT
+- Disagreement with dissimilar conditions → INCONCLUSIVE (the comparison is informative but not definitive)
+
+---
+
+## Structured Comparison Format (RC-NNN)
+
+When performing reference comparisons during the audit phase, use this structured format:
+
+```markdown
+## RC-001: [quantity compared]
+
+**Our result:** [value with units]
+
+**Published value:** [value with units]
+**Source:** [full citation — author(s), year, title, DOI/URL]
+**How obtained:** [read from table N / digitised from figure N /
+                   stated in text on page N]
+
+**Condition match assessment:**
+- [Parameter 1]: ours [value] vs published [value] — [match/mismatch]
+- [Parameter 2]: ours [value] vs published [value] — [match/mismatch]
+- Overall: [CLOSE / APPROXIMATE / LOOSE]
+- Expected difference from condition mismatch: ±[X]%
+
+**Comparison:**
+- Absolute difference: [value]
+- Relative difference: [X]%
+- Within level 3 system bounds: [YES/NO]
+- Difference explained by condition mismatch: [YES/PARTIALLY/NO]
+
+**Confidence:** [CONSISTENT / INCONCLUSIVE / CONCERN]
+
+**Visual:** [description of overlay plot to generate]
+```
+
+### Digitising from Figures
+
+When extracting values from published figures:
+- State the uncertainty introduced by digitisation (typically ±2-5% depending on figure quality)
+- Note the figure number and axis scales
+- If multiple data points are available, extract several to establish trends, not just one
+- Prefer tabulated values over figure digitisation when both are available
 
 ---
 

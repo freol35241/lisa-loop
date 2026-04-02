@@ -154,7 +154,49 @@ Sample key equations: does the code match the methodology?
 - Are valid ranges enforced?
 - Are derivation docs present for non-trivial mappings?
 
-### 7. Progress Tracking
+### 7. Reference Data Search (optional, non-blocking)
+
+After completing bounding checks at all three levels, search for published data to corroborate the system output. Follow the literature grounding skill in `{{lisa_root}}/skills/literature-grounding.md` for comparison methodology.
+
+1. Read papers in `{{lisa_root}}/references/core/` and `{{lisa_root}}/references/retrieved/`. Search the web for experimental measurements, validated computations, or benchmark results at conditions similar to those modelled.
+2. For each relevant dataset found, produce a structured comparison using the RC-NNN format (see below) in the system audit report. Assess condition similarity explicitly — do not just compare numbers.
+3. Generate an overlay plot for each comparison. Save to `{{lisa_root}}/spiral/pass-{{pass}}/plots/` with `rc-` prefix.
+4. Assign confidence: CONSISTENT, INCONCLUSIVE, or CONCERN.
+5. If no relevant published data can be found, state this explicitly. Absence of reference data is not a failure — the bounding checks are the primary verification.
+6. Reference comparisons NEVER override bounding check results. Flag concerns for human review but do not change pass/fail status of any bounding check.
+
+#### RC-NNN comparison format
+
+```markdown
+## RC-001: [quantity compared]
+
+**Our result:** [value with units]
+
+**Published value:** [value with units]
+**Source:** [full citation — author(s), year, title, DOI/URL]
+**How obtained:** [read from table N / digitised from figure N / stated in text on page N]
+
+**Condition match assessment:**
+- [Parameter 1]: ours [value] vs published [value] — [match/mismatch]
+- [Parameter 2]: ours [value] vs published [value] — [match/mismatch]
+- Overall: [CLOSE / APPROXIMATE / LOOSE]
+- Expected difference from condition mismatch: ±[X]%
+
+**Comparison:**
+- Absolute difference: [value]
+- Relative difference: [X]%
+- Within level 3 system bounds: [YES/NO]
+- Difference explained by condition mismatch: [YES/PARTIALLY/NO]
+
+**Confidence:** [CONSISTENT / INCONCLUSIVE / CONCERN]
+- CONSISTENT: difference is within expected scatter given condition mismatches
+- INCONCLUSIVE: conditions differ enough that comparison is informative but not definitive
+- CONCERN: conditions are similar but results disagree significantly — warrants investigation
+
+**Visual:** [description of overlay plot to generate]
+```
+
+### 8. Progress Tracking
 
 Compare key outputs with the previous spiral pass. Compute and present deltas — do NOT render a convergence verdict. The human decides at the review gate whether to accept or continue.
 
@@ -166,7 +208,7 @@ If this is **Pass N > 1:**
   - Compute absolute and relative change from previous pass
   - Note whether the change is within the accuracy bounds of the methods used
 
-### 8. Produce Artifacts
+### 9. Produce Artifacts
 
 Create **all** of the following:
 
@@ -222,10 +264,20 @@ Detailed validation report. Be concise: one line per passing check, detailed ana
 |------|----------|--------|--------|
 | [case] | [value] | [value] | PASS/FAIL |
 
-### Reference Data Comparison
+### Reference Data Comparison (from validation/reference-data.md)
 | Dataset | Source | Our Result | Published | Δ (%) | Status |
 |---------|--------|-----------|-----------|-------|--------|
 | [data] | [cite] | [value] | [value] | [X.X] | PASS/FAIL |
+
+### Reference Data Search (RC comparisons)
+[N comparisons found — N CONSISTENT, N INCONCLUSIVE, N CONCERN]
+[or: "No published data found for these conditions"]
+
+[For each RC:]
+RC-NNN: [quantity] — [CONSISTENT/INCONCLUSIVE/CONCERN]
+  Our result: [value], Published: [value] ([source])
+  Condition match: [CLOSE/APPROXIMATE/LOOSE], Δ=[X]%
+  Visual: [plot path]
 
 ### Acceptance Criteria
 | Criterion | Staged target (this pass) | Final target | Current | Staged met? | Final met? |
@@ -284,6 +336,21 @@ Failures: [list any, or "None"]
 ## Sanity Checks: [pass/total]
 Failures: [list any, or "None"]
 
+## Reference Comparisons
+Refs: [N found — N consistent / N inconclusive / N concern]
+      [or: "no published data found for these conditions"]
+
+[For each RC with confidence CONCERN:]
+  RC-NNN: [quantity] — CONCERN
+  Ours: [value], Published: [value] ([citation])
+  Difference: [X]%, expected from conditions: [Y]%
+  → [one-line analysis]
+  → Plot: [path]
+
+[For CONSISTENT and INCONCLUSIVE, one-line summary only:]
+  RC-001: [quantity] — CONSISTENT (Δ=X%, expected ±Y%)
+  RC-002: [quantity] — INCONCLUSIVE ([reason])
+
 ## Visual Evidence (HUMAN REVIEW)
 These plots are the primary evidence for judging correctness:
 1. [Plot: path] → [what to look for — expected behavior, acceptable range]
@@ -324,6 +391,7 @@ Bounding discipline: L1 [N/M], L2 [N/M], L3 [present/absent]
 Software tests: [pass/total]
 Integration tests: [pass/total]
 Sanity checks: [pass/total]
+Reference comparisons: [N found — N consistent / N inconclusive / N concern] (or "none found")
 Visual evidence: [N] plots generated (see {{lisa_root}}/spiral/pass-{{pass}}/plots/REVIEW.md)
 Progress: see progress-tracking.md
 Status: [what is complete vs. what remains]
@@ -347,6 +415,7 @@ Provide a brief summary of:
 - Bounding discipline audit (coverage by level, any gaps)
 - Test results (bounds, software, integration pass rates)
 - Validation results (sanity check results)
+- Reference comparisons (count found, any concerns)
 - Visual verification evidence generated (count of plots, any concerns flagged)
 - Progress tracking (deltas from previous pass)
 - Status assessment (what is complete vs. what remains from full scope)
