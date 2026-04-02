@@ -87,7 +87,7 @@ fn cmd_status() -> Result<()> {
     match &state {
         state::SpiralState::NotStarted => {
             println!("  State: Not started");
-            println!("  Next:  lisa scope   (or lisa run)");
+            println!("  Next:  lisa run");
         }
         _ => {
             println!("  State: {}", state);

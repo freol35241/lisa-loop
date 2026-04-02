@@ -7,7 +7,7 @@
 - **Status:** TODO | IN_PROGRESS | DONE | BLOCKED
 - **Pass:** N
 - **Methodology:** [section ref]
-- **DDV Scenarios:** DDV-001, DDV-003 (or "none")
+- **Validation:** sanity-checks, limiting-cases, reference-data (or "none")
 - **Checklist:**
   - [ ] [Implement X]
   - [ ] [Implement Y]

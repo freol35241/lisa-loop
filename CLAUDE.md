@@ -29,7 +29,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Core Flow
 
 1. **`lisa init`** scaffolds a `.lisa/` directory with config, templates, and state file
-2. **`lisa run`** drives a spiral: Pass 0 (Scoping) → DDV Agent (one-time prologue) → Passes 1..N (Refine → Build → Validate)
+2. **`lisa run`** drives a spiral: Pass 0 (Scoping) → Passes 1..N (Refine → Build → Audit) → Finalize
 3. Each phase: save state → build prompt → spawn `claude` subprocess → parse NDJSON output → git commit → review gate
 4. **Filesystem is shared state** — agents have no memory between invocations; all inter-invocation communication happens through markdown files in `.lisa/`
 
@@ -37,12 +37,12 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 
 - **`cli.rs`** — Clap-derived CLI definition (`Commands` enum)
 - **`main.rs`** — Entry point, dispatches commands
-- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_ddv_agent`, `run_refine`, `run_build_loop`, `run_validate`, `finalize`)
+- **`orchestrator.rs`** — Core spiral logic: `run()`, `resume()`, per-phase runners (`run_scope`, `run_refine`, `run_build_loop`, `run_audit`, `run_explore`, `finalize`)
 - **`state.rs`** — `SpiralState`/`PassPhase` enum state machine, TOML serialized to `.lisa/state.toml`
 - **`agent.rs`** — Spawns `claude` CLI subprocess, pipes prompts to stdin, parses streaming NDJSON, tracks tool calls, renders progress UX with elapsed time ticker thread
 - **`prompt.rs`** — Loads prompts (local `.lisa/prompts/` overrides compiled-in defaults), renders `{{placeholder}}` substitutions, assembles context preamble
-- **`config.rs`** — TOML config from `.lisa/lisa.toml` (project, models, limits, review, git, paths, commands)
-- **`review.rs`** — Four interactive gate types: scope review (A/R/E/Q), DDV review (A/E/Q), pass review (F/C/R), block gate (F/S/X)
+- **`config.rs`** — TOML config from `lisa.toml` in project root (project, models, limits, review, git, paths, commands)
+- **`review.rs`** — Eight interactive gate types: scope review (A/R/E/Q), refine review (A/R/E/Q), pass review (F/C/R/E/Q), explore review (M/D), block gate (F/S/X), finalize gate (A/R), budget gate (C/S), environment gate
 - **`tasks.rs`** — Regex parser for `### Task N` blocks in `plan.md` (status tracking, stall detection)
 - **`git.rs`** — Git commit/push/reset operations respecting config flags
 - **`terminal.rs`** — Colored output utilities via crossterm
@@ -51,8 +51,7 @@ Lisa Loop is a CLI tool (`lisa`) that orchestrates AI agents (Claude CLI) throug
 ### Key Design Patterns
 
 - **Compiled-in resources**: Prompts (`prompts/`) and templates (`templates/`) are embedded via `include_str!`. Users can eject prompts with `lisa eject-prompts` for customization without recompiling.
-- **DDV Agent prologue**: After scoping, a one-time DDV Agent writes literature-grounded verification scenarios (markdown, no code) to `.lisa/ddv/scenarios.md`. The Validate phase later converts these into executable tests.
-- **DDV scenario → test separation**: The DDV Agent (one-time, opus) writes literature-grounded verification scenarios (markdown, not code). The Validate phase (after Build) converts scenarios into executable tests. Build must not write or modify DDV tests — separation is enforced via prompt guidance.
+- **Engineering judgment skills**: Instead of a separate verification agent, engineering judgment skills (bounding tests, dimensional analysis, numerical stability, literature grounding) are embedded as markdown in `skills/` and injected into agent prompts. The Audit phase validates the implementation against pre-defined criteria (sanity checks, limiting cases, reference data).
 - **Build "Ralph loop"**: The build phase iterates up to `max_ralph_iterations`, with stall detection based on content hashing of `plan.md`. Stalls trigger a block gate.
 - **Model assignment**: Most phases use "opus"; Build uses "sonnet". Configurable in `lisa.toml`.
 - **Error handling**: `anyhow::Result` throughout, propagated with `?`.

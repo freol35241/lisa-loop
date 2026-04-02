@@ -43,10 +43,10 @@
 # Run full test suite
 ```
 
-## Run DDV Tests
+## Run Bounds Tests
 
 ```bash
-# Run domain verification tests independently
+# Run bounding / phenomenon verification tests independently
 ```
 
 ## Run Software Tests

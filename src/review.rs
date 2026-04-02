@@ -25,7 +25,6 @@ pub fn wait_for_edit(label: &str, file_path: &Path) {
 }
 
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub enum ReviewDecision {
     Finalize,
     Continue,
@@ -329,7 +328,7 @@ pub fn refine_review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Resul
     }
 }
 
-/// Pass review gate — after each pass's validate phase
+/// Pass review gate — after each pass's audit phase
 pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<ReviewDecision> {
     if !config.review.pause {
         terminal::log_warn("Review gate skipped (pause = false) — defaulting to CONTINUE");

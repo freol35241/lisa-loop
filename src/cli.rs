@@ -17,17 +17,12 @@ WORKFLOW:
   └──────────────────┬────────────────────────────┘
                      ▼
   ┌───────────────────────────────────────────────┐
-  │  INDEPENDENT VERIFICATION (one-time prologue) │
-  │  Test criteria from literature, before code    │
-  └──────────────────┬────────────────────────────┘
-                     ▼
-  ┌───────────────────────────────────────────────┐
   │  SPIRAL PASSES (Pass 1..N)                    │
-  │  Refine → Build → Validate                    │
+  │  Refine → Build → Audit                       │
   │  Each pass widens scope & tightens tolerances │◄── human gate
   └──────────────────┬────────────────────────────┘
                      ▼
-  Finalize at review gate → answer.md + report.md
+  Finalize at review gate → LISA-REPORT.md
 
 ARTIFACTS:
 
