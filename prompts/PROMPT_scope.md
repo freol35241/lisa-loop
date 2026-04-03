@@ -208,7 +208,7 @@ one build loop, one audit. The modularity is in the content, not the process.
 ### Test Categorization
 
 The project uses four test categories that must be runnable independently:
-- **Bounding tests** (`{{tests_bounds}}/`) — First-principles bounding tests at three levels (phenomenon, composition, system), written by the Build phase following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`
+- **Bounding tests** (`{{tests_bounds}}/`) — First-principles bounding tests at three levels (phenomenon, composition, system), derived by the Bounds agent (independent from the Build phase), following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`
 - **Software tests** (`{{tests_software}}/`) — Software quality tests written by the build phase
 - **Integration tests** (`{{tests_integration}}/`) — End-to-end tests written by the Build phase
 

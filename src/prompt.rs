@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::terminal;
 use anyhow::Result;
 use std::path::Path;
 
@@ -11,8 +12,7 @@ pub const PROMPT_RESEARCH: &str = include_str!("../prompts/PROMPT_research.md");
 pub const PROMPT_VALIDATION_DESIGN: &str = include_str!("../prompts/PROMPT_validation_design.md");
 pub const PROMPT_PLANNING: &str = include_str!("../prompts/PROMPT_planning.md");
 pub const PROMPT_REFINE: &str = include_str!("../prompts/PROMPT_refine.md");
-pub const PROMPT_REFINE_METHODOLOGY: &str =
-    include_str!("../prompts/PROMPT_refine_methodology.md");
+pub const PROMPT_REFINE_METHODOLOGY: &str = include_str!("../prompts/PROMPT_refine_methodology.md");
 pub const PROMPT_REFINE_PLAN: &str = include_str!("../prompts/PROMPT_refine_plan.md");
 pub const PROMPT_BOUNDS: &str = include_str!("../prompts/PROMPT_bounds.md");
 pub const PROMPT_BUILD: &str = include_str!("../prompts/PROMPT_build.md");
@@ -78,9 +78,11 @@ pub enum Phase {
 impl Phase {
     pub fn model_key(&self, config: &Config) -> String {
         match self {
-            Phase::Init | Phase::Scope | Phase::Research | Phase::ValidationDesign | Phase::Planning => {
-                config.models.scope.clone()
-            }
+            Phase::Init
+            | Phase::Scope
+            | Phase::Research
+            | Phase::ValidationDesign
+            | Phase::Planning => config.models.scope.clone(),
             Phase::Refine | Phase::RefineMethodology | Phase::RefinePlan => {
                 config.models.refine.clone()
             }
@@ -111,8 +113,15 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     };
 
     if local_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&local_path) {
-            return content;
+        match std::fs::read_to_string(&local_path) {
+            Ok(content) => return content,
+            Err(e) => {
+                terminal::log_warn(&format!(
+                    "Could not read ejected prompt {}: {} — using built-in prompt",
+                    local_path.display(),
+                    e
+                ));
+            }
         }
     }
 
@@ -143,7 +152,7 @@ pub fn render_prompt(prompt: &str, config: &Config, pass: Option<u32>) -> String
     let tests_integration = &config.paths.tests_integration;
     let pass_str = pass.unwrap_or(0).to_string();
 
-    prompt
+    let result = prompt
         .replace("{{lisa_root}}", lisa_root)
         .replace("{{source_dirs}}", &source_dirs)
         .replace("{{tests_bounds}}", tests_bounds)
@@ -153,7 +162,18 @@ pub fn render_prompt(prompt: &str, config: &Config, pass: Option<u32>) -> String
             "{{max_tasks_per_pass}}",
             &config.limits.max_tasks_per_pass.to_string(),
         )
-        .replace("{{pass}}", &pass_str)
+        .replace("{{pass}}", &pass_str);
+
+    // Warn about unrecognized placeholders
+    let placeholder_re = regex::Regex::new(r"\{\{(\w+)\}\}").unwrap();
+    for cap in placeholder_re.captures_iter(&result) {
+        terminal::log_warn(&format!(
+            "Unrecognized prompt placeholder: {{{{{}}}}} — left as-is",
+            &cap[1]
+        ));
+    }
+
+    result
 }
 
 /// Build the context preamble that gets prepended to every agent invocation

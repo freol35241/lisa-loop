@@ -127,7 +127,13 @@ pub fn run_agent(
         let live = live_status.clone();
         std::thread::spawn(move || {
             while running.load(Ordering::Relaxed) {
-                std::thread::sleep(Duration::from_secs(30));
+                // Sleep in 1-second increments so we can respond quickly to shutdown
+                for _ in 0..30 {
+                    if !running.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                }
                 if !running.load(Ordering::Relaxed) {
                     break;
                 }
@@ -345,7 +351,9 @@ pub fn run_agent(
                     "Agent '{}' idle for {}s — killing process.",
                     label, idle_timeout_secs
                 ));
-                let _ = child.kill();
+                if let Err(e) = child.kill() {
+                    terminal::log_warn(&format!("Failed to kill agent process: {}", e));
+                }
                 timed_out = true;
                 break;
             }

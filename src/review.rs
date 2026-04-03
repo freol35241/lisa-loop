@@ -6,6 +6,18 @@ use std::path::Path;
 use crate::config::Config;
 use crate::terminal;
 
+/// Read a line from stdin, returning an error on EOF.
+/// Prevents infinite loops when stdin is closed or piped from an empty source.
+fn read_stdin_line(buf: &mut String) -> Result<()> {
+    let n = io::stdin().read_line(buf)?;
+    if n == 0 {
+        anyhow::bail!(
+            "EOF on stdin — cannot read interactive input (is stdin connected to a terminal?)"
+        );
+    }
+    Ok(())
+}
+
 /// Show a file path to the user and wait for them to press Enter after editing.
 ///
 /// This replaces the old $EDITOR spawning pattern — users can edit with whatever
@@ -21,7 +33,7 @@ pub fn wait_for_edit(label: &str, file_path: &Path) {
     print!("  Press Enter when you are done editing...");
     let _ = io::stdout().flush();
     let mut _buf = String::new();
-    let _ = io::stdin().read_line(&mut _buf);
+    let _ = read_stdin_line(&mut _buf);
 }
 
 #[derive(Debug, PartialEq)]
@@ -171,7 +183,7 @@ pub fn methodology_review_gate(config: &Config, lisa_root: &Path) -> Result<Meth
         print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "a" => return Ok(MethodologyDecision::Approve),
             "r" => return Ok(MethodologyDecision::Refine),
@@ -331,7 +343,7 @@ pub fn scope_review_gate(config: &Config, lisa_root: &Path) -> Result<ScopeDecis
         print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "a" => return Ok(ScopeDecision::Approve),
             "r" => return Ok(ScopeDecision::Refine),
@@ -425,7 +437,7 @@ pub fn refine_review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Resul
         print!("  Your choice [A/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "a" => return Ok(RefineDecision::Approve),
             "r" => return Ok(RefineDecision::Refine),
@@ -502,7 +514,7 @@ pub fn review_gate(config: &Config, pass: u32, lisa_root: &Path) -> Result<Revie
         print!("  Your choice [F/C/R/E/Q]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "F" => {
                 terminal::log_success("FINALIZED — producing final output.");
@@ -614,7 +626,7 @@ pub fn explore_review_gate(
         print!("  Your choice [M/D]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "M" => {
                 terminal::log_success("MERGE — folding exploration into main branch.");
@@ -720,7 +732,7 @@ pub fn block_gate(
         print!("  Your choice [F/S/X]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "F" => {
                 wait_for_edit(
@@ -813,7 +825,7 @@ pub fn finalize_gate(config: &Config, lisa_root: &Path, pass: u32) -> Result<Fin
         print!("  Choice: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "a" => return Ok(FinalizeDecision::Accept),
             "r" => return Ok(FinalizeDecision::Rollback),
@@ -853,7 +865,7 @@ pub fn budget_gate(config: &Config, cumulative: f64, budget: f64) -> Result<Budg
         print!("  Choice: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_lowercase().as_str() {
             "c" => return Ok(BudgetDecision::Continue),
             "s" => return Ok(BudgetDecision::Stop),
@@ -905,14 +917,14 @@ pub fn environment_gate(config: &Config, lisa_root: &Path) -> Result<bool> {
         print!("  Your choice [F/S]: ");
         io::stdout().flush()?;
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice)?;
+        read_stdin_line(&mut choice)?;
         match choice.trim().to_uppercase().as_str() {
             "F" => {
                 terminal::log_info("FIX — install the missing tooling, then press Enter.");
                 print!("  Press ENTER when you've installed the missing tooling... ");
                 io::stdout().flush()?;
                 let mut _buf = String::new();
-                io::stdin().read_line(&mut _buf)?;
+                read_stdin_line(&mut _buf)?;
                 println!();
                 return Ok(true);
             }

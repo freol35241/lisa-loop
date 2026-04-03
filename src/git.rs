@@ -75,6 +75,8 @@ pub fn commit_all(msg: &str, config: &Config) -> Result<bool> {
         terminal::log_success("Commit created.");
         Ok(true)
     } else {
+        // Unstage files to avoid leaving a dirty index for the next resume
+        let _ = Command::new("git").args(["reset", "HEAD", "--"]).status();
         anyhow::bail!("git commit failed")
     }
 }
@@ -144,12 +146,10 @@ pub fn source_changed_in_last_commit(source_dirs: &[String]) -> Result<bool> {
     Ok(!files.trim().is_empty())
 }
 
-/// Create a lightweight git tag (delete-then-create for idempotency).
+/// Create a lightweight git tag (force-replace for idempotency).
 pub fn create_tag(name: &str) -> Result<()> {
-    // Delete existing tag if present (ignore errors)
-    let _ = Command::new("git").args(["tag", "-d", name]).output();
     let status = Command::new("git")
-        .args(["tag", name])
+        .args(["tag", "-f", name])
         .status()
         .context("Failed to create git tag")?;
     if !status.success() {

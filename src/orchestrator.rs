@@ -79,6 +79,12 @@ pub fn run(
 
 /// Resume from saved state
 pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()> {
+    // Apply --no-pause to a local copy of config, just like run() does
+    let mut config = config.clone();
+    if no_pause {
+        config.review.pause = false;
+    }
+    let config = &config;
     let lisa_root = config.lisa_root(project_root);
     let state = state::load_state(&lisa_root)?;
 
@@ -186,20 +192,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::RefineComplete { pass } => {
             terminal::log_info(&format!(
@@ -221,20 +214,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::RefineReview { pass } => {
             terminal::log_info(&format!("Resuming: refine review gate of pass {}.", pass));
@@ -252,20 +232,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::BuildComplete { pass } => {
             terminal::log_info(&format!(
@@ -282,37 +249,11 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             git::push(config)?;
             git::create_tag(&format!("lisa/pass-{}", pass))?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::PassReview { pass } => {
             terminal::log_info(&format!("Resuming: review gate of pass {}.", pass));
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::Exploring { pass, explore_id } => {
             terminal::log_info(&format!(
@@ -323,20 +264,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             // Re-run the explore agent (question is preserved in explore dir if available).
             run_explore(config, project_root, pass, explore_id)?;
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::ExploreReview { pass, explore_id } => {
             terminal::log_info(&format!(
@@ -367,20 +295,7 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
                 }
             }
             state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-            match pass_review_loop(config, project_root, pass, &lisa_root)? {
-                ReviewDecision::Finalize => finalize(config, project_root, pass),
-                ReviewDecision::Quit => {
-                    terminal::log_warn("Stopping after pass review.");
-                    Ok(())
-                }
-                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-                    config,
-                    project_root,
-                    pass + 1,
-                    config.limits.max_spiral_passes,
-                ),
-                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-            }
+            run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
         }
         SpiralState::Complete { final_pass } => {
             terminal::log_success(&format!(
@@ -389,6 +304,29 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             ));
             Ok(())
         }
+    }
+}
+
+/// Shared pass-review-and-dispatch logic used by resume paths.
+fn run_pass_review_and_dispatch(
+    config: &Config,
+    project_root: &Path,
+    pass: u32,
+    lisa_root: &Path,
+) -> Result<()> {
+    match pass_review_loop(config, project_root, pass, lisa_root)? {
+        ReviewDecision::Finalize => finalize(config, project_root, pass),
+        ReviewDecision::Quit => {
+            terminal::log_warn("Stopping after pass review.");
+            Ok(())
+        }
+        ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+            config,
+            project_root,
+            pass + 1,
+            config.limits.max_spiral_passes,
+        ),
+        ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
     }
 }
 
@@ -448,20 +386,7 @@ fn resume_from_phase(
 
     git::create_tag(&format!("lisa/pass-{}", pass))?;
     state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
-    match pass_review_loop(config, project_root, pass, &lisa_root)? {
-        ReviewDecision::Finalize => finalize(config, project_root, pass),
-        ReviewDecision::Quit => {
-            terminal::log_warn("Stopping after pass review.");
-            Ok(())
-        }
-        ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
-            config,
-            project_root,
-            pass + 1,
-            config.limits.max_spiral_passes,
-        ),
-        ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
-    }
+    run_pass_review_and_dispatch(config, project_root, pass, &lisa_root)
 }
 
 /// Shared loop body: run passes from start_pass to max_pass
@@ -925,8 +850,13 @@ fn run_research(config: &Config, project_root: &Path) -> Result<()> {
     );
     let model = Phase::Research.model_key(config);
 
-    run_agent_with_tracking(config, &lisa_root, &input, &model, "Research", "research", 0)?;
-    git::commit_all("scope: research — methodology and criteria established", config)?;
+    run_agent_with_tracking(
+        config, &lisa_root, &input, &model, "Research", "research", 0,
+    )?;
+    git::commit_all(
+        "scope: research — methodology and criteria established",
+        config,
+    )?;
     Ok(())
 }
 
@@ -948,7 +878,10 @@ fn run_validation_design(config: &Config, project_root: &Path) -> Result<()> {
         "validation_design",
         0,
     )?;
-    git::commit_all("scope: validation design — checks and cases defined", config)?;
+    git::commit_all(
+        "scope: validation design — checks and cases defined",
+        config,
+    )?;
     Ok(())
 }
 
@@ -962,13 +895,7 @@ fn run_planning(config: &Config, project_root: &Path) -> Result<()> {
     let model = Phase::Planning.model_key(config);
 
     run_agent_with_tracking(
-        config,
-        &lisa_root,
-        &input,
-        &model,
-        "Planning",
-        "planning",
-        0,
+        config, &lisa_root, &input, &model, "Planning", "planning", 0,
     )?;
     git::commit_all("scope: planning — spiral plan and tasks defined", config)?;
     Ok(())
@@ -1174,10 +1101,7 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         config,
     )?;
 
-    state::save_state(
-        &lisa_root,
-        &SpiralState::RefineMethodologyComplete { pass },
-    )?;
+    state::save_state(&lisa_root, &SpiralState::RefineMethodologyComplete { pass })?;
 
     // Sub-phase 2: Refine plan
     terminal::log_phase(&format!("PASS {} — REFINE PLAN", pass));
@@ -1223,6 +1147,12 @@ fn run_build_loop(
     terminal::log_phase(&format!("PASS {} — BUILD (Ralph loop)", pass));
 
     let plan_path = lisa_root.join("methodology/plan.md");
+
+    // Detect circular dependencies before entering the loop
+    let cycles = tasks::detect_dependency_cycles(&plan_path)?;
+    for cycle in &cycles {
+        terminal::log_warn(&format!("Circular dependency detected: {}", cycle));
+    }
 
     let mut prev_task_hash = tasks::hash_task_statuses(&plan_path)?;
     let mut stall_count: u32 = 0;
@@ -1273,7 +1203,10 @@ fn run_build_loop(
                     }
                 ));
                 // Mark task in-progress (orchestrator does this, not the agent)
-                tasks::mark_task_in_progress(&plan_path, t.number)?;
+                // Skip if already IN_PROGRESS (retrying after crash/resume)
+                if !content_has_in_progress_for_task(&plan_path, t.number)? {
+                    tasks::mark_task_in_progress(&plan_path, t.number)?;
+                }
                 t
             }
             None => {
@@ -1349,13 +1282,8 @@ fn run_build_loop(
             ));
         }
 
-        let input = prompt::build_agent_input(
-            Phase::Build,
-            config,
-            &lisa_root,
-            pass,
-            Some(&build_context),
-        );
+        let input =
+            prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&build_context));
         let model = Phase::Build.model_key(config);
         run_agent_with_tracking(
             config,
@@ -1429,12 +1357,39 @@ fn run_build_loop(
         terminal::log_info("Tasks remain — continuing Ralph loop.");
     }
 
+    // Warn if build loop ended with incomplete tasks
+    if !tasks::all_tasks_done(&plan_path, pass)? {
+        let counts = tasks::count_tasks_by_status(&plan_path)?;
+        terminal::log_warn(&format!(
+            "Build loop ended with incomplete tasks: {} TODO, {} IN_PROGRESS, {} BLOCKED (of {} total)",
+            counts.todo, counts.in_progress, counts.blocked, counts.total
+        ));
+    }
+
     state::save_state(&lisa_root, &SpiralState::BuildComplete { pass })?;
     Ok(true)
 }
 
 /// Run test suite and return a summary of failures (empty string if all pass).
 /// Used to provide diagnostic context to the next agent invocation.
+/// Check if a task is already marked IN_PROGRESS in the plan file.
+fn content_has_in_progress_for_task(plan_path: &Path, task_number: u32) -> Result<bool> {
+    let content = std::fs::read_to_string(plan_path)?;
+    let task_re = regex::Regex::new(&format!(r"(?i)^#{{2,4}}\s+Task\s+{}\b", task_number)).unwrap();
+    let any_task_re = regex::Regex::new(r"(?i)^#{2,4}\s+Task\s+\d").unwrap();
+    let mut in_target = false;
+    for line in content.lines() {
+        if task_re.is_match(line) {
+            in_target = true;
+        } else if in_target && any_task_re.is_match(line) {
+            break;
+        } else if in_target && line.contains("**Status:**") && line.contains("IN_PROGRESS") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn capture_test_failures(config: &Config) -> String {
     let test_cmd = &config.commands.test_all;
     if test_cmd.is_empty() {
@@ -1455,7 +1410,10 @@ fn capture_test_failures(config: &Config) -> String {
             let lines: Vec<&str> = combined.lines().collect();
             let truncated: String = if lines.len() > 80 {
                 let kept: Vec<&str> = lines[lines.len() - 80..].to_vec();
-                format!("[...truncated, showing last 80 lines...]\n{}", kept.join("\n"))
+                format!(
+                    "[...truncated, showing last 80 lines...]\n{}",
+                    kept.join("\n")
+                )
             } else {
                 combined.to_string()
             };
@@ -1496,36 +1454,20 @@ fn run_bounds(
         pass, task.number, task.name, task.methodology_ref
     );
 
-    // For pass 2+, provide previous pass results so bounds can be tightened
+    // For pass 2+, encourage tighter bounds from deeper analysis — but do NOT
+    // provide previous execution/validation results, as that would leak implementation
+    // values and undermine structural verification independence.
     if pass > 1 {
-        let prev = pass - 1;
-        let exec_report = lisa_root.join(format!("spiral/pass-{}/execution-report.md", prev));
-        let validation = lisa_root.join(format!("spiral/pass-{}/system-validation.md", prev));
-        if exec_report.exists() || validation.exists() {
-            extra.push_str(&format!(
-                "\n\nBOUNDS TIGHTENING: This is pass {} (not the first pass). \
-                 Previous pass results are available:\n",
-                pass
-            ));
-            if exec_report.exists() {
-                extra.push_str(&format!(
-                    "- Previous execution report: {}/spiral/pass-{}/execution-report.md\n",
-                    config.paths.lisa_root, prev
-                ));
-            }
-            if validation.exists() {
-                extra.push_str(&format!(
-                    "- Previous validation report: {}/spiral/pass-{}/system-validation.md\n",
-                    config.paths.lisa_root, prev
-                ));
-            }
-            extra.push_str(
-                "Read these to understand what values the system actually produced last pass. \
-                 Use this information to derive TIGHTER bounds where the previous pass results \
-                 give you confidence about the expected range. Do not simply copy the previous \
-                 values as bounds — derive tighter first-principles bounds informed by the observed behavior.",
-            );
-        }
+        extra.push_str(&format!(
+            "\n\nBOUNDS TIGHTENING: This is pass {} (not the first pass). \
+             You may tighten your bounds based on deeper first-principles analysis \
+             and refined understanding of the methodology. \
+             Do NOT read previous execution reports or validation results — \
+             your bounds must remain independently derived from first principles. \
+             Focus on: tighter analytical estimates, more precise limiting cases, \
+             and narrower confidence intervals.\n",
+            pass
+        ));
     }
 
     let input = prompt::build_agent_input(Phase::Bounds, config, &lisa_root, pass, Some(&extra));
@@ -1540,7 +1482,10 @@ fn run_bounds(
         pass,
     )?;
     git::commit_all(
-        &format!("bounds: pass {} task {} — bounding tests", pass, task.number),
+        &format!(
+            "bounds: pass {} task {} — bounding tests",
+            pass, task.number
+        ),
         config,
     )?;
 

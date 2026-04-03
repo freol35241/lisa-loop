@@ -12,17 +12,17 @@ mod tasks;
 mod terminal;
 mod usage;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::style::Color;
 use std::path::PathBuf;
 
-fn project_root() -> PathBuf {
-    std::env::current_dir().expect("Failed to get current directory")
+fn project_root() -> Result<PathBuf> {
+    std::env::current_dir().context("Failed to get current directory")
 }
 
 fn load_config() -> Result<config::Config> {
-    let root = project_root();
+    let root = project_root()?;
     config::Config::load(&root)
 }
 
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
     match cli.command {
-        cli::Commands::Init { name, tech } => init::scaffold::run(&project_root(), name, tech),
+        cli::Commands::Init { name, tech } => init::scaffold::run(&project_root()?, name, tech),
         cli::Commands::Run {
             max_passes,
             no_pause,
@@ -43,7 +43,7 @@ fn main() -> Result<()> {
             }
             orchestrator::run(
                 &config,
-                &project_root(),
+                &project_root()?,
                 max_passes,
                 no_pause,
                 follow_up.as_deref(),
@@ -54,20 +54,20 @@ fn main() -> Result<()> {
             if verbose {
                 config.terminal.collapse_output = false;
             }
-            orchestrator::resume(&config, &project_root(), no_pause)
+            orchestrator::resume(&config, &project_root()?, no_pause)
         }
         cli::Commands::Status => cmd_status(),
         cli::Commands::Doctor => cmd_doctor(),
         cli::Commands::EjectPrompts => cmd_eject_prompts(),
         cli::Commands::Rollback { pass, force } => {
             let config = load_config()?;
-            orchestrator::rollback(&config, &project_root(), pass, force)
+            orchestrator::rollback(&config, &project_root()?, pass, force)
         }
     }
 }
 
 fn cmd_status() -> Result<()> {
-    let root = project_root();
+    let root = project_root()?;
     let lisa_root = match load_config() {
         Ok(config) => config.lisa_root(&root),
         Err(_) => root.join(".lisa"),
@@ -337,7 +337,7 @@ fn cmd_doctor() -> Result<()> {
     }
 
     // Check .lisa directory
-    let root = project_root();
+    let root = project_root()?;
     let lisa_root = match load_config() {
         Ok(ref config) => config.lisa_root(&root),
         Err(_) => root.join(".lisa"),
@@ -378,7 +378,7 @@ fn cmd_doctor() -> Result<()> {
 }
 
 fn cmd_eject_prompts() -> Result<()> {
-    let root = project_root();
+    let root = project_root()?;
     let lisa_root = match config::Config::load(&root) {
         Ok(config) => config.lisa_root(&root),
         Err(_) => root.join(".lisa"),

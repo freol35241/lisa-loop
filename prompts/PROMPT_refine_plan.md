@@ -36,14 +36,16 @@ If this is **Pass N > 1**:
 
 ### 2. Identify Bounding Check Requirements
 
-For each task in the plan, identify what bounding checks should be derived as part of
-implementation, following the engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`:
+For each task in the plan, identify what bounding checks are needed, following the
+engineering judgment skill in `{{lisa_root}}/skills/engineering-judgment.md`:
 
 - Which phenomena need Level 1 (phenomenon) bounds?
 - Which compositions need Level 2 (composition) bounds?
 - Does the system output need a Level 3 (system) independent estimate?
 
-Add bounding check items to each task's checklist (e.g., "Derive phenomenon bounds for [X]").
+Record these in the task's `**Bounding Checks:**` metadata field (e.g., "L1 for [phenomenon], L2 for [composition]").
+The Bounds agent will independently derive bounding tests based on this field — do NOT add bounds
+derivation items to the implementation checklist, as they are handled by a separate agent invocation.
 
 ### 3. Update Implementation Plan
 
@@ -62,7 +64,7 @@ Update `{{lisa_root}}/methodology/plan.md`:
 - Tasks are ordered bottom-up (utilities → core equations → higher-level models → integration → runner)
 - Each task is sized for one Ralph iteration (max 5 implementation items)
 - Every task whose implementation can be visually verified should include at least one `- [ ] [Visual: ...]` checklist item. Store plots in `{{lisa_root}}/spiral/pass-{{pass}}/plots/`.
-- Tasks should include bounding check items where applicable: `- [ ] Derive phenomenon bounds for [X]` following the engineering judgment skill.
+- The `**Bounding Checks:**` field drives the independent Bounds agent — do not duplicate these as checklist items.
 
 **Task format:**
 ```markdown

@@ -44,6 +44,16 @@ In the review package, report BOTH:
 - Whether this pass's staged criteria are met
 - How far the result is from the final acceptance target (for progress tracking)
 
+### Priority Framework
+
+This audit has many tasks. Focus your effort using these priority tiers:
+
+- **Required (must complete):** Sections 2, 3, 4, 5d, and artifact production (system-validation.md, review-package.md, PASS_COMPLETE.md)
+- **Important (should complete):** Sections 5a, 5b, 6, and key plots from 5e (phenomenon bounds, system cross-check, reference data)
+- **If time permits:** Sections 5c (full reference data comparison), 5e remaining plot categories, 7 (reference data search), 8 (exhaustive progress tracking)
+
+Complete all Required items before starting Important items. If context or time is limited, it is better to do Required items thoroughly than to attempt everything superficially.
+
 ### 2. Run the System
 
 Run the complete system using the runner/integration code that Build implemented.

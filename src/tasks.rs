@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
+use crate::terminal;
+
 /// Parse methodology/plan.md and count tasks by status for a given max pass
 pub fn count_uncompleted_tasks(plan_path: &Path, max_pass: u32) -> Result<u32> {
     if !plan_path.exists() {
@@ -109,7 +111,8 @@ pub struct TaskInfo {
     pub needs_bounds: bool,
 }
 
-/// Find the next eligible task: status == TODO, pass <= current_pass, all deps satisfied.
+/// Find the next eligible task: status == TODO or IN_PROGRESS, pass <= current_pass, all deps satisfied.
+/// IN_PROGRESS tasks are included to allow retrying interrupted work after a crash/resume.
 pub fn find_next_task(plan_path: &Path, current_pass: u32) -> Result<Option<TaskInfo>> {
     if !plan_path.exists() {
         return Ok(None);
@@ -124,11 +127,17 @@ pub fn find_next_task(plan_path: &Path, current_pass: u32) -> Result<Option<Task
         .collect();
 
     for task in &tasks {
-        if task.status != "TODO" || task.pass > current_pass {
+        if (task.status != "TODO" && task.status != "IN_PROGRESS") || task.pass > current_pass {
             continue;
         }
         let deps_met = task.dependencies.iter().all(|d| done_ids.contains(d));
         if deps_met {
+            if task.status == "IN_PROGRESS" {
+                terminal::log_warn(&format!(
+                    "Retrying interrupted task {} (was IN_PROGRESS from a previous run)",
+                    task.number
+                ));
+            }
             let needs_bounds = !task.bounding_checks.eq_ignore_ascii_case("none")
                 && !task.bounding_checks.is_empty();
             return Ok(Some(TaskInfo {
@@ -227,7 +236,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
                     number: current_number,
                     name: current_name.clone(),
                     pass: current_pass.unwrap_or(1),
-                    status: current_status.unwrap_or_default(),
+                    status: current_status.unwrap_or_else(|| "TODO".to_string()),
                     methodology: current_methodology.clone(),
                     bounding_checks: current_bounding.clone(),
                     dependencies: current_deps.clone(),
@@ -279,14 +288,94 @@ fn parse_tasks(content: &str) -> Vec<Task> {
             number: current_number,
             name: current_name,
             pass: current_pass.unwrap_or(1),
-            status: current_status.unwrap_or_default(),
+            status: current_status.unwrap_or_else(|| "TODO".to_string()),
             methodology: current_methodology,
             bounding_checks: current_bounding,
             dependencies: current_deps,
         });
     }
 
+    // Warn about duplicate task numbers
+    let mut seen_numbers = HashSet::new();
+    for task in &tasks {
+        if !seen_numbers.insert(task.number) {
+            terminal::log_warn(&format!(
+                "Duplicate task number {} found in plan.md — behavior may be unpredictable",
+                task.number
+            ));
+        }
+    }
+
     tasks
+}
+
+/// Detect circular dependencies among tasks. Returns a list of cycle descriptions.
+pub fn detect_dependency_cycles(plan_path: &Path) -> Result<Vec<String>> {
+    if !plan_path.exists() {
+        return Ok(vec![]);
+    }
+    let content = std::fs::read_to_string(plan_path)?;
+    let tasks = parse_tasks(&content);
+
+    let task_numbers: HashSet<u32> = tasks.iter().map(|t| t.number).collect();
+    let mut cycles = Vec::new();
+
+    // DFS-based cycle detection
+    let mut visited = HashSet::new();
+    let mut in_stack = HashSet::new();
+
+    fn dfs(
+        node: u32,
+        tasks: &[Task],
+        task_numbers: &HashSet<u32>,
+        visited: &mut HashSet<u32>,
+        in_stack: &mut HashSet<u32>,
+        path: &mut Vec<u32>,
+        cycles: &mut Vec<String>,
+    ) {
+        visited.insert(node);
+        in_stack.insert(node);
+        path.push(node);
+
+        if let Some(task) = tasks.iter().find(|t| t.number == node) {
+            for &dep in &task.dependencies {
+                if !task_numbers.contains(&dep) {
+                    continue; // Skip references to non-existent tasks
+                }
+                if in_stack.contains(&dep) {
+                    // Found a cycle — format the path from dep back to dep
+                    let cycle_start = path.iter().position(|&n| n == dep).unwrap();
+                    let cycle: Vec<String> = path[cycle_start..]
+                        .iter()
+                        .map(|n| format!("Task {}", n))
+                        .collect();
+                    cycles.push(format!("{} -> Task {}", cycle.join(" -> "), dep));
+                } else if !visited.contains(&dep) {
+                    dfs(dep, tasks, task_numbers, visited, in_stack, path, cycles);
+                }
+            }
+        }
+
+        path.pop();
+        in_stack.remove(&node);
+    }
+
+    for task in &tasks {
+        if !visited.contains(&task.number) {
+            let mut path = Vec::new();
+            dfs(
+                task.number,
+                &tasks,
+                &task_numbers,
+                &mut visited,
+                &mut in_stack,
+                &mut path,
+                &mut cycles,
+            );
+        }
+    }
+
+    Ok(cycles)
 }
 
 #[cfg(test)]
@@ -576,7 +665,8 @@ mod tests {
 
     #[test]
     fn test_find_next_task_missing_methodology_defaults_empty() {
-        let content = "### Task 1: Bare\n- **Status:** TODO\n- **Pass:** 1\n- **Dependencies:** None\n";
+        let content =
+            "### Task 1: Bare\n- **Status:** TODO\n- **Pass:** 1\n- **Dependencies:** None\n";
         let tasks = parse_tasks(content);
         assert_eq!(tasks[0].methodology, "");
     }
@@ -606,5 +696,95 @@ mod tests {
         let tasks = parse_tasks(content);
         assert_eq!(tasks[0].number, 5);
         assert_eq!(tasks[0].dependencies, vec![1, 3, 4]);
+    }
+
+    #[test]
+    fn test_find_next_task_selects_in_progress() {
+        let dir = std::env::temp_dir().join("lisa_test_find_ip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"### Task 1: Done
+- **Status:** DONE
+- **Pass:** 1
+- **Dependencies:** None
+
+### Task 2: Interrupted
+- **Status:** IN_PROGRESS
+- **Pass:** 1
+- **Dependencies:** Task 1
+
+### Task 3: Pending
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** Task 1
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        // IN_PROGRESS tasks should be selected (retried after crash)
+        let task = find_next_task(&plan, 1).unwrap().unwrap();
+        assert_eq!(task.number, 2);
+        assert_eq!(task.name, "Interrupted");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_missing_status_defaults_to_todo() {
+        let content = "### Task 1: No status\n- **Pass:** 1\n- **Dependencies:** None\n";
+        let tasks = parse_tasks(content);
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, "TODO");
+    }
+
+    #[test]
+    fn test_detect_dependency_cycles() {
+        let dir = std::env::temp_dir().join("lisa_test_cycles");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"### Task 1: A
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** Task 2
+
+### Task 2: B
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** Task 1
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        let cycles = detect_dependency_cycles(&plan).unwrap();
+        assert!(!cycles.is_empty(), "Should detect circular dependency");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_detect_no_cycles() {
+        let dir = std::env::temp_dir().join("lisa_test_no_cycles");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"### Task 1: A
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** None
+
+### Task 2: B
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** Task 1
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        let cycles = detect_dependency_cycles(&plan).unwrap();
+        assert!(
+            cycles.is_empty(),
+            "Should not detect cycles in acyclic graph"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
