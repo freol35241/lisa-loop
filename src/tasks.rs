@@ -1,6 +1,7 @@
 use anyhow::Result;
 use regex::Regex;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
@@ -99,34 +100,141 @@ pub fn hash_task_statuses(plan_path: &Path) -> Result<u64> {
     Ok(hasher.finish())
 }
 
+/// Metadata for a task selected by the orchestrator.
+#[derive(Debug, Clone)]
+pub struct TaskInfo {
+    pub number: u32,
+    pub name: String,
+    pub methodology_ref: String,
+}
+
+/// Find the next eligible task: status == TODO, pass <= current_pass, all deps satisfied.
+pub fn find_next_task(plan_path: &Path, current_pass: u32) -> Result<Option<TaskInfo>> {
+    if !plan_path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(plan_path)?;
+    let tasks = parse_tasks(&content);
+
+    let done_ids: HashSet<u32> = tasks
+        .iter()
+        .filter(|t| t.status == "DONE")
+        .map(|t| t.number)
+        .collect();
+
+    for task in &tasks {
+        if task.status != "TODO" || task.pass > current_pass {
+            continue;
+        }
+        let deps_met = task.dependencies.iter().all(|d| done_ids.contains(d));
+        if deps_met {
+            return Ok(Some(TaskInfo {
+                number: task.number,
+                name: task.name.clone(),
+                methodology_ref: task.methodology.clone(),
+            }));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Mark a task as IN_PROGRESS in plan.md by task number.
+pub fn mark_task_in_progress(plan_path: &Path, task_number: u32) -> Result<()> {
+    let content = std::fs::read_to_string(plan_path)?;
+    let task_heading_re =
+        Regex::new(&format!(r"(?im)^(#{{2,4}}\s+Task\s+{}\b)", task_number)).unwrap();
+    let status_re = Regex::new(r"(?m)^(- \*\*Status:\*\*\s+)TODO\s*$").unwrap();
+
+    // Find the line range for this task
+    let any_task_re = Regex::new(r"(?i)^#{2,4}\s+Task\s+\d").unwrap();
+    let mut in_target = false;
+    let mut result_lines: Vec<String> = Vec::new();
+    let mut replaced = false;
+
+    for line in content.lines() {
+        if task_heading_re.is_match(line) {
+            in_target = true;
+            result_lines.push(line.to_string());
+        } else if in_target && any_task_re.is_match(line) {
+            // Hit next task heading — stop targeting
+            in_target = false;
+            result_lines.push(line.to_string());
+        } else if in_target && !replaced {
+            if let Some(caps) = status_re.captures(line) {
+                let prefix = caps.get(1).unwrap().as_str();
+                result_lines.push(format!("{}IN_PROGRESS", prefix));
+                replaced = true;
+                continue;
+            }
+            result_lines.push(line.to_string());
+        } else {
+            result_lines.push(line.to_string());
+        }
+    }
+
+    if replaced {
+        let mut output = result_lines.join("\n");
+        // Preserve trailing newline if original had one
+        if content.ends_with('\n') && !output.ends_with('\n') {
+            output.push('\n');
+        }
+        std::fs::write(plan_path, output)?;
+    }
+
+    Ok(())
+}
+
 #[derive(Debug)]
 struct Task {
+    number: u32,
+    name: String,
     pass: u32,
     status: String,
+    methodology: String,
+    dependencies: Vec<u32>,
 }
 
 fn parse_tasks(content: &str) -> Vec<Task> {
-    let task_re = Regex::new(r"(?i)^#{2,4}\s+Task\s+\d").unwrap();
+    let task_re = Regex::new(r"(?i)^#{2,4}\s+Task\s+(\d+)(?::\s*(.*))?").unwrap();
     let status_re = Regex::new(r"\*\*Status:\*\*\s+(\w+)").unwrap();
     let pass_re = Regex::new(r"\*\*Pass:\*\*\s*(\d+)").unwrap();
+    let methodology_re = Regex::new(r"\*\*Methodology:\*\*\s*(.+)").unwrap();
+    let deps_re = Regex::new(r"\*\*Dependencies:\*\*\s*(.+)").unwrap();
+    let dep_num_re = Regex::new(r"(?i)Task\s+(\d+)").unwrap();
 
     let mut tasks = Vec::new();
+    let mut current_number: u32 = 0;
+    let mut current_name = String::new();
     let mut current_status = None;
     let mut current_pass = None;
+    let mut current_methodology = String::new();
+    let mut current_deps: Vec<u32> = Vec::new();
     let mut in_task = false;
 
     for line in content.lines() {
-        if task_re.is_match(line) {
+        if let Some(caps) = task_re.captures(line) {
             // Save previous task if any
             if in_task {
                 tasks.push(Task {
+                    number: current_number,
+                    name: current_name.clone(),
                     pass: current_pass.unwrap_or(1),
                     status: current_status.unwrap_or_default(),
+                    methodology: current_methodology.clone(),
+                    dependencies: current_deps.clone(),
                 });
             }
             in_task = true;
+            current_number = caps[1].parse().unwrap_or(0);
+            current_name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
             current_status = None;
             current_pass = None;
+            current_methodology = String::new();
+            current_deps = Vec::new();
         } else if in_task {
             if let Some(caps) = status_re.captures(line) {
                 current_status = Some(caps[1].to_string());
@@ -136,14 +244,32 @@ fn parse_tasks(content: &str) -> Vec<Task> {
                     current_pass = Some(p);
                 }
             }
+            if let Some(caps) = methodology_re.captures(line) {
+                current_methodology = caps[1].trim().to_string();
+            }
+            if let Some(caps) = deps_re.captures(line) {
+                let deps_str = &caps[1];
+                // "None" or "none" means no dependencies
+                if !deps_str.trim().eq_ignore_ascii_case("none") {
+                    for dep_cap in dep_num_re.captures_iter(deps_str) {
+                        if let Ok(n) = dep_cap[1].parse::<u32>() {
+                            current_deps.push(n);
+                        }
+                    }
+                }
+            }
         }
     }
 
     // Don't forget the last task
     if in_task {
         tasks.push(Task {
+            number: current_number,
+            name: current_name,
             pass: current_pass.unwrap_or(1),
             status: current_status.unwrap_or_default(),
+            methodology: current_methodology,
+            dependencies: current_deps,
         });
     }
 
@@ -184,10 +310,19 @@ mod tests {
         assert_eq!(tasks.len(), 3);
         assert_eq!(tasks[0].status, "DONE");
         assert_eq!(tasks[0].pass, 1);
+        assert_eq!(tasks[0].number, 1);
+        assert_eq!(tasks[0].name, "Setup infrastructure");
+        assert_eq!(tasks[0].methodology, "N/A");
+        assert!(tasks[0].dependencies.is_empty());
         assert_eq!(tasks[1].status, "TODO");
         assert_eq!(tasks[1].pass, 1);
+        assert_eq!(tasks[1].number, 2);
+        assert_eq!(tasks[1].name, "Implement core");
+        assert_eq!(tasks[1].methodology, "Section 2.1");
         assert_eq!(tasks[2].status, "BLOCKED");
         assert_eq!(tasks[2].pass, 2);
+        assert_eq!(tasks[2].number, 3);
+        assert_eq!(tasks[2].dependencies, vec![2]);
     }
 
     #[test]
@@ -317,5 +452,146 @@ mod tests {
         assert_eq!(pass3.total, 0);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_find_next_task_selects_first_eligible() {
+        let dir = std::env::temp_dir().join("lisa_test_find_next");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"# Implementation Plan
+
+### Task 1: Setup
+- **Status:** DONE
+- **Pass:** 1
+- **Methodology:** N/A
+- **Dependencies:** None
+
+### Task 2: Core
+- **Status:** TODO
+- **Pass:** 1
+- **Methodology:** Section 2.1
+- **Dependencies:** Task 1
+
+### Task 3: Advanced
+- **Status:** TODO
+- **Pass:** 1
+- **Methodology:** Section 3.1
+- **Dependencies:** Task 2
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        let task = find_next_task(&plan, 1).unwrap().unwrap();
+        assert_eq!(task.number, 2);
+        assert_eq!(task.name, "Core");
+        assert_eq!(task.methodology_ref, "Section 2.1");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_find_next_task_skips_unmet_deps() {
+        let dir = std::env::temp_dir().join("lisa_test_find_skip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"# Plan
+
+### Task 1: First
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** Task 2
+
+### Task 2: Second
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** None
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        // Task 1 depends on Task 2 which isn't DONE, so Task 2 is selected
+        let task = find_next_task(&plan, 1).unwrap().unwrap();
+        assert_eq!(task.number, 2);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_find_next_task_none_when_all_done() {
+        let dir = std::env::temp_dir().join("lisa_test_find_none");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = "### Task 1: Done\n- **Status:** DONE\n- **Pass:** 1\n";
+        std::fs::write(&plan, content).unwrap();
+
+        let task = find_next_task(&plan, 1).unwrap();
+        assert!(task.is_none());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_find_next_task_respects_pass() {
+        let dir = std::env::temp_dir().join("lisa_test_find_pass");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = r#"### Task 1: Future
+- **Status:** TODO
+- **Pass:** 3
+- **Dependencies:** None
+
+### Task 2: Current
+- **Status:** TODO
+- **Pass:** 1
+- **Dependencies:** None
+"#;
+        std::fs::write(&plan, content).unwrap();
+
+        // Pass 1: should skip Task 1 (pass 3) and find Task 2
+        let task = find_next_task(&plan, 1).unwrap().unwrap();
+        assert_eq!(task.number, 2);
+
+        // Pass 3: should find Task 1
+        let task = find_next_task(&plan, 3).unwrap().unwrap();
+        assert_eq!(task.number, 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_find_next_task_missing_methodology_defaults_empty() {
+        let content = "### Task 1: Bare\n- **Status:** TODO\n- **Pass:** 1\n- **Dependencies:** None\n";
+        let tasks = parse_tasks(content);
+        assert_eq!(tasks[0].methodology, "");
+    }
+
+    #[test]
+    fn test_mark_task_in_progress() {
+        let dir = std::env::temp_dir().join("lisa_test_mark_ip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+
+        let content = "### Task 1: First\n- **Status:** DONE\n- **Pass:** 1\n\n### Task 2: Second\n- **Status:** TODO\n- **Pass:** 1\n\n### Task 3: Third\n- **Status:** TODO\n- **Pass:** 2\n";
+        std::fs::write(&plan, content).unwrap();
+
+        mark_task_in_progress(&plan, 2).unwrap();
+
+        let updated = std::fs::read_to_string(&plan).unwrap();
+        assert!(updated.contains("### Task 1: First\n- **Status:** DONE"));
+        assert!(updated.contains("### Task 2: Second\n- **Status:** IN_PROGRESS"));
+        assert!(updated.contains("### Task 3: Third\n- **Status:** TODO"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_parse_tasks_multiple_deps() {
+        let content = "### Task 5: Integration\n- **Status:** TODO\n- **Pass:** 2\n- **Dependencies:** Task 1, Task 3, Task 4\n";
+        let tasks = parse_tasks(content);
+        assert_eq!(tasks[0].number, 5);
+        assert_eq!(tasks[0].dependencies, vec![1, 3, 4]);
     }
 }

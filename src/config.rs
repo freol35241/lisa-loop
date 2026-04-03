@@ -34,6 +34,8 @@ pub struct ModelsConfig {
     pub scope: String,
     #[serde(default = "default_opus")]
     pub refine: String,
+    #[serde(default = "default_opus")]
+    pub bounds: String,
     #[serde(default = "default_sonnet")]
     pub build: String,
     #[serde(default = "default_opus")]
@@ -45,6 +47,7 @@ impl Default for ModelsConfig {
         Self {
             scope: default_opus(),
             refine: default_opus(),
+            bounds: default_opus(),
             build: default_sonnet(),
             audit: default_opus(),
         }
@@ -365,6 +368,7 @@ name = "{name}"
 [models]
 scope = "opus"
 refine = "opus"
+bounds = "opus"
 build = "sonnet"
 audit = "opus"
 

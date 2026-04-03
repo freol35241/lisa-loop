@@ -5,7 +5,11 @@ use std::path::Path;
 // Compiled-in prompts
 pub const PROMPT_INIT: &str = include_str!("../prompts/PROMPT_init.md");
 pub const PROMPT_SCOPE: &str = include_str!("../prompts/PROMPT_scope.md");
+pub const PROMPT_RESEARCH: &str = include_str!("../prompts/PROMPT_research.md");
+pub const PROMPT_VALIDATION_DESIGN: &str = include_str!("../prompts/PROMPT_validation_design.md");
+pub const PROMPT_PLANNING: &str = include_str!("../prompts/PROMPT_planning.md");
 pub const PROMPT_REFINE: &str = include_str!("../prompts/PROMPT_refine.md");
+pub const PROMPT_BOUNDS: &str = include_str!("../prompts/PROMPT_bounds.md");
 pub const PROMPT_BUILD: &str = include_str!("../prompts/PROMPT_build.md");
 pub const PROMPT_AUDIT: &str = include_str!("../prompts/PROMPT_audit.md");
 pub const PROMPT_FINALIZE: &str = include_str!("../prompts/PROMPT_finalize.md");
@@ -49,7 +53,11 @@ pub const SCOPE_SPECS: &[(&str, &str)] = &[
 pub enum Phase {
     Init,
     Scope,
+    Research,
+    ValidationDesign,
+    Planning,
     Refine,
+    Bounds,
     Build,
     Audit,
     Finalize,
@@ -59,8 +67,11 @@ pub enum Phase {
 impl Phase {
     pub fn model_key(&self, config: &Config) -> String {
         match self {
-            Phase::Init | Phase::Scope => config.models.scope.clone(),
+            Phase::Init | Phase::Scope | Phase::Research | Phase::ValidationDesign | Phase::Planning => {
+                config.models.scope.clone()
+            }
             Phase::Refine => config.models.refine.clone(),
+            Phase::Bounds => config.models.bounds.clone(),
             Phase::Build => config.models.build.clone(),
             Phase::Audit | Phase::Finalize => config.models.audit.clone(),
             Phase::Explore => config.models.scope.clone(),
@@ -73,7 +84,11 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     let local_path = match phase {
         Phase::Init => lisa_root.join("prompts/init.md"),
         Phase::Scope => lisa_root.join("prompts/scope.md"),
+        Phase::Research => lisa_root.join("prompts/research.md"),
+        Phase::ValidationDesign => lisa_root.join("prompts/validation_design.md"),
+        Phase::Planning => lisa_root.join("prompts/planning.md"),
         Phase::Refine => lisa_root.join("prompts/refine.md"),
+        Phase::Bounds => lisa_root.join("prompts/bounds.md"),
         Phase::Build => lisa_root.join("prompts/build.md"),
         Phase::Audit => lisa_root.join("prompts/audit.md"),
         Phase::Finalize => lisa_root.join("prompts/finalize.md"),
@@ -89,7 +104,11 @@ pub fn load_prompt(phase: Phase, lisa_root: &Path) -> String {
     match phase {
         Phase::Init => PROMPT_INIT.to_string(),
         Phase::Scope => PROMPT_SCOPE.to_string(),
+        Phase::Research => PROMPT_RESEARCH.to_string(),
+        Phase::ValidationDesign => PROMPT_VALIDATION_DESIGN.to_string(),
+        Phase::Planning => PROMPT_PLANNING.to_string(),
         Phase::Refine => PROMPT_REFINE.to_string(),
+        Phase::Bounds => PROMPT_BOUNDS.to_string(),
         Phase::Build => PROMPT_BUILD.to_string(),
         Phase::Audit => PROMPT_AUDIT.to_string(),
         Phase::Finalize => PROMPT_FINALIZE.to_string(),
@@ -211,7 +230,11 @@ pub fn build_agent_input(
     let phase_name = match phase {
         Phase::Init => "Init",
         Phase::Scope => "Scope",
+        Phase::Research => "Research",
+        Phase::ValidationDesign => "Validation Design",
+        Phase::Planning => "Planning",
         Phase::Refine => "Refine",
+        Phase::Bounds => "Bounds",
         Phase::Build => "Build",
         Phase::Audit => "Audit",
         Phase::Finalize => "Finalize",
@@ -339,7 +362,11 @@ tests_integration = "tests/integration"
     fn test_compiled_prompts_not_empty() {
         assert!(!PROMPT_INIT.is_empty());
         assert!(!PROMPT_SCOPE.is_empty());
+        assert!(!PROMPT_RESEARCH.is_empty());
+        assert!(!PROMPT_VALIDATION_DESIGN.is_empty());
+        assert!(!PROMPT_PLANNING.is_empty());
         assert!(!PROMPT_REFINE.is_empty());
+        assert!(!PROMPT_BOUNDS.is_empty());
         assert!(!PROMPT_BUILD.is_empty());
         assert!(!PROMPT_AUDIT.is_empty());
         assert!(!PROMPT_FINALIZE.is_empty());

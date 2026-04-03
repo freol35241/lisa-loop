@@ -102,7 +102,12 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             terminal::log_info("No previous run found. Starting fresh.");
             run(config, project_root, None, no_pause, None)
         }
-        SpiralState::Scoping | SpiralState::ScopeReview => {
+        SpiralState::Scoping
+        | SpiralState::ScopeReview
+        | SpiralState::ScopeResearch
+        | SpiralState::ScopeResearchReview
+        | SpiralState::ScopeValidation
+        | SpiralState::ScopePlanning => {
             terminal::log_info("Resuming: scope was incomplete.");
             run_scope(config, project_root)?;
             run(config, project_root, None, no_pause, None)
@@ -330,7 +335,18 @@ fn resume_from_phase(
             run_audit(config, project_root, pass)?;
             git::push(config)?;
         }
-        PassPhase::Build { iteration } => {
+        PassPhase::Bounds { .. } => {
+            terminal::log_info(&format!(
+                "Resuming: bounds phase at pass {} (re-entering build loop).",
+                pass
+            ));
+            if !run_build_loop(config, project_root, pass, 1)? {
+                return Ok(());
+            }
+            run_audit(config, project_root, pass)?;
+            git::push(config)?;
+        }
+        PassPhase::Build { iteration, .. } => {
             terminal::log_info(&format!(
                 "Resuming: build phase at pass {} (iteration {}).",
                 pass, iteration
@@ -969,7 +985,10 @@ fn run_build_loop(
             &lisa_root,
             &SpiralState::InPass {
                 pass,
-                phase: PassPhase::Build { iteration: iter },
+                phase: PassPhase::Build {
+                    task_id: 0,
+                    iteration: iter,
+                },
             },
         )?;
 

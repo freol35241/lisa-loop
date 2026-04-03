@@ -9,6 +9,10 @@ pub enum SpiralState {
     Scoping,
     ScopeReview,
     ScopeComplete,
+    ScopeResearch,
+    ScopeResearchReview,
+    ScopeValidation,
+    ScopePlanning,
     InPass { pass: u32, phase: PassPhase },
     RefineComplete { pass: u32 },
     RefineReview { pass: u32 },
@@ -24,7 +28,14 @@ pub enum SpiralState {
 #[serde(tag = "phase")]
 pub enum PassPhase {
     Refine,
-    Build { iteration: u32 },
+    Bounds {
+        task_id: u32,
+    },
+    Build {
+        #[serde(default)]
+        task_id: u32,
+        iteration: u32,
+    },
     Audit,
 }
 
@@ -35,6 +46,10 @@ impl std::fmt::Display for SpiralState {
             SpiralState::Scoping => write!(f, "Scoping"),
             SpiralState::ScopeReview => write!(f, "Scope review"),
             SpiralState::ScopeComplete => write!(f, "Scope complete"),
+            SpiralState::ScopeResearch => write!(f, "Scope — Research"),
+            SpiralState::ScopeResearchReview => write!(f, "Scope — Research review"),
+            SpiralState::ScopeValidation => write!(f, "Scope — Validation design"),
+            SpiralState::ScopePlanning => write!(f, "Scope — Planning"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
             SpiralState::RefineComplete { pass } => write!(f, "Pass {} — Refine complete", pass),
             SpiralState::RefineReview { pass } => write!(f, "Pass {} — Refine review", pass),
@@ -58,7 +73,16 @@ impl std::fmt::Display for PassPhase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PassPhase::Refine => write!(f, "Refine"),
-            PassPhase::Build { iteration } => write!(f, "Build (iteration {})", iteration),
+            PassPhase::Bounds { task_id } => write!(f, "Bounds (task {})", task_id),
+            PassPhase::Build {
+                task_id, iteration, ..
+            } => {
+                if *task_id > 0 {
+                    write!(f, "Build (task {}, iteration {})", task_id, iteration)
+                } else {
+                    write!(f, "Build (iteration {})", iteration)
+                }
+            }
             PassPhase::Audit => write!(f, "Audit"),
         }
     }
@@ -124,7 +148,10 @@ mod tests {
     fn test_state_roundtrip_in_pass_build() {
         let state = SpiralState::InPass {
             pass: 3,
-            phase: PassPhase::Build { iteration: 7 },
+            phase: PassPhase::Build {
+                task_id: 0,
+                iteration: 7,
+            },
         };
         let file = StateFile {
             state: state.clone(),
@@ -252,10 +279,151 @@ mod tests {
                 "{}",
                 SpiralState::InPass {
                     pass: 2,
-                    phase: PassPhase::Build { iteration: 1 }
+                    phase: PassPhase::Build {
+                        task_id: 0,
+                        iteration: 1
+                    }
                 }
             ),
             "Pass 2 — Build (iteration 1)"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                SpiralState::InPass {
+                    pass: 2,
+                    phase: PassPhase::Build {
+                        task_id: 3,
+                        iteration: 1
+                    }
+                }
+            ),
+            "Pass 2 — Build (task 3, iteration 1)"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                SpiralState::InPass {
+                    pass: 1,
+                    phase: PassPhase::Bounds { task_id: 2 }
+                }
+            ),
+            "Pass 1 — Bounds (task 2)"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::ScopeResearch),
+            "Scope — Research"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::ScopeResearchReview),
+            "Scope — Research review"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::ScopeValidation),
+            "Scope — Validation design"
+        );
+        assert_eq!(
+            format!("{}", SpiralState::ScopePlanning),
+            "Scope — Planning"
+        );
+    }
+
+    #[test]
+    fn test_state_roundtrip_scope_research() {
+        let state = SpiralState::ScopeResearch;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_scope_research_review() {
+        let state = SpiralState::ScopeResearchReview;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_scope_validation() {
+        let state = SpiralState::ScopeValidation;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_scope_planning() {
+        let state = SpiralState::ScopePlanning;
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_in_pass_bounds() {
+        let state = SpiralState::InPass {
+            pass: 2,
+            phase: PassPhase::Bounds { task_id: 5 },
+        };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_in_pass_build_with_task() {
+        let state = SpiralState::InPass {
+            pass: 1,
+            phase: PassPhase::Build {
+                task_id: 3,
+                iteration: 2,
+            },
+        };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_backward_compat_build_without_task_id() {
+        // Simulates an old state.toml that only had iteration (no task_id)
+        let toml_str = r#"
+state = "InPass"
+pass = 2
+
+[phase]
+phase = "Build"
+iteration = 5
+"#;
+        let parsed: StateFile = toml::from_str(toml_str).unwrap();
+        assert_eq!(
+            parsed.state,
+            SpiralState::InPass {
+                pass: 2,
+                phase: PassPhase::Build {
+                    task_id: 0,
+                    iteration: 5
+                }
+            }
         );
     }
 }
