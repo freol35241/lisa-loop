@@ -12,16 +12,18 @@ Lisa is a CLI tool that orchestrates [Claude Code](https://docs.anthropic.com/en
                     ▼
   ┌───────────────────────────────────────────────┐
   │  SCOPE (Pass 0)                               │
-  │  Define methods, acceptance criteria, staged   │
-  │  plan — no code yet                           │◄── human refine loop
+  │                                               │
+  │  RESEARCH → [human gate] →                    │
+  │  VALIDATION DESIGN → PLANNING → [human gate]  │
+  │                                               │
+  │  Define methods, criteria, checks, plan       │◄── human refine loop
+  │  — no code yet                                │
   └──────────────────┬────────────────────────────┘
                      ▼
   ┌───────────────────────────────────────────────┐
   │  SPIRAL PASSES (Pass 1..N)                    │
   │                                               │
-  │  ┌─────────┐  ┌─────────┐  ┌────────┐        │
-  │  │ REFINE  │→ │  BUILD  │→ │ AUDIT  │        │
-  │  └─────────┘  └─────────┘  └────────┘        │
+  │  REFINE → per task [BOUNDS → BUILD] → AUDIT   │
   │                                               │
   │  Each pass widens scope & tightens tolerances │◄── human review gate
   └──────────────────┬────────────────────────────┘
@@ -29,9 +31,9 @@ Lisa is a CLI tool that orchestrates [Claude Code](https://docs.anthropic.com/en
   Finalize at review gate → LISA-REPORT.md
 ```
 
-**Scope** locks down the methodology, acceptance criteria, and a staged plan — before any code is written. A human reviews and refines until satisfied.
+**Scope** is decomposed into three focused agents. **Research** selects the methodology, defines acceptance criteria, and resolves the technology stack. A human reviews the methodology choice before proceeding. **Validation Design** defines sanity checks, limiting cases, and reference data. **Planning** creates the spiral plan and task breakdown. A human reviews the complete scope before Pass 1.
 
-**Spiral Passes** iterate through Refine → Build → Audit. Each pass increases fidelity: early passes get the structure right, later passes tighten tolerances and handle edge cases. After every pass, the human decides: **finalize**, **continue** to the next pass, **redirect** with guidance, or **explore** an alternative on a side-branch.
+**Spiral Passes** iterate through Refine → Build → Audit. For each task in the build phase, a **Bounds agent** derives first-principles bounds independently (never sees implementation code), then a **Build agent** implements the code to satisfy those bounds — like TDD where the test author can't share the implementer's blind spots. After every pass, the human decides: **finalize**, **continue** to the next pass, **redirect** with guidance, or **explore** an alternative on a side-branch.
 
 ## Grounded in Engineering Practice
 

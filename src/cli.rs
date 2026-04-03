@@ -12,13 +12,13 @@ WORKFLOW:
                     ▼
   ┌───────────────────────────────────────────────┐
   │  SCOPE (Pass 0)                               │
-  │  Define methods, acceptance criteria, staged   │
-  │  plan — no code yet                           │◄── refine loop
+  │  Research → [methodology gate] →              │
+  │  Validation Design → Planning → [scope gate]  │◄── refine loop
   └──────────────────┬────────────────────────────┘
                      ▼
   ┌───────────────────────────────────────────────┐
   │  SPIRAL PASSES (Pass 1..N)                    │
-  │  Refine → Build → Audit                       │
+  │  Refine → per task [Bounds → Build] → Audit   │
   │  Each pass widens scope & tightens tolerances │◄── human gate
   └──────────────────┬────────────────────────────┘
                      ▼

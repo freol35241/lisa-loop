@@ -8,7 +8,9 @@ use crate::config::Config;
 
 use crate::git;
 use crate::prompt::{self, Phase};
-use crate::review::{self, BlockDecision, RefineDecision, ReviewDecision, ScopeDecision};
+use crate::review::{
+    self, BlockDecision, MethodologyDecision, RefineDecision, ReviewDecision, ScopeDecision,
+};
 use crate::state::{self, PassPhase, SpiralState};
 use crate::tasks;
 use crate::terminal;
@@ -102,13 +104,29 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
             terminal::log_info("No previous run found. Starting fresh.");
             run(config, project_root, None, no_pause, None)
         }
-        SpiralState::Scoping
-        | SpiralState::ScopeReview
-        | SpiralState::ScopeResearch
-        | SpiralState::ScopeResearchReview
-        | SpiralState::ScopeValidation
-        | SpiralState::ScopePlanning => {
-            terminal::log_info("Resuming: scope was incomplete.");
+        SpiralState::Scoping | SpiralState::ScopeResearch => {
+            terminal::log_info("Resuming: research phase was incomplete.");
+            run_scope(config, project_root)?;
+            run(config, project_root, None, no_pause, None)
+        }
+        SpiralState::ScopeResearchReview => {
+            terminal::log_info("Resuming: methodology review gate.");
+            // Re-enter run_scope which will detect research is done and show the gate
+            run_scope(config, project_root)?;
+            run(config, project_root, None, no_pause, None)
+        }
+        SpiralState::ScopeValidation => {
+            terminal::log_info("Resuming: validation design was incomplete.");
+            run_scope(config, project_root)?;
+            run(config, project_root, None, no_pause, None)
+        }
+        SpiralState::ScopePlanning => {
+            terminal::log_info("Resuming: planning was incomplete.");
+            run_scope(config, project_root)?;
+            run(config, project_root, None, no_pause, None)
+        }
+        SpiralState::ScopeReview => {
+            terminal::log_info("Resuming: scope review gate.");
             run_scope(config, project_root)?;
             run(config, project_root, None, no_pause, None)
         }
@@ -610,50 +628,103 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
         return Ok(());
     }
 
-    state::save_state(&lisa_root, &SpiralState::Scoping)?;
     std::fs::create_dir_all(lisa_root.join("spiral/pass-0"))?;
 
-    // Ensure scope artifact spec files are on disk for the agent to read
+    // Ensure scope artifact spec files are on disk for agents to read
     prompt::ensure_scope_specs(&lisa_root, config)?;
 
-    // Check for existing feedback (resume case)
-    let feedback_path = lisa_root.join("spiral/pass-0/scope-feedback.md");
-    let extra_context = if feedback_path.exists() {
-        let content = std::fs::read_to_string(&feedback_path).unwrap_or_default();
-        let non_empty_lines = content
-            .lines()
-            .filter(|l| !l.starts_with('#') && !l.trim().is_empty() && l.trim() != "-")
-            .count();
-        if non_empty_lines > 0 {
-            terminal::log_info("Detected existing scope feedback — running as refinement.");
-            Some(
-                "SCOPE REFINEMENT: The human has reviewed your scope artifacts and provided feedback.\n\
-                 Read spiral/pass-0/scope-feedback.md carefully and update all affected artifacts.\n\
-                 Do not discard previous work — refine it based on the feedback.".to_string(),
-            )
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    // --- Phase 1: Research (methodology, acceptance criteria, stack) ---
+    run_research(config, project_root)?;
 
-    let input = prompt::build_agent_input(
-        Phase::Scope,
-        config,
-        &lisa_root,
-        0,
-        extra_context.as_deref(),
-    );
-    let model = Phase::Scope.model_key(config);
-
-    run_agent_with_tracking(config, &lisa_root, &input, &model, "Scope", "scope", 0)?;
-    git::commit_all("scope: pass 0 — scoping complete", config)?;
-
-    // Environment gate
+    // Environment gate (after research resolves stack)
     review::environment_gate(config, &lisa_root)?;
 
-    // Scope review gate
+    // Methodology review gate loop
+    state::save_state(&lisa_root, &SpiralState::ScopeResearchReview)?;
+    loop {
+        match review::methodology_review_gate(config, &lisa_root)? {
+            MethodologyDecision::Approve => {
+                terminal::log_success("Methodology approved. Proceeding to validation design.");
+                break;
+            }
+            MethodologyDecision::Refine => {
+                let feedback_path = lisa_root.join("spiral/pass-0/methodology-feedback.md");
+                if !feedback_path.exists() {
+                    std::fs::write(
+                        &feedback_path,
+                        "# Methodology Feedback\n\n## Methodology Issues\n-\n\n## Acceptance Criteria Issues\n-\n\n## Stack Issues\n-\n\n## Other\n-\n",
+                    )?;
+                }
+
+                review::wait_for_edit(
+                    "Write your methodology feedback in the file below.",
+                    &feedback_path,
+                );
+
+                terminal::log_info("Re-running research agent with feedback...");
+                let refine_ctx = "METHODOLOGY REFINEMENT: The human has reviewed your research artifacts and provided feedback.\n\
+                                  Read spiral/pass-0/methodology-feedback.md carefully and update methodology, acceptance criteria, and stack.\n\
+                                  Do not discard previous work — refine it based on the feedback.";
+
+                let input = prompt::build_agent_input(
+                    Phase::Research,
+                    config,
+                    &lisa_root,
+                    0,
+                    Some(refine_ctx),
+                );
+                let model = Phase::Research.model_key(config);
+                run_agent_with_tracking(
+                    config,
+                    &lisa_root,
+                    &input,
+                    &model,
+                    "Research: refinement",
+                    "research",
+                    0,
+                )?;
+                git::commit_all("scope: research refined after methodology feedback", config)?;
+                terminal::log_info("Methodology refined. Reviewing again...");
+            }
+            MethodologyDecision::Edit => {
+                terminal::log_info("Edit the methodology files directly with any editor.");
+                println!();
+                terminal::print_colored("  Methodology:  ", Color::Cyan);
+                println!("{}", lisa_root.join("methodology/methodology.md").display());
+                terminal::print_colored("  Criteria:     ", Color::Cyan);
+                println!(
+                    "{}",
+                    lisa_root
+                        .join("spiral/pass-0/acceptance-criteria.md")
+                        .display()
+                );
+                terminal::print_colored("  Stack:        ", Color::Cyan);
+                println!("{}", lisa_root.join("STACK.md").display());
+                println!();
+                print!("  Press Enter when you are done editing...");
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+                let mut _buf = String::new();
+                let _ = std::io::stdin().read_line(&mut _buf);
+
+                terminal::log_success(
+                    "Methodology approved (manually edited). Proceeding to validation design.",
+                );
+                break;
+            }
+            MethodologyDecision::Quit => {
+                terminal::log_warn("Stopping after research.");
+                return Ok(());
+            }
+        }
+    }
+
+    // --- Phase 2: Validation Design (sanity checks, limiting cases, reference data) ---
+    run_validation_design(config, project_root)?;
+
+    // --- Phase 3: Planning (spiral plan, implementation plan) ---
+    run_planning(config, project_root)?;
+
+    // Full scope review gate (reviews everything: methodology + validation + plan)
     state::save_state(&lisa_root, &SpiralState::ScopeReview)?;
     loop {
         match review::scope_review_gate(config, &lisa_root)? {
@@ -662,7 +733,6 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                 break;
             }
             ScopeDecision::Refine => {
-                // Create feedback template if it doesn't exist
                 let feedback_path = lisa_root.join("spiral/pass-0/scope-feedback.md");
                 if !feedback_path.exists() {
                     std::fs::write(
@@ -676,29 +746,37 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                     &feedback_path,
                 );
 
-                terminal::log_info("Re-running scope agent with feedback...");
-                let refine_ctx = "SCOPE REFINEMENT: The human has reviewed your scope artifacts and provided feedback.\n\
+                terminal::log_info("Re-running scope agents with feedback...");
+                // Re-run all three phases with feedback context
+                let refine_ctx = "SCOPE REFINEMENT: The human has reviewed all scope artifacts and provided feedback.\n\
                                   Read spiral/pass-0/scope-feedback.md carefully and update all affected artifacts.\n\
                                   Do not discard previous work — refine it based on the feedback.";
 
+                // Re-run research
                 let input = prompt::build_agent_input(
-                    Phase::Scope,
+                    Phase::Research,
                     config,
                     &lisa_root,
                     0,
                     Some(refine_ctx),
                 );
-
+                let model = Phase::Research.model_key(config);
                 run_agent_with_tracking(
                     config,
                     &lisa_root,
                     &input,
                     &model,
-                    "Scope: refinement",
-                    "scope",
+                    "Research: scope refinement",
+                    "research",
                     0,
                 )?;
-                git::commit_all("scope: refined after human feedback", config)?;
+                git::commit_all("scope: research refined after scope feedback", config)?;
+
+                // Re-run validation design
+                run_validation_design(config, project_root)?;
+                // Re-run planning
+                run_planning(config, project_root)?;
+
                 terminal::log_info("Scope refined. Reviewing again...");
             }
             ScopeDecision::Edit => {
@@ -726,7 +804,6 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
                 let mut _buf = String::new();
                 let _ = std::io::stdin().read_line(&mut _buf);
 
-                // Re-display summary after edit
                 display_scope_edit_summary(&lisa_root);
 
                 terminal::log_success("Scope approved (manually edited). Proceeding to Pass 1.");
@@ -742,6 +819,94 @@ fn run_scope(config: &Config, project_root: &Path) -> Result<()> {
     state::save_state(&lisa_root, &SpiralState::ScopeComplete)?;
     git::create_tag("lisa/pass-0")?;
     terminal::log_success("Pass 0 (scoping) complete.");
+    Ok(())
+}
+
+// --- Scope sub-phase runners ---
+
+fn run_research(config: &Config, project_root: &Path) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    terminal::log_phase("PASS 0 — RESEARCH");
+
+    state::save_state(&lisa_root, &SpiralState::ScopeResearch)?;
+
+    // Check for existing feedback (resume/refinement case)
+    let feedback_path = lisa_root.join("spiral/pass-0/methodology-feedback.md");
+    let extra_context = if feedback_path.exists() {
+        let content = std::fs::read_to_string(&feedback_path).unwrap_or_default();
+        let non_empty_lines = content
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.trim().is_empty() && l.trim() != "-")
+            .count();
+        if non_empty_lines > 0 {
+            terminal::log_info("Detected existing methodology feedback — running as refinement.");
+            Some(
+                "METHODOLOGY REFINEMENT: The human has reviewed your research artifacts and provided feedback.\n\
+                 Read spiral/pass-0/methodology-feedback.md carefully and update methodology, acceptance criteria, and stack.\n\
+                 Do not discard previous work — refine it based on the feedback.".to_string(),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let input = prompt::build_agent_input(
+        Phase::Research,
+        config,
+        &lisa_root,
+        0,
+        extra_context.as_deref(),
+    );
+    let model = Phase::Research.model_key(config);
+
+    run_agent_with_tracking(config, &lisa_root, &input, &model, "Research", "research", 0)?;
+    git::commit_all("scope: research — methodology and criteria established", config)?;
+    Ok(())
+}
+
+fn run_validation_design(config: &Config, project_root: &Path) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    terminal::log_phase("PASS 0 — VALIDATION DESIGN");
+
+    state::save_state(&lisa_root, &SpiralState::ScopeValidation)?;
+
+    let input = prompt::build_agent_input(Phase::ValidationDesign, config, &lisa_root, 0, None);
+    let model = Phase::ValidationDesign.model_key(config);
+
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        "Validation Design",
+        "validation_design",
+        0,
+    )?;
+    git::commit_all("scope: validation design — checks and cases defined", config)?;
+    Ok(())
+}
+
+fn run_planning(config: &Config, project_root: &Path) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+    terminal::log_phase("PASS 0 — PLANNING");
+
+    state::save_state(&lisa_root, &SpiralState::ScopePlanning)?;
+
+    let input = prompt::build_agent_input(Phase::Planning, config, &lisa_root, 0, None);
+    let model = Phase::Planning.model_key(config);
+
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        "Planning",
+        "planning",
+        0,
+    )?;
+    git::commit_all("scope: planning — spiral plan and tasks defined", config)?;
     Ok(())
 }
 
@@ -961,7 +1126,6 @@ fn run_build_loop(
     terminal::log_phase(&format!("PASS {} — BUILD (Ralph loop)", pass));
 
     let plan_path = lisa_root.join("methodology/plan.md");
-    let extra = format!("Current spiral pass: {}", pass);
 
     let mut prev_task_hash = tasks::hash_task_statuses(&plan_path)?;
     let mut stall_count: u32 = 0;
@@ -981,32 +1145,7 @@ fn run_build_loop(
             counts.done, remaining, counts.blocked, counts.total
         );
 
-        state::save_state(
-            &lisa_root,
-            &SpiralState::InPass {
-                pass,
-                phase: PassPhase::Build {
-                    task_id: 0,
-                    iteration: iter,
-                },
-            },
-        )?;
-
-        let input = prompt::build_agent_input(Phase::Build, config, &lisa_root, pass, Some(&extra));
-        let model = Phase::Build.model_key(config);
-        run_agent_with_tracking(
-            config,
-            &lisa_root,
-            &input,
-            &model,
-            &format!("Build: iter {}", iter),
-            "build",
-            pass,
-        )?;
-
-        git::commit_all(&format!("build: pass {} iteration {}", pass, iter), config)?;
-
-        // Check completion
+        // Check completion before selecting next task
         if tasks::all_tasks_done(&plan_path, pass)? {
             if tasks::has_blocked_tasks(&plan_path, pass)? {
                 terminal::log_warn("All non-blocked tasks complete. Some tasks are BLOCKED.");
@@ -1022,6 +1161,96 @@ fn run_build_loop(
             terminal::log_success(&format!("All tasks for pass {} complete.", pass));
             break;
         }
+
+        // Orchestrator-driven task selection
+        let task = match tasks::find_next_task(&plan_path, pass)? {
+            Some(t) => {
+                terminal::log_info(&format!(
+                    "Selected Task {}: {} (methodology: {})",
+                    t.number,
+                    t.name,
+                    if t.methodology_ref.is_empty() {
+                        "N/A"
+                    } else {
+                        &t.methodology_ref
+                    }
+                ));
+                // Mark task in-progress (orchestrator does this, not the agent)
+                tasks::mark_task_in_progress(&plan_path, t.number)?;
+                t
+            }
+            None => {
+                // No eligible task found (all remaining have unmet deps or are blocked)
+                terminal::log_warn("No eligible tasks found (unmet dependencies or all blocked).");
+                if tasks::has_blocked_tasks(&plan_path, pass)? {
+                    match review::block_gate(config, pass, &plan_path, &lisa_root)? {
+                        BlockDecision::Fix => {
+                            stall_count = 0;
+                            continue;
+                        }
+                        BlockDecision::Abort => return Ok(false),
+                        BlockDecision::Skip => break,
+                    }
+                }
+                break;
+            }
+        };
+
+        let task_context = format!(
+            "Current spiral pass: {}\n\
+             Assigned task number: {}\n\
+             Assigned task name: {}\n\
+             Methodology section: {}",
+            pass, task.number, task.name, task.methodology_ref
+        );
+
+        // Phase 1: Bounds derivation (independent from implementation)
+        run_bounds(config, project_root, pass, &task)?;
+
+        // Phase 2: Build (implementation, aware of bounds tests)
+        state::save_state(
+            &lisa_root,
+            &SpiralState::InPass {
+                pass,
+                phase: PassPhase::Build {
+                    task_id: task.number,
+                    iteration: iter,
+                },
+            },
+        )?;
+
+        let build_context = format!(
+            "{}\n\
+             Bounds tests for this task have been written by an independent agent.\n\
+             Read the bounding tests in {}/ to understand what your implementation must satisfy.",
+            task_context, config.paths.tests_bounds
+        );
+
+        let input = prompt::build_agent_input(
+            Phase::Build,
+            config,
+            &lisa_root,
+            pass,
+            Some(&build_context),
+        );
+        let model = Phase::Build.model_key(config);
+        run_agent_with_tracking(
+            config,
+            &lisa_root,
+            &input,
+            &model,
+            &format!("Build: task {} iter {}", task.number, iter),
+            "build",
+            pass,
+        )?;
+
+        git::commit_all(
+            &format!(
+                "build: pass {} task {} iteration {}",
+                pass, task.number, iter
+            ),
+            config,
+        )?;
 
         // Dual-signal stall detection
         let cur_task_hash = tasks::hash_task_statuses(&plan_path)?;
@@ -1079,6 +1308,52 @@ fn run_build_loop(
 
     state::save_state(&lisa_root, &SpiralState::BuildComplete { pass })?;
     Ok(true)
+}
+
+/// Run bounds derivation for a specific task (independent from implementation).
+fn run_bounds(
+    config: &Config,
+    project_root: &Path,
+    pass: u32,
+    task: &tasks::TaskInfo,
+) -> Result<()> {
+    let lisa_root = config.lisa_root(project_root);
+
+    state::save_state(
+        &lisa_root,
+        &SpiralState::InPass {
+            pass,
+            phase: PassPhase::Bounds {
+                task_id: task.number,
+            },
+        },
+    )?;
+
+    let extra = format!(
+        "Current spiral pass: {}\n\
+         Assigned task number: {}\n\
+         Assigned task name: {}\n\
+         Methodology section: {}",
+        pass, task.number, task.name, task.methodology_ref
+    );
+
+    let input = prompt::build_agent_input(Phase::Bounds, config, &lisa_root, pass, Some(&extra));
+    let model = Phase::Bounds.model_key(config);
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        &format!("Bounds: task {}", task.number),
+        "bounds",
+        pass,
+    )?;
+    git::commit_all(
+        &format!("bounds: pass {} task {} — bounding tests", pass, task.number),
+        config,
+    )?;
+
+    Ok(())
 }
 
 fn run_audit(config: &Config, project_root: &Path, pass: u32) -> Result<()> {

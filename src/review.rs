@@ -69,9 +69,117 @@ pub enum FinalizeDecision {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum MethodologyDecision {
+    Approve,
+    Refine,
+    Edit,
+    Quit,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum BudgetDecision {
     Continue,
     Stop,
+}
+
+/// Methodology review gate — after Research phase, before Validation Design.
+/// Reviews methodology choice, acceptance criteria, and stack selection.
+pub fn methodology_review_gate(config: &Config, lisa_root: &Path) -> Result<MethodologyDecision> {
+    if !config.review.pause {
+        terminal::log_warn("Methodology review skipped (pause = false)");
+        return Ok(MethodologyDecision::Approve);
+    }
+
+    println!();
+    terminal::print_separator();
+    terminal::println_bold("  RESEARCH COMPLETE — METHODOLOGY REVIEW");
+    terminal::print_separator();
+    println!();
+
+    // Approach (from methodology.md)
+    let method_path = lisa_root.join("methodology/methodology.md");
+    if method_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&method_path) {
+            if let Some(approach) = extract_methodology_approach_from(&content) {
+                terminal::print_colored("  Approach: ", Color::Cyan);
+                println!("{}", approach);
+            }
+            let sections: Vec<&str> = content
+                .lines()
+                .filter(|l| l.starts_with("## "))
+                .take(8)
+                .collect();
+            if !sections.is_empty() {
+                println!();
+                terminal::print_colored("  Methodology sections:\n", Color::Cyan);
+                for s in sections {
+                    println!("    {}", s);
+                }
+            }
+        }
+    }
+
+    // Question (from acceptance-criteria.md)
+    let acceptance_path = lisa_root.join("spiral/pass-0/acceptance-criteria.md");
+    if acceptance_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&acceptance_path) {
+            if let Some(question) = extract_primary_question_from(&content) {
+                terminal::print_colored("  Question: ", Color::Cyan);
+                println!("{}", question);
+            }
+            let criteria = extract_acceptance_lines(&content, 5);
+            if !criteria.is_empty() {
+                println!();
+                terminal::print_colored("  Acceptance criteria:\n", Color::Cyan);
+                for line in &criteria {
+                    println!("    {}", line);
+                }
+            }
+        }
+    }
+
+    // Stack (from STACK.md)
+    let stack_path = lisa_root.join("STACK.md");
+    if stack_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&stack_path) {
+            if let Some(stack) = extract_stack_info(&content) {
+                terminal::print_colored("  Stack:    ", Color::Cyan);
+                println!("{}", stack);
+            }
+        }
+    }
+
+    // File paths
+    println!();
+    terminal::print_colored("  Files: ", Color::DarkGrey);
+    println!("methodology.md, acceptance-criteria.md, STACK.md");
+
+    println!();
+    terminal::print_colored("  [A]", Color::Green);
+    println!(" APPROVE  — methodology is sound, proceed to validation design and planning");
+    terminal::print_colored("  [R]", Color::Yellow);
+    println!(" REFINE   — write feedback, re-run the research agent");
+    terminal::print_colored("  [E]", Color::Cyan);
+    println!(" EDIT     — edit the methodology/criteria files yourself");
+    terminal::print_colored("  [Q]", Color::Red);
+    println!(" QUIT     — stop the spiral here");
+    println!();
+    terminal::print_separator();
+    println!();
+
+    loop {
+        print!("  Your choice [A/R/E/Q]: ");
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        match choice.trim().to_lowercase().as_str() {
+            "a" => return Ok(MethodologyDecision::Approve),
+            "r" => return Ok(MethodologyDecision::Refine),
+            "e" => return Ok(MethodologyDecision::Edit),
+            "q" => return Ok(MethodologyDecision::Quit),
+            _ => println!("  Invalid choice. Enter A, R, E, or Q."),
+        }
+    }
 }
 
 /// Scope review gate — after Pass 0
