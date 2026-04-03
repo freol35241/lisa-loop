@@ -14,6 +14,7 @@ pub enum SpiralState {
     ScopeValidation,
     ScopePlanning,
     InPass { pass: u32, phase: PassPhase },
+    RefineMethodologyComplete { pass: u32 },
     RefineComplete { pass: u32 },
     RefineReview { pass: u32 },
     BuildComplete { pass: u32 },
@@ -51,6 +52,9 @@ impl std::fmt::Display for SpiralState {
             SpiralState::ScopeValidation => write!(f, "Scope — Validation design"),
             SpiralState::ScopePlanning => write!(f, "Scope — Planning"),
             SpiralState::InPass { pass, phase } => write!(f, "Pass {} — {}", pass, phase),
+            SpiralState::RefineMethodologyComplete { pass } => {
+                write!(f, "Pass {} — Refine methodology complete", pass)
+            }
             SpiralState::RefineComplete { pass } => write!(f, "Pass {} — Refine complete", pass),
             SpiralState::RefineReview { pass } => write!(f, "Pass {} — Refine review", pass),
             SpiralState::BuildComplete { pass } => write!(f, "Pass {} — Build complete", pass),
@@ -395,6 +399,17 @@ mod tests {
                 iteration: 2,
             },
         };
+        let file = StateFile {
+            state: state.clone(),
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        let parsed: StateFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.state, state);
+    }
+
+    #[test]
+    fn test_state_roundtrip_refine_methodology_complete() {
+        let state = SpiralState::RefineMethodologyComplete { pass: 2 };
         let file = StateFile {
             state: state.clone(),
         };

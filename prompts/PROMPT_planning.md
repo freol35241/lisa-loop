@@ -20,7 +20,18 @@ Read all artifacts produced by the Research and Validation Design phases:
 ### Step 2: DELEGATE TEST FRAMEWORK RESEARCH
 Spawn the **Test Framework Research** subagent. Wait for results.
 
-### Step 3: WRITE PLANNING ARTIFACTS
+### Step 3: FEASIBILITY CHECK
+Run a lightweight feasibility probe to verify the chosen stack can handle the core methodology:
+1. Read the resolved technology stack in `{{lisa_root}}/STACK.md`
+2. Verify that the key libraries can be imported and called (e.g., `python -c "import numpy; print(numpy.__version__)"`)
+3. If the methodology requires a specific solver, verify it's available (e.g., `python -c "from scipy.integrate import solve_ivp"`)
+4. Run the setup command from STACK.md if one is specified
+
+If any critical dependency is missing or broken, create `{{lisa_root}}/spiral/pass-0/environment-resolution.md` listing what needs to be installed and flag it for the human. Do NOT proceed to write the plan if the core methodology cannot be executed with the available tools — the human needs to resolve the environment first.
+
+If everything checks out, proceed to write the plan.
+
+### Step 4: WRITE PLANNING ARTIFACTS
 Synthesize everything into the execution plan. Write:
 - `{{lisa_root}}/spiral/pass-0/spiral-plan.md` — read spec at `{{lisa_root}}/prompts/scope/spiral_plan_spec.md`
 - `{{lisa_root}}/methodology/plan.md` — read spec at `{{lisa_root}}/prompts/scope/implementation_plan_spec.md`

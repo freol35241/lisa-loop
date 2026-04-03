@@ -64,6 +64,16 @@ These skills are embedded as markdown files in `.lisa/skills/` and injected into
 
 4. **The history is the deliverable.** The refinement record across spiral passes — not just the final answer — is evidence of trustworthiness. Every pass is preserved as a complete record of how the solution evolved.
 
+## Where It Works Best
+
+Lisa is designed for **computational engineering and scientific software** — problems with continuous quantities, governing equations from authoritative sources, and testable expected values.
+
+**Strong fit:** fluid dynamics, structural analysis, thermodynamics, heat transfer, control systems, signal processing, econometric models, pharmacokinetic models — anywhere physics or established theory provides first-principles bounds.
+
+**Moderate fit:** data pipelines with known validation criteria, regulatory compliance calculations, numerical optimization with analytical benchmarks. The bounding methodology still helps, but some skills (dimensional analysis, literature grounding) may not apply.
+
+**Poor fit without adaptation:** ML model development, discrete optimization, UI/UX work, CRUD applications, systems integration without quantitative acceptance criteria. The spiral and review gates add overhead without matching benefit when there's no physics to bound.
+
 ## Getting Started
 
 ### Prerequisites

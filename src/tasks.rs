@@ -106,6 +106,7 @@ pub struct TaskInfo {
     pub number: u32,
     pub name: String,
     pub methodology_ref: String,
+    pub needs_bounds: bool,
 }
 
 /// Find the next eligible task: status == TODO, pass <= current_pass, all deps satisfied.
@@ -128,10 +129,13 @@ pub fn find_next_task(plan_path: &Path, current_pass: u32) -> Result<Option<Task
         }
         let deps_met = task.dependencies.iter().all(|d| done_ids.contains(d));
         if deps_met {
+            let needs_bounds = !task.bounding_checks.eq_ignore_ascii_case("none")
+                && !task.bounding_checks.is_empty();
             return Ok(Some(TaskInfo {
                 number: task.number,
                 name: task.name.clone(),
                 methodology_ref: task.methodology.clone(),
+                needs_bounds,
             }));
         }
     }
@@ -192,6 +196,7 @@ struct Task {
     pass: u32,
     status: String,
     methodology: String,
+    bounding_checks: String,
     dependencies: Vec<u32>,
 }
 
@@ -200,6 +205,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
     let status_re = Regex::new(r"\*\*Status:\*\*\s+(\w+)").unwrap();
     let pass_re = Regex::new(r"\*\*Pass:\*\*\s*(\d+)").unwrap();
     let methodology_re = Regex::new(r"\*\*Methodology:\*\*\s*(.+)").unwrap();
+    let bounding_re = Regex::new(r"\*\*Bounding Checks:\*\*\s*(.+)").unwrap();
     let deps_re = Regex::new(r"\*\*Dependencies:\*\*\s*(.+)").unwrap();
     let dep_num_re = Regex::new(r"(?i)Task\s+(\d+)").unwrap();
 
@@ -209,6 +215,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
     let mut current_status = None;
     let mut current_pass = None;
     let mut current_methodology = String::new();
+    let mut current_bounding = String::new();
     let mut current_deps: Vec<u32> = Vec::new();
     let mut in_task = false;
 
@@ -222,6 +229,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
                     pass: current_pass.unwrap_or(1),
                     status: current_status.unwrap_or_default(),
                     methodology: current_methodology.clone(),
+                    bounding_checks: current_bounding.clone(),
                     dependencies: current_deps.clone(),
                 });
             }
@@ -234,6 +242,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
             current_status = None;
             current_pass = None;
             current_methodology = String::new();
+            current_bounding = String::new();
             current_deps = Vec::new();
         } else if in_task {
             if let Some(caps) = status_re.captures(line) {
@@ -246,6 +255,9 @@ fn parse_tasks(content: &str) -> Vec<Task> {
             }
             if let Some(caps) = methodology_re.captures(line) {
                 current_methodology = caps[1].trim().to_string();
+            }
+            if let Some(caps) = bounding_re.captures(line) {
+                current_bounding = caps[1].trim().to_string();
             }
             if let Some(caps) = deps_re.captures(line) {
                 let deps_str = &caps[1];
@@ -269,6 +281,7 @@ fn parse_tasks(content: &str) -> Vec<Task> {
             pass: current_pass.unwrap_or(1),
             status: current_status.unwrap_or_default(),
             methodology: current_methodology,
+            bounding_checks: current_bounding,
             dependencies: current_deps,
         });
     }

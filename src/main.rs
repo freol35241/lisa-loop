@@ -397,8 +397,12 @@ fn cmd_eject_prompts() -> Result<()> {
 
     let prompts = [
         ("init.md", prompt::PROMPT_INIT),
-        ("scope.md", prompt::PROMPT_SCOPE),
-        ("refine.md", prompt::PROMPT_REFINE),
+        ("research.md", prompt::PROMPT_RESEARCH),
+        ("validation_design.md", prompt::PROMPT_VALIDATION_DESIGN),
+        ("planning.md", prompt::PROMPT_PLANNING),
+        ("refine_methodology.md", prompt::PROMPT_REFINE_METHODOLOGY),
+        ("refine_plan.md", prompt::PROMPT_REFINE_PLAN),
+        ("bounds.md", prompt::PROMPT_BOUNDS),
         ("build.md", prompt::PROMPT_BUILD),
         ("audit.md", prompt::PROMPT_AUDIT),
         ("finalize.md", prompt::PROMPT_FINALIZE),

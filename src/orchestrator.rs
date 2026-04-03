@@ -137,6 +137,70 @@ pub fn resume(config: &Config, project_root: &Path, no_pause: bool) -> Result<()
         SpiralState::InPass { pass, phase } => {
             resume_from_phase(config, project_root, pass, &phase)
         }
+        SpiralState::RefineMethodologyComplete { pass } => {
+            terminal::log_info(&format!(
+                "Resuming: refine methodology complete for pass {}, running plan update.",
+                pass
+            ));
+            // Methodology is done, run the plan sub-phase then continue
+            let lisa_root = config.lisa_root(project_root);
+            let prev_pass = pass - 1;
+            let mut extra = format!("Current spiral pass: {}\n", pass);
+            extra.push_str(&format!(
+                "Previous pass results: {}/spiral/pass-{}/\n",
+                config.paths.lisa_root, prev_pass
+            ));
+
+            terminal::log_phase(&format!("PASS {} — REFINE PLAN", pass));
+            let input = prompt::build_agent_input(
+                Phase::RefinePlan,
+                config,
+                &lisa_root,
+                pass,
+                Some(&extra),
+            );
+            let model = Phase::RefinePlan.model_key(config);
+            run_agent_with_tracking(
+                config,
+                &lisa_root,
+                &input,
+                &model,
+                &format!("Refine plan: pass {}", pass),
+                "refine_plan",
+                pass,
+            )?;
+            git::commit_all(&format!("refine: pass {} — plan updated", pass), config)?;
+            state::save_state(&lisa_root, &SpiralState::RefineComplete { pass })?;
+
+            match refine_gate_loop(config, project_root, pass)? {
+                RefineDecision::Approve | RefineDecision::Edit => {}
+                RefineDecision::Quit => return Ok(()),
+                RefineDecision::Refine => {
+                    unreachable!("refine_gate_loop handles Refine internally")
+                }
+            }
+            if !run_build_loop(config, project_root, pass, 1)? {
+                return Ok(());
+            }
+            run_audit(config, project_root, pass)?;
+            git::push(config)?;
+            git::create_tag(&format!("lisa/pass-{}", pass))?;
+            state::save_state(&lisa_root, &SpiralState::PassReview { pass })?;
+            match pass_review_loop(config, project_root, pass, &lisa_root)? {
+                ReviewDecision::Finalize => finalize(config, project_root, pass),
+                ReviewDecision::Quit => {
+                    terminal::log_warn("Stopping after pass review.");
+                    Ok(())
+                }
+                ReviewDecision::Continue | ReviewDecision::Redirect => run_pass_range(
+                    config,
+                    project_root,
+                    pass + 1,
+                    config.limits.max_spiral_passes,
+                ),
+                ReviewDecision::Explore => unreachable!("handled in pass_review_loop"),
+            }
+        }
         SpiralState::RefineComplete { pass } => {
             terminal::log_info(&format!(
                 "Resuming: refine complete for pass {}, proceeding to refine review.",
@@ -1060,14 +1124,6 @@ fn display_refine_edit_summary(lisa_root: &Path) {
 
 fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
     let lisa_root = config.lisa_root(project_root);
-    terminal::log_phase(&format!("PASS {} — REFINE", pass));
-    state::save_state(
-        &lisa_root,
-        &SpiralState::InPass {
-            pass,
-            phase: PassPhase::Refine,
-        },
-    )?;
 
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}", pass)))?;
     std::fs::create_dir_all(lisa_root.join(format!("spiral/pass-{}/plots", pass)))?;
@@ -1086,18 +1142,59 @@ fn run_refine(config: &Config, project_root: &Path, pass: u32) -> Result<()> {
         ));
     }
 
-    let input = prompt::build_agent_input(Phase::Refine, config, &lisa_root, pass, Some(&extra));
-    let model = Phase::Refine.model_key(config);
+    // Sub-phase 1: Refine methodology
+    terminal::log_phase(&format!("PASS {} — REFINE METHODOLOGY", pass));
+    state::save_state(
+        &lisa_root,
+        &SpiralState::InPass {
+            pass,
+            phase: PassPhase::Refine,
+        },
+    )?;
+
+    let input = prompt::build_agent_input(
+        Phase::RefineMethodology,
+        config,
+        &lisa_root,
+        pass,
+        Some(&extra),
+    );
+    let model = Phase::RefineMethodology.model_key(config);
     run_agent_with_tracking(
         config,
         &lisa_root,
         &input,
         &model,
-        &format!("Refine: pass {}", pass),
-        "refine",
+        &format!("Refine methodology: pass {}", pass),
+        "refine_methodology",
         pass,
     )?;
-    git::commit_all(&format!("refine: pass {}", pass), config)?;
+    git::commit_all(
+        &format!("refine: pass {} — methodology updated", pass),
+        config,
+    )?;
+
+    state::save_state(
+        &lisa_root,
+        &SpiralState::RefineMethodologyComplete { pass },
+    )?;
+
+    // Sub-phase 2: Refine plan
+    terminal::log_phase(&format!("PASS {} — REFINE PLAN", pass));
+
+    let input =
+        prompt::build_agent_input(Phase::RefinePlan, config, &lisa_root, pass, Some(&extra));
+    let model = Phase::RefinePlan.model_key(config);
+    run_agent_with_tracking(
+        config,
+        &lisa_root,
+        &input,
+        &model,
+        &format!("Refine plan: pass {}", pass),
+        "refine_plan",
+        pass,
+    )?;
+    git::commit_all(&format!("refine: pass {} — plan updated", pass), config)?;
 
     // Advisory warning if task count exceeds max_tasks_per_pass
     let plan_path = lisa_root.join("methodology/plan.md");
@@ -1205,7 +1302,14 @@ fn run_build_loop(
         );
 
         // Phase 1: Bounds derivation (independent from implementation)
-        run_bounds(config, project_root, pass, &task)?;
+        if task.needs_bounds {
+            run_bounds(config, project_root, pass, &task)?;
+        } else {
+            terminal::log_info(&format!(
+                "Skipping bounds phase for task {} (no bounding checks specified).",
+                task.number
+            ));
+        }
 
         // Phase 2: Build (implementation, aware of bounds tests)
         state::save_state(
@@ -1219,12 +1323,31 @@ fn run_build_loop(
             },
         )?;
 
-        let build_context = format!(
-            "{}\n\
-             Bounds tests for this task have been written by an independent agent.\n\
-             Read the bounding tests in {}/ to understand what your implementation must satisfy.",
-            task_context, config.paths.tests_bounds
-        );
+        // Run tests after bounds to provide diagnostic context to the build agent
+        let test_failures = capture_test_failures(config);
+
+        let mut build_context = if task.needs_bounds {
+            format!(
+                "{}\n\
+                 Bounds tests for this task have been written by an independent agent.\n\
+                 Read the bounding tests in {}/ to understand what your implementation must satisfy.",
+                task_context, config.paths.tests_bounds
+            )
+        } else {
+            format!(
+                "{}\n\
+                 This is an infrastructure/non-phenomenon task — no bounding tests were derived.\n\
+                 Focus on implementation correctness and software quality tests.",
+                task_context
+            )
+        };
+
+        if !test_failures.is_empty() {
+            build_context.push_str(&format!(
+                "\n\n## Current Test Status\n\n{}\n\nFix these failures as part of your implementation.",
+                test_failures
+            ));
+        }
 
         let input = prompt::build_agent_input(
             Phase::Build,
@@ -1310,6 +1433,42 @@ fn run_build_loop(
     Ok(true)
 }
 
+/// Run test suite and return a summary of failures (empty string if all pass).
+/// Used to provide diagnostic context to the next agent invocation.
+fn capture_test_failures(config: &Config) -> String {
+    let test_cmd = &config.commands.test_all;
+    if test_cmd.is_empty() {
+        return String::new();
+    }
+
+    let output = std::process::Command::new("bash")
+        .args(["-c", test_cmd])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => String::new(),
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            // Combine and truncate to avoid overwhelming the context
+            let combined = format!("{}\n{}", stdout, stderr);
+            let lines: Vec<&str> = combined.lines().collect();
+            let truncated: String = if lines.len() > 80 {
+                let kept: Vec<&str> = lines[lines.len() - 80..].to_vec();
+                format!("[...truncated, showing last 80 lines...]\n{}", kept.join("\n"))
+            } else {
+                combined.to_string()
+            };
+            format!(
+                "TEST FAILURES DETECTED (from `{}`):\n```\n{}\n```",
+                test_cmd,
+                truncated.trim()
+            )
+        }
+        Err(e) => format!("Failed to run test command `{}`: {}", test_cmd, e),
+    }
+}
+
 /// Run bounds derivation for a specific task (independent from implementation).
 fn run_bounds(
     config: &Config,
@@ -1329,13 +1488,45 @@ fn run_bounds(
         },
     )?;
 
-    let extra = format!(
+    let mut extra = format!(
         "Current spiral pass: {}\n\
          Assigned task number: {}\n\
          Assigned task name: {}\n\
          Methodology section: {}",
         pass, task.number, task.name, task.methodology_ref
     );
+
+    // For pass 2+, provide previous pass results so bounds can be tightened
+    if pass > 1 {
+        let prev = pass - 1;
+        let exec_report = lisa_root.join(format!("spiral/pass-{}/execution-report.md", prev));
+        let validation = lisa_root.join(format!("spiral/pass-{}/system-validation.md", prev));
+        if exec_report.exists() || validation.exists() {
+            extra.push_str(&format!(
+                "\n\nBOUNDS TIGHTENING: This is pass {} (not the first pass). \
+                 Previous pass results are available:\n",
+                pass
+            ));
+            if exec_report.exists() {
+                extra.push_str(&format!(
+                    "- Previous execution report: {}/spiral/pass-{}/execution-report.md\n",
+                    config.paths.lisa_root, prev
+                ));
+            }
+            if validation.exists() {
+                extra.push_str(&format!(
+                    "- Previous validation report: {}/spiral/pass-{}/system-validation.md\n",
+                    config.paths.lisa_root, prev
+                ));
+            }
+            extra.push_str(
+                "Read these to understand what values the system actually produced last pass. \
+                 Use this information to derive TIGHTER bounds where the previous pass results \
+                 give you confidence about the expected range. Do not simply copy the previous \
+                 values as bounds — derive tighter first-principles bounds informed by the observed behavior.",
+            );
+        }
+    }
 
     let input = prompt::build_agent_input(Phase::Bounds, config, &lisa_root, pass, Some(&extra));
     let model = Phase::Bounds.model_key(config);
